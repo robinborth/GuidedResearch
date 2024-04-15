@@ -1,0 +1,19 @@
+# dev
+lightning
+torch
+torchvision
+open3d
+wandb
+hydra-core
+jupyter
+notebook
+rich
+numpy==1.23.4
+chumpy==0.70
+
+# test
+black
+flake8
+mypy
+isort
+pytest

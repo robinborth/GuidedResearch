@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Debug: Optimize",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/optimize.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        }
+    ]
+}

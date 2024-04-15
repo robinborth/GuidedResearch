@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - data: dphm 
+  - model: flame
+  - trainer: default
+  - logger: default 
+  - hydra: default
+  - paths: default
+  - debug: null
+  - optional local: default
+  - _self_
+
+seed: 123
+task_name: optimize
+tags: ["optimize"]
+split: train

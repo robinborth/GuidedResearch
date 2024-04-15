@@ -1,0 +1,31 @@
+# path to root directory
+root_dir: /root/sketch2shape
+
+# path to data directory
+data_dir: ${paths.root_dir}/data
+
+# path to logging directory
+log_dir: ${paths.root_dir}/logs
+
+# path to the checkpoints
+checkpoint_dir: ${paths.root_dir}/checkpoints
+
+# path to output directory, created dynamically by hydra
+# path generation pattern is specified in `configs/hydra/default.yaml`
+# use it to store all files generated during the run, like ckpts and metrics
+output_dir: ${hydra:runtime.output_dir}
+
+# path to working directory
+work_dir: ${hydra:runtime.cwd}
+
+# the path of the mesh reconstructions of the latent optimizations
+mesh_dir: ${paths.output_dir}/mesh
+
+# the path where the video will be saved
+video_dir: ${paths.output_dir}/video
+
+# the path where the video will be saved
+latent_dir: ${paths.output_dir}/latent
+
+# the path of the metrics in the latent optimization
+metrics_path: ${paths.output_dir}/metrics.csv

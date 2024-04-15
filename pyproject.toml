@@ -1,0 +1,39 @@
+[project]
+name = "lib"
+version = "0.0.1"
+description = "A novel approach for real-time facial tracking and reconstruction of a monocular video sequence using parametric head models."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE.txt"}
+dynamic = ["dependencies"]
+authors = [{email = "robin.borth@tum.de"},{name = "Robin Borth"}]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+line-length = 88
+exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.tox
+  | venv
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | thesis
+)/
+'''
+
+[tool.mypy]
+ignore_missing_imports = true
