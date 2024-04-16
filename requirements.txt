@@ -10,6 +10,8 @@ notebook
 rich
 numpy==1.23.4
 chumpy==0.70
+trimesh
+pyrender
 
 # test
 black
