@@ -92,7 +92,7 @@ class FLAME(nn.Module):
 
         # create the pose merged with global, jaw, neck and left/right eye
         global_pose = global_pose if global_pose is not None else self.global_pose
-        jaw_pose = eye_pose if eye_pose is not None else self.jaw_pose
+        jaw_pose = jaw_pose if jaw_pose is not None else self.jaw_pose
         neck_pose = neck_pose if neck_pose is not None else self.neck_pose
         eye_pose = eye_pose if eye_pose is not None else self.eye_pose
         pose = torch.cat([global_pose, neck_pose, jaw_pose, eye_pose], dim=-1)
