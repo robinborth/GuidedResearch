@@ -29,7 +29,7 @@ def load_flame(
     """
 
     # load the model, see description why we load it like that.
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    # warnings.filterwarnings("ignore", category=DeprecationWarning)
     path = Path(flame_dir) / model_name
     with open(path, "rb") as f:
         flame = pickle.load(f, encoding="latin1")
@@ -76,3 +76,9 @@ def load_flame(
 def load_static_landmark_embedding(flame_dir: str | Path):
     path = Path(flame_dir) / "mediapipe_landmark_embedding.npz"
     return np.load(path)
+
+
+def load_flame_masks(flame_dir: str | Path):
+    path = Path(flame_dir) / "FLAME_masks.pkl"
+    with open(path, "rb") as f:
+        return pickle.load(f, encoding="latin1")
