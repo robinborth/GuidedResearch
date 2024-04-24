@@ -8,11 +8,9 @@ license = {file = "LICENSE.txt"}
 dynamic = ["dependencies"]
 authors = [{email = "robin.borth@tum.de"},{name = "Robin Borth"}]
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-
-[tool.setuptools.packages.find]
-where = ["lib"]
+[tool.setuptools]
+packages = ["lib"]
+dynamic.dependencies = {file = ["requirements.txt"]}
 
 [build-system]
 requires = ["setuptools >= 61.0"]

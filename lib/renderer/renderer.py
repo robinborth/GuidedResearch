@@ -108,7 +108,7 @@ class Renderer(nn.Module):
         self,
         vertices: torch.Tensor,
         faces: torch.Tensor,
-        image: torch.tensor,
+        image: torch.Tensor,
     ):
         """Render the flame model on top of the resized color image in RGB space.
 

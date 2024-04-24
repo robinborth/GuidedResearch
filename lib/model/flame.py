@@ -140,19 +140,15 @@ class FLAME(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         points = batch["points"]  # (B, P, 3)
-        vertices = self.forward()  # (V, 3)
-        p2p_loss = point_to_point(vertices=vertices, points=points).sum()
+        vertices = self.forward().unsqueeze(0)  # (B, V, 3)  # TODO remove
+        p2p_loss = point_to_point(vertices=vertices, points=points).mean()
         self.log("train/p2p_loss", p2p_loss, on_step=True, on_epoch=True, prog_bar=True)
         return p2p_loss
 
     def configure_optimizers(self):
         # TODO callback for finetuning
-        pose_params = [
-            self.global_pose.parameters(),
-            self.transl.parameters(),
-            self.scale.parameters(),
-        ]
-        optimizer = torch.optim.Adam({"params": pose_params, "lr": self.hparams["lr"]})
+        pose_params = [self.global_pose, self.transl, self.scale]
+        optimizer = torch.optim.Adam(pose_params, lr=self.hparams["lr"])
         if self.hparams["scheduler"] is not None:
             scheduler = self.hparams["scheduler"](optimizer=optimizer)
             return {

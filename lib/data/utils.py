@@ -12,10 +12,10 @@ from PIL import Image
 def convert_tensor_from_np(X: np.ndarray, return_tensor: str = "np"):
     assert return_tensor in ["img", "np", "pt"]
     if return_tensor == "img":
-        return Image.fromarray(X)
+        return Image.fromarray(X).astype(np.float32)
     if return_tensor == "pt":
-        return torch.tensor(X)
-    return X
+        return torch.tensor(X, dtype=torch.float32)
+    return X.astype(dtype=np.float32)
 
 
 ########################################################################################

@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - data: dphm 
+  - data: dphm_points
   - model: flame
   - trainer: default
   - logger: default 
@@ -14,4 +14,3 @@ defaults:
 seed: 123
 task_name: optimize
 tags: ["optimize"]
-split: train

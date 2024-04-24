@@ -385,14 +385,17 @@ def batch_rigid_transform(
         transform_chain.append(curr_res)
 
     transforms = torch.stack(transform_chain, dim=1)
+    joints_homogen = F.pad(joints, [0, 0, 0, 1])
+
+    # make it mps compatible
+    padded_joints = torch.zeros_like(transforms)
+    padded_joints[..., 3] = torch.matmul(transforms, joints_homogen).squeeze(-1)
+    rel_transforms = transforms - padded_joints
+    # rel_transforms = transforms - F.pad(
+    #     torch.matmul(transforms, joints_homogen), [3, 0, 0, 0, 0, 0, 0, 0]
+    # )
 
     # The last column of the transformations contains the posed joints
     posed_joints = transforms[:, :, :3, 3]
-
-    joints_homogen = F.pad(joints, [0, 0, 0, 1])
-
-    rel_transforms = transforms - F.pad(
-        torch.matmul(transforms, joints_homogen), [3, 0, 0, 0, 0, 0, 0, 0]
-    )
 
     return posed_joints, rel_transforms
