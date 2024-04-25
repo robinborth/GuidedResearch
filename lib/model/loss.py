@@ -14,5 +14,6 @@ def point_to_point(vertices: torch.Tensor, points: torch.Tensor):
     sx = torch.sum(vertices**2, dim=-1).unsqueeze(-1)  # (B, V, 1)
     sy = torch.sum(points**2, dim=-1).unsqueeze(-2)  # (B, 1, P)
     sxy = torch.bmm(vertices, points.transpose(-2, -1))  # (B, V, P)
-    dist = torch.sqrt(sx - 2 * sxy + sy)  # (B, V, P)
+    dist_in = torch.nn.functional.relu(sx - 2 * sxy + sy)
+    dist = torch.sqrt(dist_in)  # (B, V, P)
     return dist.min(-1).values  # (B, V)

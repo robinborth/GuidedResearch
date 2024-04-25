@@ -1,10 +1,19 @@
+from pathlib import Path
+
 import lightning as L
+import numpy as np
 import torch
 import torch.nn as nn
+from lightning.pytorch.utilities import grad_norm
+from PIL import Image
 
 from lib.model.lbs import lbs
 from lib.model.loss import point_to_point
 from lib.model.utils import load_flame
+from lib.renderer.renderer import Renderer
+from lib.utils.logger import create_logger
+
+log = create_logger("flame")
 
 
 class FLAME(L.LightningModule):
@@ -18,10 +27,11 @@ class FLAME(L.LightningModule):
         # TODO optimize_frames: int = 1,
         lr: float = 1e-03,
         scheduler=None,
+        renderer=None,
     ):
 
         super().__init__()
-        self.save_hyperparameters(logger=False)
+        self.save_hyperparameters(logger=False, ignore=["renderer"])
 
         # load the face model
         flame_model = load_flame(flame_dir=flame_dir, return_tensors="pt")
@@ -44,7 +54,7 @@ class FLAME(L.LightningModule):
         self.expression_params = nn.Parameter(expression_params)
 
         # pose parameters
-        self.global_pose = nn.Parameter(torch.zeros(3))
+        self.global_pose = nn.Parameter(torch.tensor([torch.pi, 0.0, 0.0]))
         self.neck_pose = nn.Parameter(torch.zeros(3))
         self.jaw_pose = nn.Parameter(torch.zeros(3))
         self.eye_pose = nn.Parameter(torch.zeros(6))
@@ -63,6 +73,11 @@ class FLAME(L.LightningModule):
         parents = flame_model["kintree_table"]  # (2, 5)
         parents[0, 0] = -1  # [-1, 0, 1, 1, 1]
         self.parents = nn.Parameter(parents[0], requires_grad=False)  # (5,)
+
+        # visualization/debugging
+        if renderer is None:
+            log.info("FLAME model does not have a renderer specified!")
+        self.renderer = renderer
 
     def forward(
         self,
@@ -134,20 +149,52 @@ class FLAME(L.LightningModule):
 
         # apply the translation and the scaling
         vertices += transl
-        vertices *= scale
+        # vertices *= scale
 
         return vertices
 
     def training_step(self, batch, batch_idx):
         points = batch["points"]  # (B, P, 3)
-        vertices = self.forward().unsqueeze(0)  # (B, V, 3)  # TODO remove
-        p2p_loss = point_to_point(vertices=vertices, points=points).mean()
+        vertices = self.forward()  # (V, 3)
+        p2p_loss = point_to_point(vertices=vertices.unsqueeze(0), points=points).mean()
         self.log("train/p2p_loss", p2p_loss, on_step=True, on_epoch=True, prog_bar=True)
+
+        # visualize the image that is optimized and save to disk
+        save_interval = 50
+        batch_idx = 0
+        if self.current_epoch % save_interval == 0:
+            # extract the image
+            image = batch["image"][batch_idx].detach().cpu()  # (H, W, 3)
+            frame_idx = batch["frame_idx"][batch_idx].detach().cpu()
+            # render the mesh in the image space
+            flame_image = self.renderer.render_color_image(
+                vertices=vertices.detach().cpu(),
+                faces=self.faces.detach().cpu(),
+                image=image,
+            )
+            # save the image
+            file_name = f"image/{frame_idx:03}_{self.current_epoch:05}.png"
+            path = Path(self.logger.save_dir) / file_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            Image.fromarray(flame_image.detach().cpu().numpy()).save(path)
+
+            file_name = f"pcd_vertices/{frame_idx:03}_{self.current_epoch:05}.npz"
+            path = Path(self.logger.save_dir) / file_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "wb") as f:
+                np.save(f, vertices.detach().cpu().numpy())
+
+            file_name = f"pcd_points/{frame_idx:03}_{self.current_epoch:05}.npz"
+            path = Path(self.logger.save_dir) / file_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "wb") as f:
+                np.save(f, points[0].detach().cpu().numpy())
+
         return p2p_loss
 
     def configure_optimizers(self):
         # TODO callback for finetuning
-        pose_params = [self.global_pose, self.transl, self.scale]
+        pose_params = [self.global_pose, self.transl]
         optimizer = torch.optim.Adam(pose_params, lr=self.hparams["lr"])
         if self.hparams["scheduler"] is not None:
             scheduler = self.hparams["scheduler"](optimizer=optimizer)
@@ -156,3 +203,7 @@ class FLAME(L.LightningModule):
                 "lr_scheduler": {"scheduler": scheduler, "monitor": "train/loss"},
             }
         return {"optimizer": optimizer}
+
+    # def on_before_optimizer_step(self, optimizer):
+    #     print("global_pose", torch.norm(self.global_pose.grad))
+    #     print("transl", torch.norm(self.transl.grad), self.transl.data)

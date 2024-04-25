@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 from pytorch3d.renderer import MeshRasterizer, PerspectiveCameras, RasterizationSettings
 from pytorch3d.structures import Meshes
-from renderer.camera import load_intrinsics
+
+from lib.renderer.camera import load_intrinsics
 
 
 class Rasterizer(nn.Module):
@@ -35,16 +36,16 @@ class Rasterizer(nn.Module):
         )
 
         # define the rasterizer
-        self.rasterizer = MeshRasterizer(
+        self._rasterizer = MeshRasterizer(
             cameras=cameras,
             raster_settings=settings,
         )
 
     def forward(self, vertices: torch.Tensor, faces: torch.Tensor):
         verts = vertices.clone()
-        verts[:, 1:] = -verts[:, 1:]
+        verts[:, :1] = -verts[:, :1]
         meshes = Meshes(verts=[verts], faces=[faces])
-        fragments = self.rasterizer(meshes)
+        fragments = self._rasterizer(meshes)
         # up/down problem https://github.com/facebookresearch/pytorch3d/issues/78
         pix_to_face = torch.flip(fragments.pix_to_face.squeeze(), [0])
         bary_coords = torch.flip(fragments.bary_coords.squeeze(), [0])

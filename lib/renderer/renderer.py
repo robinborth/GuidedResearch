@@ -1,25 +1,26 @@
 import torch
 import torch.nn as nn
 import trimesh
-from renderer.rasterizer import MeshRasterizer
 from torchvision.transforms import v2
+
+from lib.renderer.rasterizer import Rasterizer
 
 
 class Renderer(nn.Module):
     def __init__(
         self,
-        rasterizer: MeshRasterizer,
+        rasterizer: Rasterizer | None = None,
         diffuse: list[float] | None = None,
         specular: list[float] | None = None,
         light: list[float] | None = None,
     ):
         super().__init__()
-        self.rasterizer = rasterizer
+        self.rasterizer = rasterizer if rasterizer is not None else Rasterizer()
         diffuse = diffuse if diffuse is not None else [0.5, 0.5, 0.5]
         self.diffuse = torch.tensor(diffuse)
         specular = specular if specular is not None else [0.3, 0.3, 0.3]
         self.specular = torch.tensor(specular)
-        light = light if light is not None else [1.0, 1.0, 0.0]  # world coord space
+        light = light if light is not None else [-1.0, 1.0, 0.0]  # world coord space
         self.light = torch.tensor(light)
 
     def forward(
@@ -56,7 +57,7 @@ class Renderer(nn.Module):
         Returns:
             (torch.Tensor): Depth ranging from [0, inf] with dim (H, W).
         """
-        attributes = -vertices[:, 2].unsqueeze(-1)  # depth values of dim (V, 1)
+        attributes = vertices[:, 2].unsqueeze(-1)  # depth values of dim (V, 1)
         depth, mask = self.forward(vertices, faces, attributes)  # (H, W, 1), (H, W)
         depth[~mask, :] = 0  # TODO is this a good default value?
         return depth.squeeze(-1)  # (H, W)
@@ -72,7 +73,10 @@ class Renderer(nn.Module):
             (torch.Tensor): Normals ranging from [-1, 1] and have unit lenght, the dim
                 is of the canvas hence (H, W).
         """
-        tmesh = trimesh.Trimesh(vertices.detach().cpu().numpy(), faces)
+        tmesh = trimesh.Trimesh(
+            vertices=vertices.detach().cpu().numpy(),
+            faces=faces.detach().cpu().numpy(),
+        )
         attributes = torch.tensor(tmesh.vertex_normals, dtype=vertices.dtype)
         normals, mask = self.forward(vertices, faces, attributes)  # (H, W, 3)
         normals = normals / torch.norm(normals, dim=-1)[..., None]
@@ -109,6 +113,7 @@ class Renderer(nn.Module):
         vertices: torch.Tensor,
         faces: torch.Tensor,
         image: torch.Tensor,
+        rescale: bool = False,
     ):
         """Render the flame model on top of the resized color image in RGB space.
 
@@ -119,9 +124,11 @@ class Renderer(nn.Module):
         """
         flame_image = self.render_shader_image(vertices, faces)
         flame_mask = flame_image.sum(-1) != 0
-        background = v2.functional.resize(
-            inpt=image.permute(2, 0, 1),
-            size=self.rasterizer.image_size,
-        ).permute(1, 2, 0)
-        background[flame_mask] = flame_image[flame_mask]
-        return background
+        if rescale:
+            image = v2.functional.resize(
+                inpt=image.permute(2, 0, 1),
+                size=self.rasterizer.image_size,
+            )
+            image = image.permute(1, 2, 0).to(torch.uint8)
+        image[flame_mask] = flame_image[flame_mask]
+        return image

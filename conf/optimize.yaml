@@ -4,7 +4,9 @@ defaults:
   - data: dphm_points
   - model: flame
   - trainer: default
-  - logger: default 
+  - logger: wandb 
+  - callbacks:
+    - rich_progress_bar
   - hydra: default
   - paths: default
   - debug: null

@@ -3,5 +3,18 @@ _target_: lib.model.flame.FLAME
 flame_dir: ${paths.root_dir}/checkpoints/flame2023
 num_shape_params: 100
 num_expression_params: 100
-lr: 1e-03 
-scheduler: null
+lr: 1e-02
+scheduler:
+  _target_: torch.optim.lr_scheduler.StepLR 
+  _partial_: True
+  step_size: 200
+  gamma: 0.5
+
+renderer:
+  _target_: lib.renderer.renderer.Renderer
+  rasterizer: 
+    _target_: lib.renderer.rasterizer.Rasterizer
+    data_dir: ${data.data_dir}
+    scale_factor: ${data.scale_factor}
+    image_width: ${data.image_width}
+    image_height: ${data.image_height}

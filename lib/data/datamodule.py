@@ -12,6 +12,10 @@ class DPHMPointCloudDataModule(L.LightningDataModule):
         chunk_size: int = 50000,
         num_frames: int = 1,
         start_frame_idx: int = 0,
+        # rasterizer settings
+        scale_factor: int = 1,
+        image_width: int = 1920,
+        image_height: int = 1080,
         # training
         batch_size: int = 1,
         num_workers: int = 0,
@@ -31,6 +35,9 @@ class DPHMPointCloudDataModule(L.LightningDataModule):
             chunk_size=self.hparams["chunk_size"],
             num_frames=self.hparams["num_frames"],
             start_frame_idx=self.hparams["start_frame_idx"],
+            scale_factor=self.hparams["scale_factor"],
+            image_width=self.hparams["image_width"],
+            image_height=self.hparams["image_height"],
         )
 
     def train_dataloader(self) -> DataLoader:

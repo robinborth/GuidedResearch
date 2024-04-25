@@ -3,7 +3,7 @@ from typing import List
 import hydra
 import lightning as L
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
-from lightning.pytorch.loggers import Logger
+from lightning.pytorch.loggers import Logger, WandbLogger
 from omegaconf import DictConfig
 
 from lib.utils.config import instantiate_callbacks, log_hyperparameters
@@ -28,6 +28,8 @@ def optimize(cfg: DictConfig) -> None:
 
     log.info("==> initializing logger ...")
     logger: Logger = hydra.utils.instantiate(cfg.logger)
+    if isinstance(logger, WandbLogger):
+        logger.watch(model, log="all")
 
     log.info(f"==> initializing trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
