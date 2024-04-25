@@ -82,3 +82,26 @@ def load_flame_masks(flame_dir: str | Path):
     path = Path(flame_dir) / "FLAME_masks.pkl"
     with open(path, "rb") as f:
         return pickle.load(f, encoding="latin1")
+
+
+def flame_faces_mask(
+    vertices: torch.Tensor,
+    faces: torch.Tensor,
+    vertices_mask: torch.Tensor | None = None,
+):
+    """Calculates the triangular faces mask based on the masked vertices.
+
+    Args:
+        vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
+        faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+        vertices_mask (torch.Tensor): The idx of the vertices that should be
+            included in the rendering and computation.
+
+    Returns:
+        (torch.Tensor): A boolean mask of the faces that should be used for the
+            computation, the final dimension of the mask is (F, 3).
+    """
+    if vertices_mask is None:
+        vertices_mask = torch.arange(vertices.shape[0], device=vertices.device)
+    vertices_mask = vertices_mask.expand(*faces.shape, -1).to(vertices.device)
+    return (faces.unsqueeze(-1) == vertices_mask).any(dim=-1).all(dim=-1)

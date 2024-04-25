@@ -4,13 +4,11 @@ import lightning as L
 import numpy as np
 import torch
 import torch.nn as nn
-from lightning.pytorch.utilities import grad_norm
 from PIL import Image
 
 from lib.model.lbs import lbs
 from lib.model.loss import point_to_point
-from lib.model.utils import load_flame
-from lib.renderer.renderer import Renderer
+from lib.model.utils import load_flame, load_flame_masks
 from lib.utils.logger import create_logger
 
 log = create_logger("flame")
@@ -28,6 +26,7 @@ class FLAME(L.LightningModule):
         lr: float = 1e-03,
         scheduler=None,
         renderer=None,
+        use_face_mask: bool = True,
     ):
 
         super().__init__()
@@ -78,6 +77,11 @@ class FLAME(L.LightningModule):
         if renderer is None:
             log.info("FLAME model does not have a renderer specified!")
         self.renderer = renderer
+
+        # the mas
+        flame_masks = load_flame_masks(flame_dir)
+        face_mask = torch.tensor(flame_masks["face"])
+        self.face_vertices_mask = torch.nn.Parameter(face_mask, requires_grad=False)
 
     def forward(
         self,
@@ -156,7 +160,10 @@ class FLAME(L.LightningModule):
     def training_step(self, batch, batch_idx):
         points = batch["points"]  # (B, P, 3)
         vertices = self.forward()  # (V, 3)
-        p2p_loss = point_to_point(vertices=vertices.unsqueeze(0), points=points).mean()
+        p2p_loss = point_to_point(
+            vertices=vertices[self.face_vertices_mask].unsqueeze(0),
+            points=points,
+        ).mean()
         self.log("train/p2p_loss", p2p_loss, on_step=True, on_epoch=True, prog_bar=True)
 
         # visualize the image that is optimized and save to disk
@@ -171,6 +178,7 @@ class FLAME(L.LightningModule):
                 vertices=vertices.detach().cpu(),
                 faces=self.faces.detach().cpu(),
                 image=image,
+                vertices_mask=self.face_vertices_mask,
             )
             # save the image
             file_name = f"image/{frame_idx:03}_{self.current_epoch:05}.png"
@@ -182,7 +190,7 @@ class FLAME(L.LightningModule):
             path = Path(self.logger.save_dir) / file_name
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "wb") as f:
-                np.save(f, vertices.detach().cpu().numpy())
+                np.save(f, vertices[self.face_vertices_mask].detach().cpu().numpy())
 
             file_name = f"pcd_points/{frame_idx:03}_{self.current_epoch:05}.npz"
             path = Path(self.logger.save_dir) / file_name

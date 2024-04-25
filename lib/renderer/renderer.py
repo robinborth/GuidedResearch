@@ -3,6 +3,7 @@ import torch.nn as nn
 import trimesh
 from torchvision.transforms import v2
 
+from lib.model.utils import flame_faces_mask
 from lib.renderer.rasterizer import Rasterizer
 
 
@@ -62,38 +63,57 @@ class Renderer(nn.Module):
         depth[~mask, :] = 0  # TODO is this a good default value?
         return depth.squeeze(-1)  # (H, W)
 
-    def render_normal(self, vertices: torch.Tensor, faces: torch.Tensor):
+    def render_normal(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        vertices_mask: torch.Tensor | None = None,
+    ):
         """Render an normalized normal map.
 
         Args:
             vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
             faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+            vertices_mask (torch.Tensor): The idx of the vertices that should be
+                included in the rendering and computation.
 
         Returns:
             (torch.Tensor): Normals ranging from [-1, 1] and have unit lenght, the dim
                 is of the canvas hence (H, W).
         """
+
         tmesh = trimesh.Trimesh(
             vertices=vertices.detach().cpu().numpy(),
             faces=faces.detach().cpu().numpy(),
         )
         attributes = torch.tensor(tmesh.vertex_normals, dtype=vertices.dtype)
-        normals, mask = self.forward(vertices, faces, attributes)  # (H, W, 3)
+        faces_mask = flame_faces_mask(vertices, faces, vertices_mask)
+        normals, mask = self.forward(vertices, faces[faces_mask], attributes)  # (H,W,3)
         normals = normals / torch.norm(normals, dim=-1)[..., None]
         normals[~mask, :] = 0
         return normals
 
-    def render_normal_image(self, vertices: torch.Tensor, faces: torch.Tensor):
+    def render_normal_image(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        vertices_mask: torch.Tensor | None = None,
+    ):
         """Render normals in RGB space."""
-        normals = self.render_normal(vertices, faces)
+        normals = self.render_normal(vertices, faces, vertices_mask)
         background_mask = normals.sum(-1) == 0
         normals = (((normals + 1) / 2) * 255).to(torch.uint8)
         normals[background_mask] = 0
         return normals
 
-    def render_shader_image(self, vertices: torch.Tensor, faces: torch.Tensor):
+    def render_shader_image(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        vertices_mask: torch.Tensor | None = None,
+    ):
         """Render the shaded image in RGB space."""
-        normals = self.render_normal(vertices, faces)
+        normals = self.render_normal(vertices, faces, vertices_mask)
         background_mask = normals.sum(-1) == 0
         H, W, _ = normals.shape
 
@@ -113,6 +133,7 @@ class Renderer(nn.Module):
         vertices: torch.Tensor,
         faces: torch.Tensor,
         image: torch.Tensor,
+        vertices_mask: torch.Tensor | None = None,
         rescale: bool = False,
     ):
         """Render the flame model on top of the resized color image in RGB space.
@@ -122,7 +143,7 @@ class Renderer(nn.Module):
             faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
             image (torch.tensor): The color image of original dim (H', W', 3).
         """
-        flame_image = self.render_shader_image(vertices, faces)
+        flame_image = self.render_shader_image(vertices, faces, vertices_mask)
         flame_mask = flame_image.sum(-1) != 0
         if rescale:
             image = v2.functional.resize(
