@@ -49,4 +49,5 @@ class Rasterizer(nn.Module):
         # up/down problem https://github.com/facebookresearch/pytorch3d/issues/78
         pix_to_face = torch.flip(fragments.pix_to_face.squeeze(), [0])
         bary_coords = torch.flip(fragments.bary_coords.squeeze(), [0])
+
         return pix_to_face, bary_coords

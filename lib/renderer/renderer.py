@@ -3,7 +3,7 @@ import torch.nn as nn
 import trimesh
 from torchvision.transforms import v2
 
-from lib.model.utils import flame_faces_mask
+from lib.model.utils import bary_coord_interpolation, flame_faces_mask
 from lib.renderer.rasterizer import Rasterizer
 
 
@@ -44,9 +44,8 @@ class Renderer(nn.Module):
         """
         pix_to_face, bary_coords = self.rasterizer(vertices, faces)  # (H, W), (H, W, 3)
         vertices_idx = faces[pix_to_face]  # (H, W, 3)
-        vertex_attribute = attributes[vertices_idx]  # (H, W, 3, D)
-        attribute_map = (bary_coords.unsqueeze(-1) * vertex_attribute).sum(-2)
-        return attribute_map, pix_to_face != -1
+        attributes = bary_coord_interpolation(vertices_idx, attributes, bary_coords)
+        return attributes, pix_to_face != -1
 
     def render_depth(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render an depth map which camera z coordinate.

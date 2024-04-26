@@ -7,8 +7,8 @@ import torch.nn as nn
 from PIL import Image
 
 from lib.model.lbs import lbs
-from lib.model.loss import point_to_point
-from lib.model.utils import load_flame, load_flame_masks
+from lib.model.loss import chamfer_distance_loss, landmark_3d_loss, point_to_point_loss
+from lib.model.utils import load_flame, load_flame_masks, load_static_landmark_embedding
 from lib.utils.logger import create_logger
 
 log = create_logger("flame")
@@ -27,6 +27,8 @@ class FLAME(L.LightningModule):
         scheduler=None,
         renderer=None,
         use_face_mask: bool = True,
+        lm_weight: float = 1.0,
+        p2p_weight: float = 0.1,
     ):
 
         super().__init__()
@@ -78,10 +80,23 @@ class FLAME(L.LightningModule):
             log.info("FLAME model does not have a renderer specified!")
         self.renderer = renderer
 
-        # the mas
+        # flame masks, for different vertex idx
         flame_masks = load_flame_masks(flame_dir)
         face_mask = torch.tensor(flame_masks["face"])
         self.face_vertices_mask = torch.nn.Parameter(face_mask, requires_grad=False)
+
+        # flame landmarks to guide sparse landmark loss
+        lms = load_static_landmark_embedding(flame_dir)
+        lmk_face_idx = torch.tensor(lms["lmk_face_idx"].astype(np.int64))
+        self.lm_faces = torch.nn.Parameter(
+            self.faces[lmk_face_idx], requires_grad=False
+        )  # (105, )
+        self.lm_bary_coords = torch.nn.Parameter(
+            torch.tensor(lms["lmk_b_coords"].astype(np.float32)), requires_grad=False
+        )  # (105, 3)
+        self.lm_mediapipe_idx = torch.nn.Parameter(
+            torch.tensor(lms["landmark_indices"].astype(np.int64)), requires_grad=False
+        )  # (105,)
 
     def forward(
         self,
@@ -153,18 +168,41 @@ class FLAME(L.LightningModule):
 
         # apply the translation and the scaling
         vertices += transl
-        # vertices *= scale
+        vertices *= scale
 
         return vertices
 
     def training_step(self, batch, batch_idx):
+        # TODO resolve dim mismatch
         points = batch["points"]  # (B, P, 3)
+        mediapipe_lm3d = batch["mediapipe_lm3d"].squeeze(0)  # (478, 3)
+
         vertices = self.forward()  # (V, 3)
-        p2p_loss = point_to_point(
+
+        p2p_loss = point_to_point_loss(
+            vertices=vertices.unsqueeze(0),
+            points=points,
+        )[self.face_vertices_mask].mean()
+        self.log("train/p2p_loss", p2p_loss, prog_bar=True)
+
+        cd_loss = chamfer_distance_loss(
             vertices=vertices[self.face_vertices_mask].unsqueeze(0),
             points=points,
         ).mean()
-        self.log("train/p2p_loss", p2p_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train/chamfer_distance_loss", cd_loss, prog_bar=True)
+
+        lm_loss, vertices_lm3d = landmark_3d_loss(
+            vertices=vertices,
+            faces=self.lm_faces,
+            bary_coords=self.lm_bary_coords,
+            lm_mediapipe_idx=self.lm_mediapipe_idx,
+            mediapipe_lm3d=mediapipe_lm3d,
+        )
+        lm_loss = lm_loss.mean()
+        self.log("train/lm_loss", lm_loss, prog_bar=True)
+
+        # loss = ...
+        # self.log("train/loss", loss, prog_bar=True)
 
         # visualize the image that is optimized and save to disk
         save_interval = 50
@@ -198,10 +236,21 @@ class FLAME(L.LightningModule):
             with open(path, "wb") as f:
                 np.save(f, points[0].detach().cpu().numpy())
 
-        return p2p_loss
+            file_name = f"lm3d_vertices/{frame_idx:03}_{self.current_epoch:05}.npz"
+            path = Path(self.logger.save_dir) / file_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "wb") as f:
+                np.save(f, vertices_lm3d.detach().cpu().numpy())
+
+            file_name = f"lm3d_points/{frame_idx:03}_{self.current_epoch:05}.npz"
+            path = Path(self.logger.save_dir) / file_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "wb") as f:
+                np.save(f, mediapipe_lm3d[self.lm_mediapipe_idx].detach().cpu().numpy())
+
+        return lm_loss
 
     def configure_optimizers(self):
-        # TODO callback for finetuning
         pose_params = [self.global_pose, self.transl]
         optimizer = torch.optim.Adam(pose_params, lr=self.hparams["lr"])
         if self.hparams["scheduler"] is not None:
@@ -211,7 +260,3 @@ class FLAME(L.LightningModule):
                 "lr_scheduler": {"scheduler": scheduler, "monitor": "train/loss"},
             }
         return {"optimizer": optimizer}
-
-    # def on_before_optimizer_step(self, optimizer):
-    #     print("global_pose", torch.norm(self.global_pose.grad))
-    #     print("transl", torch.norm(self.transl.grad), self.transl.data)

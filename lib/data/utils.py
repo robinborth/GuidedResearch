@@ -12,7 +12,7 @@ from PIL import Image
 def convert_tensor_from_np(X: np.ndarray, return_tensor: str = "np"):
     assert return_tensor in ["img", "np", "pt"]
     if return_tensor == "img":
-        return Image.fromarray(X).astype(np.float32)
+        return Image.fromarray(X.astype(np.uint8))
     if return_tensor == "pt":
         return torch.tensor(X, dtype=torch.float32)
     return X.astype(dtype=np.float32)
@@ -102,7 +102,9 @@ def load_mask(
     mask_image = Image.open(path)
 
     mask = np.asarray(mask_image).mean(-1) < threshold
-    return convert_tensor_from_np(mask, return_tensor=return_tensor)
+    if return_tensor == "pt":
+        return torch.tensor(mask)
+    return mask
 
 
 def load_color_masked(

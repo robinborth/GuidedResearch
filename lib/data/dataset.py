@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
-from lib.data.utils import load_color, load_points_3d
+from lib.data.utils import load_color, load_mediapipe_landmark_3d, load_points_3d
 
 
 class DPHMPointCloudDataset(Dataset):
@@ -49,11 +49,23 @@ class DPHMPointCloudDataset(Dataset):
             images.append(image.to(torch.uint8))  # (H',W',3)
         self.images = images
 
+        lm3ds = []
+        for frame_idx in range(start_frame_idx, start_frame_idx + num_frames):
+            lm3d = load_mediapipe_landmark_3d(data_dir, idx=frame_idx)
+            lm3ds.append(lm3d)
+        self.lm3ds = lm3ds
+
     def __len__(self) -> int:
         return len(self.points)
 
     def __getitem__(self, idx: int):
         point_cloud = self.points[idx]
-        image = self.images[idx]  # (H', W', 3) this is scaled
         chunk_idx = np.random.choice(len(point_cloud), self.chunk_size, replace=False)
-        return {"points": point_cloud[chunk_idx], "frame_idx": idx, "image": image}
+        image = self.images[idx]  # (H', W', 3) this is scaled
+        lm3d = self.lm3ds[idx]
+        return {
+            "points": point_cloud[chunk_idx],
+            "frame_idx": idx,
+            "image": image,
+            "mediapipe_lm3d": lm3d,
+        }

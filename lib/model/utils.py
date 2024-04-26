@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from lib.data.utils import convert_tensor_from_np
+
 
 def load_flame(
     flame_dir: str | Path,
@@ -105,3 +107,22 @@ def flame_faces_mask(
         vertices_mask = torch.arange(vertices.shape[0], device=vertices.device)
     vertices_mask = vertices_mask.expand(*faces.shape, -1).to(vertices.device)
     return (faces.unsqueeze(-1) == vertices_mask).any(dim=-1).all(dim=-1)
+
+
+def bary_coord_interpolation(
+    faces: torch.Tensor,
+    attributes: torch.Tensor,
+    bary_coords: torch.Tensor,
+):
+    """Rendering of the attributes with mesh rasterization.
+
+    Args:
+        faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+        attributes (torch.Tensor): The attributes per vertex of dim (V, D)
+        bary_coords (torch.Tensor): The interpolation coeficients of dim (F, 3)
+
+    Returns:
+        (torch.Tensor): Vertices with the attributes barycentric interpolated (F, D)
+    """
+    vertex_attribute = attributes[faces]  # (H, W, 3, D)
+    return (bary_coords.unsqueeze(-1) * vertex_attribute).sum(-2)

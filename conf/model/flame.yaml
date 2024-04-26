@@ -3,7 +3,7 @@ _target_: lib.model.flame.FLAME
 flame_dir: ${paths.root_dir}/checkpoints/flame2023
 num_shape_params: 100
 num_expression_params: 100
-lr: 1e-02
+lr: 5e-02
 scheduler:
   _target_: torch.optim.lr_scheduler.StepLR 
   _partial_: True
