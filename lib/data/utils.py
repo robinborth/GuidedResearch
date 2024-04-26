@@ -18,6 +18,15 @@ def convert_tensor_from_np(X: np.ndarray, return_tensor: str = "np"):
     return X.astype(dtype=np.float32)
 
 
+def convert_dict_from_np(np_dict: dict, return_tensors: str = "pt"):
+    assert return_tensors in ["pt", "np"]
+    if return_tensors == "pt":
+        for key, value in np_dict.items():
+            if isinstance(value, np.ndarray):
+                np_dict[key] = torch.tensor(value)
+    return np_dict
+
+
 ########################################################################################
 # DPHM: RGB and Depth
 ########################################################################################

@@ -1,11 +1,10 @@
 import pickle
-import warnings
 from pathlib import Path
 
 import numpy as np
 import torch
 
-from lib.data.utils import convert_tensor_from_np
+from lib.data.utils import convert_dict_from_np
 
 
 def load_flame(
@@ -66,24 +65,27 @@ def load_flame(
     }
 
     # convert the numpy arrays to torch tensors
-    assert return_tensors in ["pt", "np"]
-    if return_tensors == "pt":
-        for key, value in flame_dict.items():
-            if isinstance(value, np.ndarray):
-                flame_dict[key] = torch.tensor(value)
-
-    return flame_dict
+    return convert_dict_from_np(flame_dict, return_tensors=return_tensors)
 
 
-def load_static_landmark_embedding(flame_dir: str | Path):
+def load_static_landmark_embedding(flame_dir: str | Path, return_tensors: str = "np"):
     path = Path(flame_dir) / "mediapipe_landmark_embedding.npz"
-    return np.load(path)
+    lm = np.load(path)
+    landmark_dict = {
+        "lm_face_idx": lm["lmk_face_idx"].astype(np.int64),
+        "lm_bary_coords": lm["lmk_b_coords"].astype(np.float32),
+        "lm_mediapipe_idx": lm["landmark_indices"].astype(np.int64),
+    }
+    return convert_dict_from_np(landmark_dict, return_tensors=return_tensors)
 
 
-def load_flame_masks(flame_dir: str | Path):
+def load_flame_masks(flame_dir: str | Path, return_tensors: str = "np"):
     path = Path(flame_dir) / "FLAME_masks.pkl"
     with open(path, "rb") as f:
-        return pickle.load(f, encoding="latin1")
+        flame_masks = pickle.load(f, encoding="latin1")
+    for key in flame_masks.keys():
+        flame_masks[key] = flame_masks[key].astype(np.int64)
+    return convert_dict_from_np(flame_masks, return_tensors=return_tensors)
 
 
 def flame_faces_mask(
