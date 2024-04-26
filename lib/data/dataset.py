@@ -64,8 +64,9 @@ class DPHMPointCloudDataset(Dataset):
         image = self.images[idx]  # (H', W', 3) this is scaled
         lm3d = self.lm3ds[idx]
         return {
-            "points": point_cloud[chunk_idx],
             "frame_idx": idx,
-            "image": image,
+            "shape_idx": 0,
+            "points": point_cloud[chunk_idx],
             "mediapipe_lm3d": lm3d,
+            "image": image,
         }

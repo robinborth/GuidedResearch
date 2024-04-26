@@ -113,18 +113,18 @@ def flame_faces_mask(
 
 def bary_coord_interpolation(
     faces: torch.Tensor,
-    attributes: torch.Tensor,
     bary_coords: torch.Tensor,
+    attributes: torch.Tensor,
 ):
     """Rendering of the attributes with mesh rasterization.
 
     Args:
         faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
-        attributes (torch.Tensor): The attributes per vertex of dim (V, D)
-        bary_coords (torch.Tensor): The interpolation coeficients of dim (F, 3)
+        bary_coords (torch.Tensor): The interpolation coeficients of dim (B, F, 3)
+        attributes (torch.Tensor): The attributes per vertex of dim (B, V, D)
 
     Returns:
-        (torch.Tensor): Vertices with the attributes barycentric interpolated (F, D)
+        (torch.Tensor): Vertices with the attributes barycentric interpolated (B, F, D)
     """
-    vertex_attribute = attributes[faces]  # (H, W, 3, D)
-    return (bary_coords.unsqueeze(-1) * vertex_attribute).sum(-2)
+    vertex_attribute = attributes[:, faces]  # (B, F, 3, D)
+    return (bary_coords.unsqueeze(-1) * vertex_attribute).sum(-2)  # (B, F, D)

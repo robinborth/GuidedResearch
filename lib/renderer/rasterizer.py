@@ -1,3 +1,4 @@
+import lightning as L
 import torch
 import torch.nn as nn
 from pytorch3d.renderer import MeshRasterizer, PerspectiveCameras, RasterizationSettings
@@ -6,7 +7,7 @@ from pytorch3d.structures import Meshes
 from lib.renderer.camera import load_intrinsics
 
 
-class Rasterizer(nn.Module):
+class Rasterizer(L.LightningModule):
     def __init__(
         self,
         data_dir: str = "data/",
@@ -42,12 +43,21 @@ class Rasterizer(nn.Module):
         )
 
     def forward(self, vertices: torch.Tensor, faces: torch.Tensor):
+        """Rendering of the attributes with mesh rasterization.
+
+        Args:
+            faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
+
+        Returns:
+            (torch.Tensor, torch.Tensor) A tuple of pix_to_face cordinates of dim
+            (B, H, W) and the coresponding bary coordinates of dim (B, H, W, 3).
+        """
         verts = vertices.clone()
         verts[:, :1] = -verts[:, :1]
-        meshes = Meshes(verts=[verts], faces=[faces])
+        meshes = Meshes(verts=verts, faces=faces.expand(verts.shape[0], -1, -1))
         fragments = self._rasterizer(meshes)
-        # up/down problem https://github.com/facebookresearch/pytorch3d/issues/78
-        pix_to_face = torch.flip(fragments.pix_to_face.squeeze(), [0])
-        bary_coords = torch.flip(fragments.bary_coords.squeeze(), [0])
-
+        # opengl convension is that we store the down row first
+        pix_to_face = torch.flip(fragments.pix_to_face.squeeze(-1), [1])
+        bary_coords = torch.flip(fragments.bary_coords.squeeze(-2), [1])
         return pix_to_face, bary_coords

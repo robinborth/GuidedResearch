@@ -1,13 +1,13 @@
+import lightning as L
 import torch
 import torch.nn as nn
-import trimesh
 from torchvision.transforms import v2
 
 from lib.model.utils import bary_coord_interpolation, flame_faces_mask
 from lib.renderer.rasterizer import Rasterizer
 
 
-class Renderer(nn.Module):
+class Renderer(L.LightningModule):
     def __init__(
         self,
         rasterizer: Rasterizer | None = None,
@@ -33,34 +33,59 @@ class Renderer(nn.Module):
         """Rendering of the attributes with mesh rasterization.
 
         Args:
-            vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
             faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
-            attributes (torch.Tensor): The attributes per vertex of dim (V, D)
+            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
+            attributes (torch.Tensor): The attributes per vertex of dim (B, V, D)
 
         Returns:
             (torch.Tensor): The output is the image plane filled with the attributes,
                 that are barycentric interpolated, hence the dim is (H, W, D). Not that
                 we have a row-major matrix representation.
         """
-        pix_to_face, bary_coords = self.rasterizer(vertices, faces)  # (H, W), (H, W, 3)
-        vertices_idx = faces[pix_to_face]  # (H, W, 3)
-        attributes = bary_coord_interpolation(vertices_idx, attributes, bary_coords)
-        return attributes, pix_to_face != -1
+        pix2face, b_coords = self.rasterizer(vertices, faces)  # (B, H, W), (B, H, W, 3)
+        vertices_idx = faces[pix2face]  # (B, H, W, 3)
+
+        # access the vertex attributes
+        B, H, W, C = vertices_idx.shape  # (B, H, W, 3)
+        _, _, D = attributes.shape  # (B, V, D)
+        v_idx = vertices_idx.reshape(B, -1)  # (B, *)
+        b_idx = torch.arange(v_idx.size(0)).unsqueeze(1).to(v_idx)
+        vertex_attribute = attributes[b_idx, v_idx]  # (B, *, D)
+        vertex_attribute = vertex_attribute.reshape(B, H, W, C, D)  # (B, H, W, 3, D)
+
+        bary_coords = b_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
+        attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
+
+        return attributes, pix2face != -1
 
     def render_depth(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render an depth map which camera z coordinate.
 
         Args:
-            vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
+            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
             faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
 
         Returns:
-            (torch.Tensor): Depth ranging from [0, inf] with dim (H, W).
+            (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W).
         """
-        attributes = vertices[:, 2].unsqueeze(-1)  # depth values of dim (V, 1)
+        attributes = vertices[:, :, 2].unsqueeze(-1)  # depth values of dim (B, V, 1)
         depth, mask = self.forward(vertices, faces, attributes)  # (H, W, 1), (H, W)
         depth[~mask, :] = 0  # TODO is this a good default value?
         return depth.squeeze(-1)  # (H, W)
+
+    def render_points(self, vertices: torch.Tensor, faces: torch.Tensor):
+        """Render an depth map which camera z coordinate.
+
+        Args:
+            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
+            faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+
+        Returns:
+            (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W).
+        """
+        depth, mask = self.forward(vertices, faces, vertices)  # (H, W, 1), (H, W)
+        depth[~mask, :] = 0
+        return depth, mask  # (H, W, 3)
 
     def render_normal(
         self,
@@ -81,10 +106,11 @@ class Renderer(nn.Module):
                 is of the canvas hence (H, W).
         """
 
-        tmesh = trimesh.Trimesh(
-            vertices=vertices.detach().cpu().numpy(),
-            faces=faces.detach().cpu().numpy(),
-        )
+        # tmesh = trimesh.Trimesh(
+        #     vertices=vertices.detach().cpu().numpy(),
+        #     faces=faces.detach().cpu().numpy(),
+        # )
+        tmesh = ...
         attributes = torch.tensor(tmesh.vertex_normals, dtype=vertices.dtype)
         faces_mask = flame_faces_mask(vertices, faces, vertices_mask)
         normals, mask = self.forward(vertices, faces[faces_mask], attributes)  # (H,W,3)
