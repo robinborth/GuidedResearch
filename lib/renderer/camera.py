@@ -7,7 +7,11 @@ import torch
 from torchvision.transforms import v2
 
 
-def load_intrinsics(data_dir: str | Path, return_tensor: str = "dict"):
+def load_intrinsics(
+    data_dir: str | Path,
+    return_tensor: str = "dict",
+    scale: float = 1.0,
+):
     """The camera intrinsics for the kinect RGB-D sequence.
 
     For more information please refere to:
@@ -28,10 +32,10 @@ def load_intrinsics(data_dir: str | Path, return_tensor: str = "dict"):
 
     # just the focal lengths (fx, fy) and the optical centers (cx, cy)
     K = {
-        "fx": intrinsics["color"]["fx"],
-        "fy": intrinsics["color"]["fy"],
-        "cx": intrinsics["color"]["cx"],
-        "cy": intrinsics["color"]["cy"],
+        "fx": intrinsics["color"]["fx"] * scale,
+        "fy": intrinsics["color"]["fy"] * scale,
+        "cx": intrinsics["color"]["cx"] * scale,
+        "cy": intrinsics["color"]["cy"] * scale,
     }
 
     if return_tensor == "pt":
@@ -149,7 +153,7 @@ def depth2camera(
     Args:
         depth (torch.Tensor): The (H,W) depth image, where each pixel stores the depth
             value in camera coordinate measurements.
-        K (torch.Tensor): The 3x3 intrinsic matrix.
+        K (torch.Tensor): The 3x3 intrinsic matrix that is already properly scaled.
         scale (float): The scale of the output camera
 
     Returns:
@@ -157,13 +161,6 @@ def depth2camera(
         e.g. z dim cooresponds to background.
     """
     H, W = int(depth.shape[0] * scale), int(depth.shape[1] * scale)
-
-    # modify the output size of the camera
-    K = K.clone()
-    K[0, 0] *= scale  # fx
-    K[1, 1] *= scale  # fy
-    K[0, 2] *= scale  # cx
-    K[1, 2] *= scale  # cy
 
     # calc the mask with the backgound and then output the forground, e.g the resize is
     # downing the interpolation in a way that by boolen we just keep true.
@@ -175,7 +172,7 @@ def depth2camera(
     # span the pixel indexes
     x = torch.arange(W)
     y = torch.arange(H)
-    idx = torch.stack(torch.meshgrid(y, x), dim=-1).flip(-1)
+    idx = torch.stack(torch.meshgrid(y, x, indexing="ij"), dim=-1).flip(-1)
 
     # get the points in camera coordinates, but with the new resolution
     points = torch.concat([idx, depth.unsqueeze(-1)], dim=-1)

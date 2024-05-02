@@ -1,22 +1,29 @@
 # @package data
-_target_: lib.data.datamodule.DPHMPointCloudDataModule
+_target_: lib.data.datamodule.DPHMDataModule
 
 # dataset settings
 dataset_name: dphm_christoph_mouthmove
 data_dir: ${paths.data_dir}/${data.dataset_name}
-chunk_size: 50000 
-num_frames: 2
+optimize_frames: 1
 start_frame_idx: 0 
-
-# rasterizer settings
-scale_factor: 4 
+image_scale: 0.1
 image_width: 1920
 image_height: 1080
 
 # training settings
-batch_size: 2
+batch_size: 1
 num_workers: 0
 pin_memory: False
 drop_last: False
 persistent_workers: False
 shuffle: False
+
+# dataset settings
+dataset:
+  _target_: lib.data.dataset.DPHMPointDataset
+  data_dir: ${data.data_dir} 
+  optimize_frames: ${data.optimize_frames}
+  start_frame_idx: ${data.start_frame_idx}
+  image_scale: ${data.image_scale}
+  image_width: ${data.image_width}
+  image_heigt: ${data.image_height}

@@ -11,15 +11,16 @@ class Rasterizer(L.LightningModule):
     def __init__(
         self,
         data_dir: str = "data/",
-        scale_factor: int = 1,
+        image_scale: float = 1.0,
         image_width: int = 1920,
         image_height: int = 1080,
     ):
         super().__init__()
         # specify the output dimension of the image
-        self.image_size = (image_height // scale_factor, image_width // scale_factor)
+        self.height = int(image_height * image_scale)
+        self.width = int(image_width * image_scale)
         settings = RasterizationSettings(
-            image_size=self.image_size,
+            image_size=[self.height, self.width],
             blur_radius=0.0,
             faces_per_pixel=1,
             bin_size=None,
@@ -28,9 +29,9 @@ class Rasterizer(L.LightningModule):
         )
 
         # specify the camera intrinsic from camera to pixel
-        K = load_intrinsics(data_dir=data_dir)
+        K = load_intrinsics(data_dir=data_dir, scale=image_scale)
         cameras = PerspectiveCameras(
-            image_size=[(image_height, image_width)],
+            image_size=[[self.height, self.width]],
             focal_length=[(K["fx"], K["fy"])],
             principal_point=[(K["cx"], K["cy"])],
             in_ndc=False,
@@ -41,6 +42,12 @@ class Rasterizer(L.LightningModule):
             cameras=cameras,
             raster_settings=settings,
         )
+
+    # def to(self, device):
+    #     # Manually move to device cameras as it is not a subclass of nn.Module
+    #     if self._rasterizer.cameras is not None:
+    #         self._rasterizer.cameras = self._rasterizer.cameras.to(device)
+    #     return self
 
     def forward(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Rendering of the attributes with mesh rasterization.

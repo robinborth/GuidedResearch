@@ -2,9 +2,9 @@
 
 defaults:
   - data: dphm_points
-  - model: flame
+  - model: flame_points
   - trainer: default
-  - logger: default 
+  - logger: default
   - callbacks:
     - rich_progress_bar
   - hydra: default

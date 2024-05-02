@@ -42,7 +42,9 @@ class Renderer(L.LightningModule):
                 that are barycentric interpolated, hence the dim is (H, W, D). Not that
                 we have a row-major matrix representation.
         """
-        pix2face, b_coords = self.rasterizer(vertices, faces)  # (B, H, W), (B, H, W, 3)
+        pix2face, b_coords = self.rasterizer(
+            vertices.cpu(), faces.cpu()
+        )  # (B, H, W), (B, H, W, 3)
         vertices_idx = faces[pix2face]  # (B, H, W, 3)
 
         # access the vertex attributes
@@ -53,7 +55,7 @@ class Renderer(L.LightningModule):
         vertex_attribute = attributes[b_idx, v_idx]  # (B, *, D)
         vertex_attribute = vertex_attribute.reshape(B, H, W, C, D)  # (B, H, W, 3, D)
 
-        bary_coords = b_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
+        bary_coords = b_coords.unsqueeze(-1).to(self.device)  # (B, H, W, 3, 1)
         attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
 
         return attributes, pix2face != -1
@@ -73,7 +75,7 @@ class Renderer(L.LightningModule):
         depth[~mask, :] = 0  # TODO is this a good default value?
         return depth.squeeze(-1)  # (H, W)
 
-    def render_points(self, vertices: torch.Tensor, faces: torch.Tensor):
+    def render_point_image(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render an depth map which camera z coordinate.
 
         Args:
@@ -81,11 +83,11 @@ class Renderer(L.LightningModule):
             faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
 
         Returns:
-            (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W).
+            (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W, 3).
         """
-        depth, mask = self.forward(vertices, faces, vertices)  # (H, W, 1), (H, W)
-        depth[~mask, :] = 0
-        return depth, mask  # (H, W, 3)
+        point, mask = self.forward(vertices, faces, vertices)  # (B, H, W, 1), (B, H, W)
+        point[~mask, :] = 0
+        return point  # (B, H, W, 3)
 
     def render_normal(
         self,

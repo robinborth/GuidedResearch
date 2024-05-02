@@ -1,19 +1,16 @@
 import lightning as L
-from torch.utils.data import DataLoader
-
-from lib.data.dataset import DPHMPointCloudDataset
+from torch.utils.data import DataLoader, Dataset
 
 
-class DPHMPointCloudDataModule(L.LightningDataModule):
+class DPHMDataModule(L.LightningDataModule):
     def __init__(
         self,
         # dataset settings
         data_dir: str = "/data",
-        chunk_size: int = 50000,
-        num_frames: int = 1,
+        optimize_frames: int = 1,
         start_frame_idx: int = 0,
         # rasterizer settings
-        scale_factor: int = 1,
+        image_scale: int = 1,
         image_width: int = 1920,
         image_height: int = 1080,
         # training
@@ -23,22 +20,16 @@ class DPHMPointCloudDataModule(L.LightningDataModule):
         drop_last: bool = False,
         persistent_workers: bool = False,
         shuffle: bool = True,
+        # dataset
+        dataset: Dataset | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(logger=False)
-        assert batch_size <= num_frames
+        assert batch_size <= optimize_frames
 
     def setup(self, stage: str) -> None:
-        self.dataset = DPHMPointCloudDataset(
-            data_dir=self.hparams["data_dir"],
-            chunk_size=self.hparams["chunk_size"],
-            num_frames=self.hparams["num_frames"],
-            start_frame_idx=self.hparams["start_frame_idx"],
-            scale_factor=self.hparams["scale_factor"],
-            image_width=self.hparams["image_width"],
-            image_height=self.hparams["image_height"],
-        )
+        self.dataset = self.hparams["dataset"]
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
