@@ -4,9 +4,10 @@ We present a novel approach for real-time facial tracking and reconstruction of 
 ## Installation
 
 ```bash
-conda create -n guided python=3.11 -y
+conda create -n guided python=3.10 -y
+pip install .
+conda install -c fvcore -c iopath -c conda-forge fvcore iopath
 conda install pytorch3d -c pytorch3d
-pip install -r requirenments.txt
 ```
 
 ## TODOS

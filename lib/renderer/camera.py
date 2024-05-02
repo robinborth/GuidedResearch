@@ -4,9 +4,10 @@ from typing import Any
 
 import numpy as np
 import torch
+from torchvision.transforms import v2
 
 
-def load_intrinsics(data_dir: str | Path):
+def load_intrinsics(data_dir: str | Path, return_tensor: str = "dict"):
     """The camera intrinsics for the kinect RGB-D sequence.
 
     For more information please refere to:
@@ -19,18 +20,26 @@ def load_intrinsics(data_dir: str | Path):
     Returns:
         The intrinsics for the kinect camera.
     """
+    assert return_tensor in ["dict", "pt"]
 
     path = Path(data_dir) / "calibration.json"
     with open(path) as f:
         intrinsics = json.load(f)
 
     # just the focal lengths (fx, fy) and the optical centers (cx, cy)
-    return {
+    K = {
         "fx": intrinsics["color"]["fx"],
         "fy": intrinsics["color"]["fy"],
         "cx": intrinsics["color"]["cx"],
         "cy": intrinsics["color"]["cy"],
     }
+
+    if return_tensor == "pt":
+        return torch.tensor(
+            [[K["fx"], 0.0, K["cx"]], [0.0, K["fy"], K["cy"]], [0.0, 0.0, 1.0]]
+        )
+
+    return K
 
 
 def camera2pixel(
@@ -122,3 +131,59 @@ def pixel2camera(
     if isinstance(u, torch.Tensor):
         return torch.stack([xc, yc, zc], dim=-1)  # (N, 3)
     return np.stack([xc, yc, zc], axis=-1)  # (N, 3)
+
+
+def depth2camera(
+    depth: torch.Tensor,
+    K: torch.Tensor,
+    scale: float = 1.0,
+):
+    """Converts depth image in camera coordinates as image.
+
+    After this transformation each pixel cooresponds to the 3d coordinate in camera
+    coordinate system. Further we can specify the scale of the output image, hence
+    reduce the image size, which is usefull for the coarse to fine strategy. Note that
+    we need to make sure to interpolate the binary mask of backgfound and foreground
+    properly.
+
+    Args:
+        depth (torch.Tensor): The (H,W) depth image, where each pixel stores the depth
+            value in camera coordinate measurements.
+        K (torch.Tensor): The 3x3 intrinsic matrix.
+        scale (float): The scale of the output camera
+
+    Returns:
+        (torch.Tensor): The image of the 3d camera coordinates, where values of 0 depth
+        e.g. z dim cooresponds to background.
+    """
+    H, W = int(depth.shape[0] * scale), int(depth.shape[1] * scale)
+
+    # modify the output size of the camera
+    K = K.clone()
+    K[0, 0] *= scale  # fx
+    K[1, 1] *= scale  # fy
+    K[0, 2] *= scale  # cx
+    K[1, 2] *= scale  # cy
+
+    # calc the mask with the backgound and then output the forground, e.g the resize is
+    # downing the interpolation in a way that by boolen we just keep true.
+    b_mask = v2.functional.resize((depth == 0.0).unsqueeze(0), size=(H, W)).squeeze(0)
+
+    # get the new size of the depth image
+    depth = v2.functional.resize(depth.unsqueeze(0), size=(H, W)).squeeze(0)
+
+    # span the pixel indexes
+    x = torch.arange(W)
+    y = torch.arange(H)
+    idx = torch.stack(torch.meshgrid(y, x), dim=-1).flip(-1)
+
+    # get the points in camera coordinates, but with the new resolution
+    points = torch.concat([idx, depth.unsqueeze(-1)], dim=-1)
+    points[:, :, 0] *= points[:, :, 2]
+    points[:, :, 1] *= points[:, :, 2]
+    camera = K.inverse() @ points.permute(2, 0, 1).reshape(3, -1)
+    camera = camera.reshape(3, points.shape[0], points.shape[1]).permute(1, 2, 0)
+
+    # the background is just zero
+    camera[b_mask, :] = 0.0
+    return camera

@@ -1,20 +1,39 @@
+[build-system]
+requires = ["flit_core >=3.7,<4"]
+build-backend = "flit_core.buildapi"
+
 [project]
 name = "lib"
 version = "0.0.1"
 description = "A novel approach for real-time facial tracking and reconstruction of a monocular video sequence using parametric head models."
+authors = [{email = "robin.borth@tum.de"},{name = "Robin Borth"}]
 readme = "README.md"
+
+dependencies = [
+  # dev
+  "lightning",
+  "torch",
+  "torchvision",
+  "open3d",
+  "wandb",
+  "hydra-core",
+  "jupyter",
+  "notebook",
+  "rich",
+  "numpy==1.23.4",
+  "chumpy==0.70",
+  "open3d",
+
+  # test
+  "black",
+  "flake8",
+  "mypy",
+  "isort",
+  "pytest",
+]
+
 requires-python = ">=3.10"
 license = {file = "LICENSE.txt"}
-dynamic = ["dependencies"]
-authors = [{email = "robin.borth@tum.de"},{name = "Robin Borth"}]
-
-[tool.setuptools]
-packages = ["lib"]
-dynamic.dependencies = {file = ["requirements.txt"]}
-
-[build-system]
-requires = ["setuptools >= 61.0"]
-build-backend = "setuptools.build_meta"
 
 [tool.isort]
 profile = "black"
@@ -32,7 +51,6 @@ exclude = '''
   | buck-out
   | build
   | dist
-  | thesis
 )/
 '''
 
