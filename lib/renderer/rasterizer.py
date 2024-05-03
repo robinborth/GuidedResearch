@@ -62,7 +62,8 @@ class Rasterizer(L.LightningModule):
         """
         verts = vertices.clone()
         verts[:, :1] = -verts[:, :1]
-        meshes = Meshes(verts=verts, faces=faces.expand(verts.shape[0], -1, -1))
+        # meshes = Meshes(verts=verts, faces=faces.expand(verts.shape[0], -1, -1))
+        meshes = Meshes(verts=[verts[0]], faces=[faces])
         fragments = self._rasterizer(meshes)
         # opengl convension is that we store the down row first
         pix_to_face = torch.flip(fragments.pix_to_face.squeeze(-1), [1])

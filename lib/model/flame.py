@@ -7,13 +7,20 @@ import torch.nn as nn
 from PIL import Image
 
 from lib.model.lbs import lbs
-from lib.model.loss import chamfer_distance_loss, distance, landmark_3d_loss
+from lib.model.loss import (
+    chamfer_distance_loss,
+    distance,
+    landmark_3d_loss,
+    point_to_point_loss,
+)
 from lib.model.utils import (
     bary_coord_interpolation,
+    flame_faces_mask,
     load_flame,
     load_flame_masks,
     load_static_landmark_embedding,
 )
+from lib.renderer.camera import camera2normal
 from lib.renderer.renderer import Renderer
 from lib.utils.logger import create_logger
 
@@ -61,16 +68,16 @@ class FLAME(L.LightningModule):
         self.expression_params = self._embedding_table(expression_params)
 
         # pose parameters
-        global_pose = torch.tensor([[torch.pi - 0.5, 0.1, 0.2]] * optimize_frames)
-        # global_pose = torch.tensor([[torch.pi, 0, 0]] * optimize_frames)
+        # global_pose = torch.tensor([[torch.pi - 0.5, 0.1, 0.2]] * optimize_frames)
+        global_pose = torch.tensor([[torch.pi, 0, 0]] * optimize_frames)
         self.global_pose = self._embedding_table(global_pose)
         self.neck_pose = self._embedding_table(torch.zeros(optimize_frames, 3))
         self.jaw_pose = self._embedding_table(torch.zeros(optimize_frames, 3))
         self.eye_pose = self._embedding_table(torch.zeros(optimize_frames, 6))
 
         # translation and scale pose
-        transl = torch.tensor([[0.0, 0.25, 0.5]] * optimize_frames)
-        # transl = torch.tensor([[0.0, 0.3, 0.6]] * optimize_frames)
+        # transl = torch.tensor([[0.0, 0.25, 0.5]] * optimize_frames)
+        transl = torch.tensor([[0.0, 0.3, 0.6]] * optimize_frames)
         self.transl = self._embedding_table(transl)
         self.scale = self._embedding_table(torch.ones(optimize_frames, 3))
 
@@ -204,6 +211,7 @@ class FLAME(L.LightningModule):
         pose_params = [
             {"params": self.global_pose.parameters()},
             {"params": self.transl.parameters()},
+            # {"params": self.scale.parameters(), "lr": self.hparams["lr"] * 0.2},
         ]
         optimizer = torch.optim.Adam(pose_params, lr=self.hparams["lr"])
         if self.hparams["scheduler"] is not None:
@@ -232,9 +240,12 @@ class FLAMEPoints(FLAME):
         shape_idx = batch["shape_idx"]  # (B, )
         point = batch["point"]  # (B, H', W' 3)
         point_mask = point[:, :, :, 2] != 0  # (B, H', W') forground
+        normal = batch["normal"]  # (B, H', W' 3)
+        normal_mask = normal.sum(-1) != 0  # (B, H', W') forground
         image = batch["image"]  # (B, H', W', 3)
+        lm3ds = batch["lm3ds"][:, self.lm_mediapipe_idx]  # (B, 105, 3)
 
-        vertices, landmarks = self.forward(
+        vertices, lm3ds_hat = self.forward(
             shape_params=self.shape_params(shape_idx),  # (B, S')
             expression_params=self.expression_params(frame_idx),  # (B, E')
             global_pose=self.global_pose(frame_idx),
@@ -245,11 +256,16 @@ class FLAMEPoints(FLAME):
             scale=self.scale(frame_idx),
         )  # (B, V, 3)
 
+        face_mask = flame_faces_mask(vertices, self.faces, self.face_vertices_mask)
         point_hat = self.renderer.render_point_image(
             vertices=vertices,  # (B, V, 3)
-            faces=self.faces,  # (F, 3)
+            faces=self.faces[face_mask],  # (F, 3)
+            # faces=self.faces,  # (F, 3)
         )  # (B, H', W')
-        point_hat_mask = point_hat[:, :, :, 2] != 0
+        point_hat_mask = point_hat.sum(-1) != 0
+
+        normal_hat = camera2normal(point_hat)  # (B, H', W', 3)
+        normal_hat_mask = normal_hat.sum(-1) != 0  # (B, H', W')
 
         # per pixel distance in 3d, just the length
         dist = torch.norm(point_hat - point, dim=-1)  # (B, W, H)
@@ -264,20 +280,37 @@ class FLAMEPoints(FLAME):
         d_mask = dist < d_threshold  # (B, W, H)
         self.log("debug/n_d_mask", float(d_mask.sum()))
 
+        n_threshold = 0.8  # this is the dot product, e.g. coresponds to an angle
+        normal_dot = (normal * normal_hat).sum(-1)
+        n_mask = normal_dot > n_threshold  # (B, W, H)
+        self.log("debug/n_n_mask", float(n_mask.sum()))
+
         # final mask of silhouette, depth and normal threshold
-        mask = d_mask & f_mask
+        mask = d_mask & f_mask & n_mask
         self.log("debug/n_mask", float(mask.sum()))
 
         # compute the loss based on the distance, mean of squared distances
-        loss = torch.pow(dist[mask], 2).mean()
-        self.log("train/p2p_loss", loss, prog_bar=True)
+        p2p_loss = torch.pow(dist[mask], 2).mean()
+        self.log("train/p2p_loss", p2p_loss)
 
+        # compute the normal loss
+        normal_loss = (1 - normal_dot[mask]).mean()
+        self.log("train/normal_loss", normal_loss)
+
+        loss = p2p_loss
+        self.log("train/loss", loss, prog_bar=True)
+
+        # debug chamfer loss
         B = point_hat.shape[0]
-        chamfer = chamfer_distance_loss(
+        chamfer = point_to_point_loss(
             vertices=vertices,
             points=point[point_mask].reshape(B, -1, 3),
         )  # (B,)
         self.log("train/chamfer", chamfer.mean(), prog_bar=True)
+
+        # debug landmark loss
+        lm_loss = landmark_3d_loss(lm3ds_hat, lm3ds)  # (B,)
+        self.log("train/lm_loss", lm_loss.mean(), prog_bar=True)
 
         # visualize the image that is optimized and save to disk and the 3d points
         b_idx = 0
@@ -316,20 +349,43 @@ class FLAMEPoints(FLAME):
             depth_image = (depth_image.clip(0, 1) * 255).to(torch.uint8)
             self.save_image(file_name, depth_image)
 
-            # flame_image = self.renderer.render_color_image(
-            #     vertices=vertices,  # (B, V, 3)
-            #     faces=self.faces,  # (F, 3)
-            #     image=image.detach().cpu(),  # (B, H, W, 3)
-            #     vertices_mask=self.face_vertices_mask,
-            # )  # (B, H, W)
-            # file_name = f"images/{f_idx:03}_{self.current_epoch:05}.png"
-            # self.save_image(file_name, flame_image[b_idx])
+            file_name = f"normal/{f_idx:03}_{self.current_epoch:05}.png"
+            normals_image = (((normal + 1) / 2) * 255).to(torch.uint8)
+            normals_image[~normal_mask, :] = 0
+            self.save_image(file_name, normals_image[batch_idx])
 
-            # file_name = f"pcd_vertices/{f_idx:03}_{self.current_epoch:05}.npz"
-            # self.save_points(file_name, vertices)
+            file_name = f"normal_hat/{f_idx:03}_{self.current_epoch:05}.png"
+            normals_image = (((normal_hat + 1) / 2) * 255).to(torch.uint8)
+            normals_image[~normal_hat_mask, :] = 0
+            self.save_image(file_name, normals_image[batch_idx])
 
-            # file_name = f"pcd_points/{f_idx:03}_{self.current_epoch:05}.npz"
-            # self.save_points(file_name, depth)
+            # flame shaded on top of the RRB image
+            B, H, W, C = normal_hat.shape
+            light = torch.tensor([-1.0, 1.0, 0.0], device=self.device)
+            specular = torch.tensor([0.3, 0.3, 0.3], device=self.device)
+            diffuse = torch.tensor([0.5, 0.5, 0.5], device=self.device)
+            light = light / torch.norm(light)
+            reflectance = (normal_hat * light).sum(-1)[..., None]
+
+            specular = reflectance * specular.expand(B, H, W, -1)
+            diffuse = diffuse.expand(B, H, W, -1)
+
+            shading = specular + diffuse
+            shading = (torch.clip(shading, 0, 1) * 255).to(torch.uint8)
+            image[normal_hat_mask] = shading[normal_hat_mask]
+
+            file_name = f"image/{f_idx:03}_{self.current_epoch:05}.png"
+            self.save_image(file_name, image[batch_idx])
+
+            # save the gt points
+            file_name = f"point/{f_idx:03}_{self.current_epoch:05}.png"
+            point = point[point_mask][batch_idx].reshape(-1, 3)
+            self.save_points(file_name, point)
+
+            # save the flame vertices
+            file_name = f"point_hat/{f_idx:03}_{self.current_epoch:05}.png"
+            point = vertices[batch_idx].reshape(-1, 3)
+            self.save_points(file_name, point)
 
         return loss
 

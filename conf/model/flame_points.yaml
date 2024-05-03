@@ -7,7 +7,7 @@ num_shape_params: 100
 num_expression_params: 50
 
 # optimization settings
-lr: 5e-03
+lr: 2e-02
 scheduler:
   _target_: torch.optim.lr_scheduler.StepLR 
   _partial_: True

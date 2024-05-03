@@ -9,7 +9,7 @@ from lib.data.utils import (
     load_mediapipe_landmark_3d,
     load_points_3d,
 )
-from lib.renderer.camera import depth2camera, load_intrinsics
+from lib.renderer.camera import camera2normal, depth2camera, load_intrinsics
 
 
 class DPHMDataset(Dataset):
@@ -82,6 +82,19 @@ class DPHMDataset(Dataset):
             depth = depth2camera(depth=depth, K=self.K, scale=self.image_scale)
             self.point_images.append(depth)
 
+    def load_normal_images(self):
+        self.normal_images = []
+        for frame_idx in self.iter_frame_idx():
+            depth = load_depth_masked(
+                data_dir=self.data_dir,
+                idx=frame_idx,
+                return_tensor="pt",
+            )
+            depth = depth2camera(depth=depth, K=self.K, scale=self.image_scale)
+            # camera2normal takes batch as input
+            normal = camera2normal(depth=depth.unsqueeze(0))[0]
+            self.normal_images.append(normal)
+
     def __len__(self) -> int:
         return self.optimize_frames
 
@@ -94,13 +107,20 @@ class DPHMPointDataset(DPHMDataset):
         super().__init__(**kwargs)
         self.load_color()
         self.load_point_images()
+        self.load_normal_images()
+        self.load_lm3ds()
 
     def __getitem__(self, idx: int):
+        # (H', W', 3) this is scaled
         point = self.point_images[idx]
-        image = self.images[idx]  # (H', W', 3) this is scaled
+        image = self.images[idx]
+        normal = self.normal_images[idx]
+        lm3ds = self.lm3ds[idx]
         return {
             "shape_idx": 0,
             "frame_idx": idx,
             "point": point,
             "image": image,
+            "normal": normal,
+            "lm3ds": lm3ds,
         }

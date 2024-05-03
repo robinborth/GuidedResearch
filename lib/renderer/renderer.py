@@ -4,6 +4,7 @@ import torch.nn as nn
 from torchvision.transforms import v2
 
 from lib.model.utils import bary_coord_interpolation, flame_faces_mask
+from lib.renderer.camera import camera2normal
 from lib.renderer.rasterizer import Rasterizer
 
 
@@ -89,71 +90,84 @@ class Renderer(L.LightningModule):
         point[~mask, :] = 0
         return point  # (B, H, W, 3)
 
-    def render_normal(
-        self,
-        vertices: torch.Tensor,
-        faces: torch.Tensor,
-        vertices_mask: torch.Tensor | None = None,
-    ):
-        """Render an normalized normal map.
+    def render_normal(self, vertices: torch.Tensor, faces: torch.Tensor):
+        """Render an depth map which camera z coordinate.
 
         Args:
-            vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
+            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
             faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
-            vertices_mask (torch.Tensor): The idx of the vertices that should be
-                included in the rendering and computation.
 
         Returns:
-            (torch.Tensor): Normals ranging from [-1, 1] and have unit lenght, the dim
-                is of the canvas hence (H, W).
+            (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W, 3).
         """
+        point = self.render_point_image(vertices=vertices, faces=faces)
+        return camera2normal(point)  # (B, H', W', 3)
 
-        # tmesh = trimesh.Trimesh(
-        #     vertices=vertices.detach().cpu().numpy(),
-        #     faces=faces.detach().cpu().numpy(),
-        # )
-        tmesh = ...
-        attributes = torch.tensor(tmesh.vertex_normals, dtype=vertices.dtype)
-        faces_mask = flame_faces_mask(vertices, faces, vertices_mask)
-        normals, mask = self.forward(vertices, faces[faces_mask], attributes)  # (H,W,3)
-        normals = normals / torch.norm(normals, dim=-1)[..., None]
-        normals[~mask, :] = 0
-        return normals
+    # def render_normal(
+    #     self,
+    #     vertices: torch.Tensor,
+    #     faces: torch.Tensor,
+    #     vertices_mask: torch.Tensor | None = None,
+    # ):
+    #     """Render an normalized normal map.
 
-    def render_normal_image(
-        self,
-        vertices: torch.Tensor,
-        faces: torch.Tensor,
-        vertices_mask: torch.Tensor | None = None,
-    ):
-        """Render normals in RGB space."""
-        normals = self.render_normal(vertices, faces, vertices_mask)
-        background_mask = normals.sum(-1) == 0
-        normals = (((normals + 1) / 2) * 255).to(torch.uint8)
-        normals[background_mask] = 0
-        return normals
+    #     Args:
+    #         vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
+    #         faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+    #         vertices_mask (torch.Tensor): The idx of the vertices that should be
+    #             included in the rendering and computation.
 
-    def render_shader_image(
-        self,
-        vertices: torch.Tensor,
-        faces: torch.Tensor,
-        vertices_mask: torch.Tensor | None = None,
-    ):
-        """Render the shaded image in RGB space."""
-        normals = self.render_normal(vertices, faces, vertices_mask)
-        background_mask = normals.sum(-1) == 0
-        H, W, _ = normals.shape
+    #     Returns:
+    #         (torch.Tensor): Normals ranging from [-1, 1] and have unit lenght, the dim
+    #             is of the canvas hence (H, W).
+    #     """
 
-        light = self.light / torch.norm(self.light)
-        reflectance = (normals * light).sum(-1)
-        specular = reflectance[..., None] * self.specular.expand(H, W, -1)
-        diffuse = self.diffuse.expand(H, W, -1)
+    #     # tmesh = trimesh.Trimesh(
+    #     #     vertices=vertices.detach().cpu().numpy(),
+    #     #     faces=faces.detach().cpu().numpy(),
+    #     # )
+    #     tmesh = ...
+    #     attributes = torch.tensor(tmesh.vertex_normals, dtype=vertices.dtype)
+    #     faces_mask = flame_faces_mask(vertices, faces, vertices_mask)
+    #     normals, mask = self.forward(vertices, faces[faces_mask], attributes)  # (H,W,3)
+    #     normals = normals / torch.norm(normals, dim=-1)[..., None]
+    #     normals[~mask, :] = 0
+    #     return normals
 
-        image = specular + diffuse
-        image = (torch.clip(image, 0, 1) * 255).to(torch.uint8)
-        image[background_mask, :] = 0
+    # def render_normal_image(
+    #     self,
+    #     vertices: torch.Tensor,
+    #     faces: torch.Tensor,
+    #     vertices_mask: torch.Tensor | None = None,
+    # ):
+    #     """Render normals in RGB space."""
+    #     normals = self.render_normal(vertices, faces, vertices_mask)
+    #     background_mask = normals.sum(-1) == 0
+    #     normals = (((normals + 1) / 2) * 255).to(torch.uint8)
+    #     normals[background_mask] = 0
+    #     return normals
 
-        return image
+    # def render_shader_image(
+    #     self,
+    #     vertices: torch.Tensor,
+    #     faces: torch.Tensor,
+    #     vertices_mask: torch.Tensor | None = None,
+    # ):
+    #     """Render the shaded image in RGB space."""
+    #     normals = self.render_normal(vertices, faces, vertices_mask)
+    #     background_mask = normals.sum(-1) == 0
+    #     H, W, _ = normals.shape
+
+    #     light = self.light / torch.norm(self.light)
+    #     reflectance = (normals * light).sum(-1)
+    #     specular = reflectance[..., None] * self.specular.expand(H, W, -1)
+    #     diffuse = self.diffuse.expand(H, W, -1)
+
+    #     image = specular + diffuse
+    #     image = (torch.clip(image, 0, 1) * 255).to(torch.uint8)
+    #     image[background_mask, :] = 0
+
+    #     return image
 
     def render_color_image(
         self,

@@ -184,3 +184,57 @@ def depth2camera(
     # the background is just zero
     camera[b_mask, :] = 0.0
     return camera
+
+
+def camera2normal(depth: torch.Tensor):
+    """Calculate the normal image from the camera image.
+
+    We calculate the normal in camera space, hence we also need to normalize with the
+    depth information. Note that the normal is basically on which direction we have the
+    stepest decent.
+
+    More can be be found here:
+    https://stackoverflow.com/questions/34644101/
+
+    They have (-dz/dx,-dz/dy,1), however we are in camera space hence we need to
+    calculate the gradient in pixel space, e.g. also the delta x and delta y are in
+    camera space.
+
+    Args:
+        depth (torch.Tensor): Camera image of dim (B, H, W, 3).
+
+    Returns:
+        (torch.Tensor): The normal image based on the depth/camera of dim (B, H, W, 3).
+    """
+    # NOTE in order to calc that only with depth image, we need to make sure that the
+    # depth is in pixel space.
+    depth = depth.clone()
+
+    # make sure that on the boundary is nothing wrong calculated
+    depth[depth.sum(-1) == 0] = torch.nan
+
+    _, H, W, _ = depth.shape
+    normals = torch.ones_like(depth)
+    normals *= -1  # make sure that the default normal looks to the camera
+
+    x_right = torch.arange(2, W)
+    x_left = torch.arange(0, W - 2)
+    dzx = depth[:, :, x_right, 2] - depth[:, :, x_left, 2]
+    dx = depth[:, :, x_right, 0] - depth[:, :, x_left, 0]
+    normals[:, :, 1:-1, 0] = dzx / dx
+
+    y_right = torch.arange(2, H)
+    y_left = torch.arange(0, H - 2)
+    dzy = depth[:, y_right, :, 2] - depth[:, y_left, :, 2]
+    dy = depth[:, y_right, :, 1] - depth[:, y_left, :, 1]
+    normals[:, 1:-1, :, 1] = dzy / dy
+
+    # normalized between [-1, 1] and remove artefacs
+    normals = normals / torch.norm(normals, dim=-1).unsqueeze(-1)
+    normals = torch.nan_to_num(normals, 0)
+    normals[:, :1, :, :] = 0
+    normals[:, -1:, :, :] = 0
+    normals[:, :, :1, :] = 0
+    normals[:, :, -1:, :] = 0
+
+    return normals
