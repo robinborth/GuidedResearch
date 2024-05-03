@@ -183,10 +183,12 @@ def depth2camera(
 
     # the background is just zero
     camera[b_mask, :] = 0.0
-    return camera
+    mask = ~b_mask
+
+    return camera, mask
 
 
-def camera2normal(depth: torch.Tensor):
+def camera2normal(point: torch.Tensor):
     """Calculate the normal image from the camera image.
 
     We calculate the normal in camera space, hence we also need to normalize with the
@@ -208,25 +210,25 @@ def camera2normal(depth: torch.Tensor):
     """
     # NOTE in order to calc that only with depth image, we need to make sure that the
     # depth is in pixel space.
-    depth = depth.clone()
+    point = point.clone()
 
     # make sure that on the boundary is nothing wrong calculated
-    depth[depth.sum(-1) == 0] = torch.nan
+    point[point.sum(-1) == 0] = torch.nan  # some large value
 
-    _, H, W, _ = depth.shape
-    normals = torch.ones_like(depth)
+    _, H, W, _ = point.shape
+    normals = torch.ones_like(point)
     normals *= -1  # make sure that the default normal looks to the camera
 
     x_right = torch.arange(2, W)
     x_left = torch.arange(0, W - 2)
-    dzx = depth[:, :, x_right, 2] - depth[:, :, x_left, 2]
-    dx = depth[:, :, x_right, 0] - depth[:, :, x_left, 0]
+    dzx = point[:, :, x_right, 2] - point[:, :, x_left, 2]
+    dx = point[:, :, x_right, 0] - point[:, :, x_left, 0]
     normals[:, :, 1:-1, 0] = dzx / dx
 
     y_right = torch.arange(2, H)
     y_left = torch.arange(0, H - 2)
-    dzy = depth[:, y_right, :, 2] - depth[:, y_left, :, 2]
-    dy = depth[:, y_right, :, 1] - depth[:, y_left, :, 1]
+    dzy = point[:, y_right, :, 2] - point[:, y_left, :, 2]
+    dy = point[:, y_right, :, 1] - point[:, y_left, :, 1]
     normals[:, 1:-1, :, 1] = dzy / dy
 
     # normalized between [-1, 1] and remove artefacs
@@ -237,4 +239,6 @@ def camera2normal(depth: torch.Tensor):
     normals[:, :, :1, :] = 0
     normals[:, :, -1:, :] = 0
 
-    return normals
+    mask = normals.sum(-1) != 0
+
+    return normals, mask

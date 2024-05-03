@@ -28,8 +28,16 @@ class DPHMDataModule(L.LightningDataModule):
         self.save_hyperparameters(logger=False)
         assert batch_size <= optimize_frames
 
+        self.image_scale = image_scale
+        self.image_width = int(image_width * image_scale)
+        self.image_height = int(image_height * image_scale)
+
     def setup(self, stage: str) -> None:
-        self.dataset = self.hparams["dataset"]
+        self.dataset = self.hparams["dataset"](
+            image_scale=self.image_scale,
+            image_width=self.image_width,
+            image_height=self.image_height,
+        )
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

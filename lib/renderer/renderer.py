@@ -1,31 +1,95 @@
-import lightning as L
 import torch
 import torch.nn as nn
-from torchvision.transforms import v2
+from pytorch3d.renderer import MeshRasterizer, PerspectiveCameras, RasterizationSettings
+from pytorch3d.structures import Meshes
 
-from lib.model.utils import bary_coord_interpolation, flame_faces_mask
 from lib.renderer.camera import camera2normal
-from lib.renderer.rasterizer import Rasterizer
 
 
-class Renderer(L.LightningModule):
+class Renderer(nn.Module):
     def __init__(
         self,
-        rasterizer: Rasterizer | None = None,
-        diffuse: list[float] | None = None,
-        specular: list[float] | None = None,
-        light: list[float] | None = None,
+        K: torch.Tensor,
+        image_scale: float = 1.0,
+        image_width: int = 1920,
+        image_height: int = 1080,
+        diffuse: list[float] = [0.5, 0.5, 0.5],
+        specular: list[float] = [0.3, 0.3, 0.3],
+        light: list[float] = [-1.0, 1.0, 0.0],
+        device: str = "cpu",
     ):
-        super().__init__()
-        self.rasterizer = rasterizer if rasterizer is not None else Rasterizer()
-        diffuse = diffuse if diffuse is not None else [0.5, 0.5, 0.5]
-        self.diffuse = torch.tensor(diffuse)
-        specular = specular if specular is not None else [0.3, 0.3, 0.3]
-        self.specular = torch.tensor(specular)
-        light = light if light is not None else [-1.0, 1.0, 0.0]  # world coord space
-        self.light = torch.tensor(light)
+        """The rendering settings.
 
-    def forward(
+        Args:
+            K (dict): NOTE: The scaled intrinsic based on H', W' of dim (3, 3).
+            image_width (int, optional): _description_. Defaults to 1920.
+            image_height (int, optional): _description_. Defaults to 1080.
+            diffuse (list[float]): _description_. Defaults to [0.5, 0.5, 0.5].
+            specular (list[float]): _description_. Defaults to [0.3, 0.3, 0.3].
+            light (list[float]): _description_. Defaults to [-1.0, 1.0, 0.0].
+            device (str): _description_. Defaults to "cpu".
+        """
+        super().__init__()
+
+        self.H = image_width
+        self.W = image_height
+        self.device = device
+
+        settings = RasterizationSettings(
+            image_size=[self.H, self.W],
+            blur_radius=0.0,
+            faces_per_pixel=1,
+            bin_size=None,
+            max_faces_per_bin=None,
+            perspective_correct=False,
+        )
+
+        fx = K[0, 0] * image_scale
+        fy = K[1, 1] * image_scale
+        cx = K[0, 2] * image_scale
+        cy = K[1, 2] * image_scale
+        cameras = PerspectiveCameras(
+            image_size=[[self.H, self.W]],
+            focal_length=[(fx, fy)],
+            principal_point=[(cx, cy)],
+            in_ndc=False,
+        )
+
+        # define the rasterizer
+        self.rasterizer = MeshRasterizer(
+            cameras=cameras,
+            raster_settings=settings,
+        )
+
+        # rendering settings for shading
+        self.diffuse = torch.tensor(diffuse, device=device)
+        self.specular = torch.tensor(specular, device=device)
+        self.light = torch.tensor(light, device=device)
+
+    def rasterize(self, vertices: torch.Tensor, faces: torch.Tensor):
+        """Rendering of the attributes with mesh rasterization.
+
+        NOTE: The rasterization only works on cpu currently.
+
+        Args:
+            faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
+
+        Returns:
+            (torch.Tensor, torch.Tensor) A tuple of pix_to_face cordinates of dim
+            (B, H, W) and the coresponding bary coordinates of dim (B, H, W, 3).
+        """
+        verts = vertices.cpu().clone()
+        verts[:, :1] = -verts[:, :1]
+        faces = faces.expand(verts.shape[0], -1, -1).cpu()
+        meshes = Meshes(verts=verts, faces=faces)
+        fragments = self.rasterizer(meshes)
+        # opengl convension is that we store the down row first
+        pix_to_face = torch.flip(fragments.pix_to_face.squeeze(-1), [1])
+        bary_coords = torch.flip(fragments.bary_coords.squeeze(-2), [1])
+        return pix_to_face.to(self.device), bary_coords.to(self.device)
+
+    def render(
         self,
         vertices: torch.Tensor,
         faces: torch.Tensor,
@@ -43,9 +107,8 @@ class Renderer(L.LightningModule):
                 that are barycentric interpolated, hence the dim is (H, W, D). Not that
                 we have a row-major matrix representation.
         """
-        pix2face, b_coords = self.rasterizer(
-            vertices.cpu(), faces.cpu()
-        )  # (B, H, W), (B, H, W, 3)
+        # (B, H, W), (B, H, W, 3)
+        pix2face, b_coords = self.rasterize(vertices, faces)
         vertices_idx = faces[pix2face]  # (B, H, W, 3)
 
         # access the vertex attributes
@@ -56,12 +119,41 @@ class Renderer(L.LightningModule):
         vertex_attribute = attributes[b_idx, v_idx]  # (B, *, D)
         vertex_attribute = vertex_attribute.reshape(B, H, W, C, D)  # (B, H, W, 3, D)
 
-        bary_coords = b_coords.unsqueeze(-1).to(self.device)  # (B, H, W, 3, 1)
+        bary_coords = b_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
         attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
 
-        return attributes, pix2face != -1
+        # forground mask
+        mask = pix2face != -1
 
-    def render_depth(self, vertices: torch.Tensor, faces: torch.Tensor):
+        return attributes, mask
+
+    def render_point(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+    ):
+        """Render the camera points map which camera z coordinate.
+
+        Args:
+            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
+            faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+
+        Returns:
+            (torch.Tensor): Points in camera coordinate system where the depth is
+                ranging from [0, inf] with dim (B, H, W, 3).
+        """
+        point, mask = self.render(vertices, faces, vertices)  # (B, H, W, 1), (B, H, W)
+        point[~mask, :] = 0
+        return point, mask  # (B, H, W, 3),  (B, H, W)
+
+    def point_to_depth(self, point):
+        return point[:, :, :, 2]  # (H, W, 3)
+
+    def render_depth(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+    ):
         """Render an depth map which camera z coordinate.
 
         Args:
@@ -71,24 +163,21 @@ class Renderer(L.LightningModule):
         Returns:
             (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W).
         """
-        attributes = vertices[:, :, 2].unsqueeze(-1)  # depth values of dim (B, V, 1)
-        depth, mask = self.forward(vertices, faces, attributes)  # (H, W, 1), (H, W)
-        depth[~mask, :] = 0  # TODO is this a good default value?
-        return depth.squeeze(-1)  # (H, W)
+        point, mask = self.render_point(vertices, faces)
+        depth = self.point_to_depth(point)
+        return depth, mask
 
-    def render_point_image(self, vertices: torch.Tensor, faces: torch.Tensor):
-        """Render an depth map which camera z coordinate.
+    def depth_to_depth_image(self, depth):
+        return (depth.clip(0, 1) * 255).to(torch.uint8)
 
-        Args:
-            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
-            faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+    def render_depth_image(self, point):
+        depth, mask = self.point_to_depth(point)
+        depth_image = self.depth_to_depth_image(depth)
+        return depth_image, mask
 
-        Returns:
-            (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W, 3).
-        """
-        point, mask = self.forward(vertices, faces, vertices)  # (B, H, W, 1), (B, H, W)
-        point[~mask, :] = 0
-        return point  # (B, H, W, 3)
+    def point_to_normal(self, point):
+        normal, normal_mask = camera2normal(point)
+        return normal, normal_mask
 
     def render_normal(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render an depth map which camera z coordinate.
@@ -100,97 +189,56 @@ class Renderer(L.LightningModule):
         Returns:
             (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W, 3).
         """
-        point = self.render_point_image(vertices=vertices, faces=faces)
-        return camera2normal(point)  # (B, H', W', 3)
+        point, _ = self.render_point(vertices=vertices, faces=faces)
+        normal, normal_mask = self.point_to_normal(point)  # (B, H', W', 3)
+        return normal, normal_mask
 
-    # def render_normal(
-    #     self,
-    #     vertices: torch.Tensor,
-    #     faces: torch.Tensor,
-    #     vertices_mask: torch.Tensor | None = None,
-    # ):
-    #     """Render an normalized normal map.
+    def normal_to_normal_image(self, normal, mask):
+        normal_image = (((normal + 1) / 2) * 255).to(torch.uint8)
+        normal_image[~mask] = 0
+        return normal_image
 
-    #     Args:
-    #         vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
-    #         faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
-    #         vertices_mask (torch.Tensor): The idx of the vertices that should be
-    #             included in the rendering and computation.
+    def render_normal_image(self, vertices: torch.Tensor, faces: torch.Tensor):
+        """Render normals in RGB space."""
+        normal, mask = self.render_normal(vertices, faces)
+        normal_image = self.normal_to_normal_image(normal, mask)
+        return normal_image
 
-    #     Returns:
-    #         (torch.Tensor): Normals ranging from [-1, 1] and have unit lenght, the dim
-    #             is of the canvas hence (H, W).
-    #     """
+    def normal_to_shading_image(self, normal, mask):
+        B, H, W, _ = normal.shape
+        light = self.light / torch.norm(self.light)
+        reflectance = (normal * light).sum(-1)[..., None]
 
-    #     # tmesh = trimesh.Trimesh(
-    #     #     vertices=vertices.detach().cpu().numpy(),
-    #     #     faces=faces.detach().cpu().numpy(),
-    #     # )
-    #     tmesh = ...
-    #     attributes = torch.tensor(tmesh.vertex_normals, dtype=vertices.dtype)
-    #     faces_mask = flame_faces_mask(vertices, faces, vertices_mask)
-    #     normals, mask = self.forward(vertices, faces[faces_mask], attributes)  # (H,W,3)
-    #     normals = normals / torch.norm(normals, dim=-1)[..., None]
-    #     normals[~mask, :] = 0
-    #     return normals
+        specular = reflectance * self.specular.expand(B, H, W, -1)
+        diffuse = self.diffuse.expand(B, H, W, -1)
 
-    # def render_normal_image(
-    #     self,
-    #     vertices: torch.Tensor,
-    #     faces: torch.Tensor,
-    #     vertices_mask: torch.Tensor | None = None,
-    # ):
-    #     """Render normals in RGB space."""
-    #     normals = self.render_normal(vertices, faces, vertices_mask)
-    #     background_mask = normals.sum(-1) == 0
-    #     normals = (((normals + 1) / 2) * 255).to(torch.uint8)
-    #     normals[background_mask] = 0
-    #     return normals
+        shading = specular + diffuse
+        shading = (torch.clip(shading, 0, 1) * 255).to(torch.uint8)
+        shading[~mask] = 0
 
-    # def render_shader_image(
-    #     self,
-    #     vertices: torch.Tensor,
-    #     faces: torch.Tensor,
-    #     vertices_mask: torch.Tensor | None = None,
-    # ):
-    #     """Render the shaded image in RGB space."""
-    #     normals = self.render_normal(vertices, faces, vertices_mask)
-    #     background_mask = normals.sum(-1) == 0
-    #     H, W, _ = normals.shape
+        return shading
 
-    #     light = self.light / torch.norm(self.light)
-    #     reflectance = (normals * light).sum(-1)
-    #     specular = reflectance[..., None] * self.specular.expand(H, W, -1)
-    #     diffuse = self.diffuse.expand(H, W, -1)
+    def render_shading_image(self, vertices: torch.Tensor, faces: torch.Tensor):
+        """Render the shaded image in RGB space."""
+        normal, mask = self.render_normal(vertices, faces)
+        shading, mask = self.normal_to_shading(normal, mask)
+        return shading, mask
 
-    #     image = specular + diffuse
-    #     image = (torch.clip(image, 0, 1) * 255).to(torch.uint8)
-    #     image[background_mask, :] = 0
-
-    #     return image
-
-    def render_color_image(
-        self,
-        vertices: torch.Tensor,
-        faces: torch.Tensor,
-        image: torch.Tensor,
-        vertices_mask: torch.Tensor | None = None,
-        rescale: bool = False,
-    ):
-        """Render the flame model on top of the resized color image in RGB space.
-
-        Args:
-            vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
-            faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
-            image (torch.tensor): The color image of original dim (H', W', 3).
-        """
-        flame_image = self.render_shader_image(vertices, faces, vertices_mask)
-        flame_mask = flame_image.sum(-1) != 0
-        if rescale:
-            image = v2.functional.resize(
-                inpt=image.permute(2, 0, 1),
-                size=self.rasterizer.image_size,
-            )
-            image = image.permute(1, 2, 0).to(torch.uint8)
-        image[flame_mask] = flame_image[flame_mask]
-        return image
+    def render_full(self, vertices: torch.Tensor, faces: torch.Tensor):
+        """Render all images."""
+        point, mask = self.render_point(vertices, faces)
+        depth = self.point_to_depth(point)
+        depth_image = self.depth_to_depth_image(depth)
+        normal, normal_mask = self.point_to_normal(point)
+        normal_image = self.normal_to_normal_image(normal, normal_mask)
+        shading_image = self.normal_to_shading_image(normal, normal_mask)
+        return {
+            "mask": mask,
+            "point": point,
+            "depth": depth,
+            "depth_image": depth_image,
+            "normal": normal,
+            "normal_mask": normal_mask,
+            "normal_image": normal_image,
+            "shading_image": shading_image,
+        }

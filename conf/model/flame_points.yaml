@@ -3,6 +3,7 @@ _target_: lib.model.flame.FLAMEPoints
 
 # model settings
 flame_dir: ${paths.root_dir}/checkpoints/flame2023
+data_dir: ${data.data_dir}
 num_shape_params: 100
 num_expression_params: 50
 
@@ -17,12 +18,12 @@ optimize_frames: ${data.optimize_frames}
 optimize_shapes: 1
 
 # debug settings
-renderer:
-  _target_: lib.renderer.renderer.Renderer
-  rasterizer: 
-    _target_: lib.renderer.rasterizer.Rasterizer
-    data_dir: ${data.data_dir}
-    image_scale: ${data.image_scale}
-    image_width: ${data.image_width}
-    image_height: ${data.image_height}
+# renderer:
+#   _target_: lib.renderer.renderer.Renderer
+#   rasterizer: 
+#     _target_: lib.renderer.rasterizer.Rasterizer
+#     data_dir: ${data.data_dir}
+#     image_scale: ${data.image_scale}
+#     image_width: ${data.image_width}
+#     image_height: ${data.image_height}
 save_interval: 1

@@ -20,7 +20,7 @@ from lib.model.utils import (
     load_flame_masks,
     load_static_landmark_embedding,
 )
-from lib.renderer.camera import camera2normal
+from lib.renderer.camera import camera2normal, load_intrinsics
 from lib.renderer.renderer import Renderer
 from lib.utils.logger import create_logger
 
@@ -36,6 +36,7 @@ class FLAME(L.LightningModule):
         self,
         # model settings
         flame_dir: str = "/flame",
+        data_dir: str = "/data",
         num_shape_params: int = 100,
         num_expression_params: int = 50,
         # optimization settings
@@ -59,27 +60,27 @@ class FLAME(L.LightningModule):
         zero_shape = torch.zeros(300 - num_shape_params)
         self.zero_shape = nn.Parameter(zero_shape)
         shape_params = torch.zeros(optimize_shapes, num_shape_params)
-        self.shape_params = self._embedding_table(shape_params)
+        self.shape_params = self.create_embeddings(shape_params)
 
         # expression parameters
         zero_expression = torch.zeros(100 - num_expression_params)
         self.zero_expression = nn.Parameter(zero_expression)
         expression_params = torch.zeros(optimize_frames, num_expression_params)
-        self.expression_params = self._embedding_table(expression_params)
+        self.expression_params = self.create_embeddings(expression_params)
 
         # pose parameters
         # global_pose = torch.tensor([[torch.pi - 0.5, 0.1, 0.2]] * optimize_frames)
         global_pose = torch.tensor([[torch.pi, 0, 0]] * optimize_frames)
-        self.global_pose = self._embedding_table(global_pose)
-        self.neck_pose = self._embedding_table(torch.zeros(optimize_frames, 3))
-        self.jaw_pose = self._embedding_table(torch.zeros(optimize_frames, 3))
-        self.eye_pose = self._embedding_table(torch.zeros(optimize_frames, 6))
+        self.global_pose = self.create_embeddings(global_pose)
+        self.neck_pose = self.create_embeddings(torch.zeros(optimize_frames, 3))
+        self.jaw_pose = self.create_embeddings(torch.zeros(optimize_frames, 3))
+        self.eye_pose = self.create_embeddings(torch.zeros(optimize_frames, 6))
 
         # translation and scale pose
         # transl = torch.tensor([[0.0, 0.25, 0.5]] * optimize_frames)
         transl = torch.tensor([[0.0, 0.3, 0.6]] * optimize_frames)
-        self.transl = self._embedding_table(transl)
-        self.scale = self._embedding_table(torch.ones(optimize_frames, 3))
+        self.transl = self.create_embeddings(transl)
+        self.scale = self.create_embeddings(torch.ones(optimize_frames, 3))
 
         # load the faces, mean vertices and pca bases
         self.faces = nn.Parameter(flame_model["f"], requires_grad=False)  # (9976, 3)
@@ -99,7 +100,7 @@ class FLAME(L.LightningModule):
 
         # flame masks, for different vertex idx
         face_mask = load_flame_masks(flame_dir, return_tensors="pt")["face"]
-        self.face_vertices_mask = torch.nn.Parameter(face_mask, requires_grad=False)
+        self.vertices_mask = torch.nn.Parameter(face_mask, requires_grad=False)
 
         # flame landmarks to guide sparse landmark loss
         lms = load_static_landmark_embedding(flame_dir, return_tensors="pt")
@@ -110,14 +111,8 @@ class FLAME(L.LightningModule):
         lm_idx = lms["lm_mediapipe_idx"]  # (105,)
         self.lm_mediapipe_idx = torch.nn.Parameter(lm_idx, requires_grad=False)
 
-        # visualization/debugging
-        if renderer is None:
-            log.info("FLAME model does not have a renderer specified!")
-        self.renderer = renderer
-
-    def _embedding_table(self, tensor: torch.Tensor):
-        num_embeddings, embedding_dim = tensor.shape
-        return nn.Embedding(num_embeddings, embedding_dim, _weight=tensor)
+        # load the default intriniscs or initialize it with something good
+        self.K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
 
     def forward(
         self,
@@ -207,13 +202,12 @@ class FLAME(L.LightningModule):
 
         return vertices, landmarks  # (B, V, 3), (B, 105, 3)
 
+    def training_step(self, batch, batch_idx):
+        return self.optimization_step(batch, batch_idx)
+
     def configure_optimizers(self):
-        pose_params = [
-            {"params": self.global_pose.parameters()},
-            {"params": self.transl.parameters()},
-            # {"params": self.scale.parameters(), "lr": self.hparams["lr"] * 0.2},
-        ]
-        optimizer = torch.optim.Adam(pose_params, lr=self.hparams["lr"])
+        optimizer_params = self.optimization_params()
+        optimizer = torch.optim.Adam(**optimizer_params)
         if self.hparams["scheduler"] is not None:
             scheduler = self.hparams["scheduler"](optimizer=optimizer)
             return {
@@ -221,6 +215,97 @@ class FLAME(L.LightningModule):
                 "lr_scheduler": {"scheduler": scheduler, "monitor": "train/loss"},
             }
         return {"optimizer": optimizer}
+
+    ####################################################################################
+    # Model Utils
+    ####################################################################################
+
+    def create_embeddings(self, tensor: torch.Tensor):
+        num_embeddings, embedding_dim = tensor.shape
+        return nn.Embedding(num_embeddings, embedding_dim, _weight=tensor)
+
+    def masked_faces(self, vertices: torch.Tensor):
+        """Calculates the triangular faces mask based on the masked vertices.
+
+        Args:
+            vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
+
+        Returns:
+            (torch.Tensor): A boolean mask of the faces that should be used for the
+                computation, the final dimension of the mask is (F, 3).
+        """
+        if self.vertices_mask is None:
+            vertices_mask = torch.arange(vertices.shape[0], device=vertices.device)
+        vertices_mask = self.vertices_mask.expand(*self.faces.shape, -1).to(self.device)
+        face_mask = (self.faces.unsqueeze(-1) == vertices_mask).any(dim=-1).all(dim=-1)
+        return self.faces[face_mask]
+
+    def optimization_params(self):
+        raise NotImplementedError()
+
+    def optimization_step(self):
+        raise NotImplementedError()
+
+    def on_before_optimizer_step(self, optimizer):
+        self.log_dict({"debug/transl_x": self.transl.weight[0, 0]})
+        transl_grad = optimizer.param_groups[0]["params"][0][0]
+        self.log_dict({"debug/transl_x_grad": transl_grad[0]})
+
+        self.log_dict({"debug/transl_y": self.transl.weight[0, 1]})
+        transl_grad = optimizer.param_groups[0]["params"][0][0]
+        self.log_dict({"debug/transl_y_grad": transl_grad[1]})
+
+        self.log_dict({"debug/transl_z": self.transl.weight[0, 2]})
+        transl_grad = optimizer.param_groups[0]["params"][0][0]
+        self.log_dict({"debug/transl_z_grad": transl_grad[2]})
+
+    ####################################################################################
+    # Dataset Utils Coarse To Fine
+    ####################################################################################
+
+    @property
+    def image_scale(self):
+        return self.trainer.datamodule.image_scale
+
+    @property
+    def image_height(self):
+        return self.trainer.datamodule.image_height
+
+    @property
+    def image_width(self):
+        return self.trainer.datamodule.image_width
+
+    ####################################################################################
+    # Logging and Debuging Utils
+    ####################################################################################
+    def error_images(self, loss: torch.Tensor, mask: torch.Tensor):
+        """The error image per pixel.
+
+        Args:
+            loss (torch.Tensor): The loss image per pixel of dim (B, H, W)
+            mask (torch.Tensor): The mask to set the error to zero (B, H, W)
+
+        Returns:
+            (torch.Tensor): The error image as pixel values ranging from
+                0 ... 255, where 255 means a high error of dim (B, H, W, 3)
+        """
+        error_image = torch.zeros((*loss.shape, 3), device=loss.device)
+        error_image[:, :, :, 0] = loss * 4
+        error_image = (error_image.clip(0, 1) * 255).to(torch.uint8)
+        error_image[~mask] = 0
+        return error_image
+
+    def points_direction_image(
+        self,
+        s_points: torch.Tensor,
+        t_points: torch.Tensor,
+        mask: torch.Tensor,
+    ):
+        point_dir = t_points - s_points
+        point_dir = point_dir / torch.norm(point_dir, dim=-1).unsqueeze(-1)
+        point_dir = (((point_dir + 1) / 2) * 255).to(torch.uint8)
+        point_dir[~mask, :] = 0
+        return point_dir
 
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.logger.save_dir) / file_name  # type: ignore
@@ -235,15 +320,27 @@ class FLAME(L.LightningModule):
 
 
 class FLAMEPoints(FLAME):
-    def training_step(self, batch, batch_idx):
+    def optimization_step(self, batch, batch_idx):
         frame_idx = batch["frame_idx"]  # (B, )
         shape_idx = batch["shape_idx"]  # (B, )
+        B = batch["frame_idx"].shape[0]  # batch_size
+        b_idx = 0
+        f_idx = batch["frame_idx"][b_idx].item()
+
         point = batch["point"]  # (B, H', W' 3)
-        point_mask = point[:, :, :, 2] != 0  # (B, H', W') forground
+        point_mask = batch["point_mask"]  # (B, H', W') forground
         normal = batch["normal"]  # (B, H', W' 3)
-        normal_mask = normal.sum(-1) != 0  # (B, H', W') forground
+        normal_mask = batch["normal_mask"]  # (B, H', W') forground
         image = batch["image"]  # (B, H', W', 3)
         lm3ds = batch["lm3ds"][:, self.lm_mediapipe_idx]  # (B, 105, 3)
+
+        renderer = Renderer(
+            K=self.K,
+            image_scale=self.image_scale,
+            image_height=self.image_width,
+            image_width=self.image_height,
+            device=self.device,
+        )
 
         vertices, lm3ds_hat = self.forward(
             shape_params=self.shape_params(shape_idx),  # (B, S')
@@ -256,22 +353,17 @@ class FLAMEPoints(FLAME):
             scale=self.scale(frame_idx),
         )  # (B, V, 3)
 
-        face_mask = flame_faces_mask(vertices, self.faces, self.face_vertices_mask)
-        point_hat = self.renderer.render_point_image(
+        faces = self.masked_faces(vertices)  # (F', 3)
+        render = renderer.render_full(
             vertices=vertices,  # (B, V, 3)
-            faces=self.faces[face_mask],  # (F, 3)
-            # faces=self.faces,  # (F, 3)
+            faces=faces,  # (F, 3)
         )  # (B, H', W')
-        point_hat_mask = point_hat.sum(-1) != 0
-
-        normal_hat = camera2normal(point_hat)  # (B, H', W', 3)
-        normal_hat_mask = normal_hat.sum(-1) != 0  # (B, H', W')
 
         # per pixel distance in 3d, just the length
-        dist = torch.norm(point_hat - point, dim=-1)  # (B, W, H)
+        dist = torch.norm(render["point"] - point, dim=-1)  # (B, W, H)
 
         # calculate the forground mask
-        f_mask = point_mask & point_hat_mask  # (B, W, H)
+        f_mask = point_mask & render["mask"]  # (B, W, H)
         assert f_mask.sum()  # we have some overlap
         self.log("debug/n_f_mask", float(f_mask.sum()))
 
@@ -281,8 +373,9 @@ class FLAMEPoints(FLAME):
         self.log("debug/n_d_mask", float(d_mask.sum()))
 
         n_threshold = 0.8  # this is the dot product, e.g. coresponds to an angle
-        normal_dot = (normal * normal_hat).sum(-1)
-        n_mask = normal_dot > n_threshold  # (B, W, H)
+        normal_dot = (normal * render["normal"]).sum(-1)
+        n_threshold_mask = normal_dot > n_threshold  # (B, W, H)
+        n_mask = normal_mask & render["normal_mask"] & n_threshold_mask
         self.log("debug/n_n_mask", float(n_mask.sum()))
 
         # final mask of silhouette, depth and normal threshold
@@ -301,7 +394,6 @@ class FLAMEPoints(FLAME):
         self.log("train/loss", loss, prog_bar=True)
 
         # debug chamfer loss
-        B = point_hat.shape[0]
         chamfer = point_to_point_loss(
             vertices=vertices,
             points=point[point_mask].reshape(B, -1, 3),
@@ -313,91 +405,60 @@ class FLAMEPoints(FLAME):
         self.log("train/lm_loss", lm_loss.mean(), prog_bar=True)
 
         # visualize the image that is optimized and save to disk and the 3d points
-        b_idx = 0
         if (self.current_epoch + 0) % self.hparams["save_interval"] == 0:
-            f_idx = frame_idx[b_idx].item()
-
             file_name = f"error/{f_idx:03}_{self.current_epoch:05}.png"
-            error_image = torch.zeros(
-                (dist.shape[1], dist.shape[2], 3), device=self.device
+            error_image = self.error_images(dist, f_mask)  # (B, H, W, 3)
+            self.save_image(file_name, error_image[b_idx])
+
+            file_name = f"points_direction/{f_idx:03}_{self.current_epoch:05}.png"
+            points_direction_image = self.points_direction_image(
+                point, render["point"], render["mask"]
             )
-            error_image[:, :, 0] = dist[b_idx, :, :] * 4
-            error_image = (error_image.clip(0, 1) * 255).to(torch.uint8)
-            error_image[~f_mask[b_idx]] = 0
-            self.save_image(file_name, error_image)
+            self.save_image(file_name, points_direction_image[b_idx])
 
-            file_name = f"point_dir/{f_idx:03}_{self.current_epoch:05}.png"
-            point_dir = (point - point_hat)[b_idx]
-            point_dir = point_dir / torch.norm(point_dir, dim=-1).unsqueeze(-1)
-            point_dir = (((point_dir + 1) / 2) * 255).to(torch.uint8)
-            point_dir[~f_mask[b_idx], :] = 0
-            self.save_image(file_name, point_dir)
+            file_name = f"render_mask/{f_idx:03}_{self.current_epoch:05}.png"
+            self.save_image(file_name, render["mask"][b_idx])
 
-            file_name = f"point_hat_mask/{f_idx:03}_{self.current_epoch:05}.png"
-            self.save_image(file_name, point_hat_mask[b_idx])
-
-            file_name = f"point_mask/{f_idx:03}_{self.current_epoch:05}.png"
+            file_name = f"mask/{f_idx:03}_{self.current_epoch:05}.png"
             self.save_image(file_name, point_mask[b_idx])
 
-            file_name = f"depth_hat/{f_idx:03}_{self.current_epoch:05}.png"
-            depth_image = torch.stack([point_hat[b_idx, :, :, 2]] * 3, dim=-1)
-            depth_image = (depth_image.clip(0, 1) * 255).to(torch.uint8)
-            self.save_image(file_name, depth_image)
+            file_name = f"render_depth/{f_idx:03}_{self.current_epoch:05}.png"
+            self.save_image(file_name, render["depth_image"][b_idx])
 
             file_name = f"depth/{f_idx:03}_{self.current_epoch:05}.png"
-            depth_image = torch.stack([point[b_idx, :, :, 2]] * 3, dim=-1)
-            depth_image = (depth_image.clip(0, 1) * 255).to(torch.uint8)
-            self.save_image(file_name, depth_image)
+            depth_image = renderer.depth_to_depth_image(renderer.point_to_depth(point))
+            self.save_image(file_name, depth_image[b_idx])
+
+            file_name = f"render_normal/{f_idx:03}_{self.current_epoch:05}.png"
+            self.save_image(file_name, render["normal_image"][b_idx])
 
             file_name = f"normal/{f_idx:03}_{self.current_epoch:05}.png"
-            normals_image = (((normal + 1) / 2) * 255).to(torch.uint8)
-            normals_image[~normal_mask, :] = 0
-            self.save_image(file_name, normals_image[batch_idx])
+            normal_image = renderer.normal_to_normal_image(normal, normal_mask)
+            self.save_image(file_name, normal_image[b_idx])
 
-            file_name = f"normal_hat/{f_idx:03}_{self.current_epoch:05}.png"
-            normals_image = (((normal_hat + 1) / 2) * 255).to(torch.uint8)
-            normals_image[~normal_hat_mask, :] = 0
-            self.save_image(file_name, normals_image[batch_idx])
+            file_name = f"render_shading/{f_idx:03}_{self.current_epoch:05}.png"
+            self.save_image(file_name, render["shading_image"][b_idx])
 
-            # flame shaded on top of the RRB image
-            B, H, W, C = normal_hat.shape
-            light = torch.tensor([-1.0, 1.0, 0.0], device=self.device)
-            specular = torch.tensor([0.3, 0.3, 0.3], device=self.device)
-            diffuse = torch.tensor([0.5, 0.5, 0.5], device=self.device)
-            light = light / torch.norm(light)
-            reflectance = (normal_hat * light).sum(-1)[..., None]
-
-            specular = reflectance * specular.expand(B, H, W, -1)
-            diffuse = diffuse.expand(B, H, W, -1)
-
-            shading = specular + diffuse
-            shading = (torch.clip(shading, 0, 1) * 255).to(torch.uint8)
-            image[normal_hat_mask] = shading[normal_hat_mask]
-
-            file_name = f"image/{f_idx:03}_{self.current_epoch:05}.png"
-            self.save_image(file_name, image[batch_idx])
+            file_name = f"render_full/{f_idx:03}_{self.current_epoch:05}.png"
+            render_full = image.clone()
+            render_full[render["mask"]] = render["shading_image"][render["mask"]]
+            self.save_image(file_name, render_full[b_idx])
 
             # save the gt points
-            file_name = f"point/{f_idx:03}_{self.current_epoch:05}.png"
-            point = point[point_mask][batch_idx].reshape(-1, 3)
-            self.save_points(file_name, point)
+            file_name = f"point/{f_idx:03}_{self.current_epoch:05}.npy"
+            points = point[point_mask].reshape(B, -1, 3)
+            self.save_points(file_name, points[b_idx])
 
             # save the flame vertices
-            file_name = f"point_hat/{f_idx:03}_{self.current_epoch:05}.png"
-            point = vertices[batch_idx].reshape(-1, 3)
-            self.save_points(file_name, point)
+            file_name = f"render_point/{f_idx:03}_{self.current_epoch:05}.npy"
+            render_points = render["point"][render["mask"]].reshape(B, -1, 3)
+            self.save_points(file_name, render_points[b_idx])
 
         return loss
 
-    def on_before_optimizer_step(self, optimizer):
-        self.log_dict({"debug/transl_x": self.transl.weight[0, 0]})
-        transl_grad = optimizer.param_groups[0]["params"][0][0]
-        self.log_dict({"debug/transl_x_grad": transl_grad[0]})
-
-        self.log_dict({"debug/transl_y": self.transl.weight[0, 1]})
-        transl_grad = optimizer.param_groups[0]["params"][0][0]
-        self.log_dict({"debug/transl_y_grad": transl_grad[1]})
-
-        self.log_dict({"debug/transl_z": self.transl.weight[0, 2]})
-        transl_grad = optimizer.param_groups[0]["params"][0][0]
-        self.log_dict({"debug/transl_z_grad": transl_grad[2]})
+    def optimization_params(self):
+        pose_params = [
+            {"params": self.global_pose.parameters()},
+            {"params": self.transl.parameters()},
+        ]
+        return {"params": pose_params, "lr": self.hparams["lr"]}
