@@ -13,15 +13,13 @@ from lib.model.loss import (
     landmark_3d_loss,
     point_to_point_loss,
 )
-from lib.model.utils import (
-    bary_coord_interpolation,
-    flame_faces_mask,
+from lib.renderer.renderer import Renderer
+from lib.utils.loader import (
     load_flame,
     load_flame_masks,
+    load_intrinsics,
     load_static_landmark_embedding,
 )
-from lib.renderer.camera import camera2normal, load_intrinsics
-from lib.renderer.renderer import Renderer
 from lib.utils.logger import create_logger
 
 log = create_logger("flame")
@@ -49,6 +47,7 @@ class FLAME(L.LightningModule):
         # debug settings
         renderer: Renderer | None = None,
         save_interval: int = 50,
+        **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters(logger=False, ignore=["renderer"])
@@ -78,7 +77,7 @@ class FLAME(L.LightningModule):
 
         # translation and scale pose
         # transl = torch.tensor([[0.0, 0.25, 0.5]] * optimize_frames)
-        transl = torch.tensor([[0.0, 0.3, 0.6]] * optimize_frames)
+        transl = torch.tensor([[0.0, 0.3, 0.7]] * optimize_frames)
         self.transl = self.create_embeddings(transl)
         self.scale = self.create_embeddings(torch.ones(optimize_frames, 3))
 
@@ -194,11 +193,10 @@ class FLAME(L.LightningModule):
         vertices += transl[:, None, :]  # (B, V, 3)
         vertices *= scale[:, None, :]  # (B, V, 3)
 
-        landmarks = bary_coord_interpolation(
-            faces=self.lm_faces,
-            bary_coords=self.lm_bary_coords.expand(B, -1, -1),
-            attributes=vertices,
-        )  # (B, 105, 3)
+        # landmarks
+        lm_vertices = vertices[:, self.lm_faces]  # (B, F, 3, D)
+        lm_bary_coods = self.lm_bary_coords.expand(B, -1, -1).unsqueeze(-1)
+        landmarks = (lm_bary_coods * lm_vertices).sum(-2)  # (B, 105, D)
 
         return vertices, landmarks  # (B, V, 3), (B, 105, 3)
 
@@ -265,15 +263,30 @@ class FLAME(L.LightningModule):
 
     @property
     def image_scale(self):
+        if "image_scale" in self.hparams:
+            return self.hparams["image_scale"]
         return self.trainer.datamodule.image_scale
 
     @property
     def image_height(self):
+        if "image_height" in self.hparams:
+            return self.hparams["image_height"]
         return self.trainer.datamodule.image_height
 
     @property
     def image_width(self):
+        if "image_width" in self.hparams:
+            return self.hparams["image_width"]
         return self.trainer.datamodule.image_width
+
+    def renderer(self):
+        return Renderer(
+            K=self.K,
+            image_scale=self.image_scale,
+            image_height=self.image_height,
+            image_width=self.image_width,
+            device=self.device,
+        )
 
     ####################################################################################
     # Logging and Debuging Utils
@@ -334,14 +347,6 @@ class FLAMEPoints(FLAME):
         image = batch["image"]  # (B, H', W', 3)
         lm3ds = batch["lm3ds"][:, self.lm_mediapipe_idx]  # (B, 105, 3)
 
-        renderer = Renderer(
-            K=self.K,
-            image_scale=self.image_scale,
-            image_height=self.image_width,
-            image_width=self.image_height,
-            device=self.device,
-        )
-
         vertices, lm3ds_hat = self.forward(
             shape_params=self.shape_params(shape_idx),  # (B, S')
             expression_params=self.expression_params(frame_idx),  # (B, E')
@@ -352,6 +357,8 @@ class FLAMEPoints(FLAME):
             transl=self.transl(frame_idx),
             scale=self.scale(frame_idx),
         )  # (B, V, 3)
+
+        renderer = self.renderer()
 
         faces = self.masked_faces(vertices)  # (F', 3)
         render = renderer.render_full(
@@ -441,7 +448,9 @@ class FLAMEPoints(FLAME):
 
             file_name = f"render_full/{f_idx:03}_{self.current_epoch:05}.png"
             render_full = image.clone()
-            render_full[render["mask"]] = render["shading_image"][render["mask"]]
+            render_full[render["normal_mask"]] = render["shading_image"][
+                render["normal_mask"]
+            ]
             self.save_image(file_name, render_full[b_idx])
 
             # save the gt points

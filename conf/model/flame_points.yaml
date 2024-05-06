@@ -8,7 +8,7 @@ num_shape_params: 100
 num_expression_params: 50
 
 # optimization settings
-lr: 2e-02
+lr: 1e-03
 scheduler:
   _target_: torch.optim.lr_scheduler.StepLR 
   _partial_: True
@@ -17,13 +17,4 @@ scheduler:
 optimize_frames: ${data.optimize_frames}
 optimize_shapes: 1
 
-# debug settings
-# renderer:
-#   _target_: lib.renderer.renderer.Renderer
-#   rasterizer: 
-#     _target_: lib.renderer.rasterizer.Rasterizer
-#     data_dir: ${data.data_dir}
-#     image_scale: ${data.image_scale}
-#     image_width: ${data.image_width}
-#     image_height: ${data.image_height}
 save_interval: 1

@@ -3,8 +3,8 @@
 defaults:
   - data: dphm_points
   - model: flame_points
-  - trainer: default
-  - logger: default
+  - trainer: coarse_to_fine 
+  - logger: wandb 
   - callbacks:
     - rich_progress_bar
   - hydra: default

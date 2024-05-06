@@ -1,3 +1,5 @@
+import json
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -84,6 +86,27 @@ def load_depth(
 
     depth = np.asarray(depth_image) / depth_factor
     return convert_tensor_from_np(depth, return_tensor=return_tensor)
+
+
+def load_normal(
+    data_dir: str | Path,
+    idx: int,
+    return_tensor: str = "np",
+):
+    """Load the normal data for the kinect dataset.
+
+    Args:
+        data_dir (str | Path): The root path of the dphm kinect dataset.
+        idx (int): The sequence index of the image of the recording, e.g. the dataset.
+        return_tensor: (str): The return type of the image, either "np" or "pt".
+
+    Returns: The normal image.
+    """
+    assert return_tensor in ["np", "pt", "img"]
+
+    path = Path(data_dir) / "depth_normals_bilateral" / f"{idx:05}_normal.jpg"
+    normal_image = np.asarray(Image.open(path))
+    return convert_tensor_from_np(normal_image, return_tensor=return_tensor)
 
 
 def load_mask(
@@ -237,3 +260,133 @@ def load_points_3d(
     path = Path(data_dir) / "points_new_maskmouth" / f"{idx:05}.npy"
     points = np.load(path)
     return convert_tensor_from_np(points, return_tensor=return_tensor)
+
+
+########################################################################################
+# FLAME
+########################################################################################
+
+
+def load_flame(
+    flame_dir: str | Path,
+    model_name: str = "flame.pkl",
+    return_tensors: str = "pt",
+):
+    """Loads the FLAME model.
+
+    https://github.com/soubhiksanyal/FLAME_PyTorch/blob/master/requirements.txt
+    the requirenemnts needs to be fixed and we need to have chumpy installed
+    also python 3.10 is required with an "older" numpy version
+
+    Args:
+        flame_dir (str | Path): The root directory of the flame model.
+        model_name (str, optional): The flame model. Defaults to "flame2023.pkl".
+        return_tensors (str, optional): Describes which format the flame model will be
+            return, similar to huggingface, e.g. "pt" or "np". Defaults to "pt".
+
+    Returns:
+        dict: The FLAME model as dictionary. For more informations please refere to the
+            paper or the FLAME implementations.
+    """
+
+    # load the model, see description why we load it like that.
+    # warnings.filterwarnings("ignore", category=DeprecationWarning)
+    path = Path(flame_dir) / model_name
+    with open(path, "rb") as f:
+        flame = pickle.load(f, encoding="latin1")
+
+    # convert to proper numpy
+    bs_style = str(flame["bs_style"])
+    bs_type = str(flame["bs_type"])
+
+    faces = np.array(flame["f"], dtype=np.int64)
+    v_template = np.array(flame["v_template"], dtype=np.float32)
+
+    shapedirs = np.array(flame["shapedirs"], dtype=np.float32)
+    posedirs = np.array(flame["posedirs"], dtype=np.float32)
+    weights = np.array(flame["weights"], dtype=np.float32)
+
+    J_regressor = np.array(flame["J_regressor"].todense(), dtype=np.float32)
+    J = np.array(flame["J"], dtype=np.float32)
+    kintree_table = np.array(flame["kintree_table"], dtype=np.int64)
+
+    # group the flame model together
+    flame_dict = {
+        "bs_style": bs_style,
+        "bs_type": bs_type,
+        "f": faces,
+        "v_template": v_template,
+        "shapedirs": shapedirs,
+        "posedirs": posedirs,
+        "weights": weights,
+        "J_regressor": J_regressor,
+        "J": J,
+        "kintree_table": kintree_table,
+    }
+
+    # convert the numpy arrays to torch tensors
+    return convert_dict_from_np(flame_dict, return_tensors=return_tensors)
+
+
+def load_static_landmark_embedding(flame_dir: str | Path, return_tensors: str = "np"):
+    path = Path(flame_dir) / "mediapipe_landmark_embedding.npz"
+    lm = np.load(path)
+    landmark_dict = {
+        "lm_face_idx": lm["lmk_face_idx"].astype(np.int64),
+        "lm_bary_coords": lm["lmk_b_coords"].astype(np.float32),
+        "lm_mediapipe_idx": lm["landmark_indices"].astype(np.int64),
+    }
+    return convert_dict_from_np(landmark_dict, return_tensors=return_tensors)
+
+
+def load_flame_masks(flame_dir: str | Path, return_tensors: str = "np"):
+    path = Path(flame_dir) / "FLAME_masks.pkl"
+    with open(path, "rb") as f:
+        flame_masks = pickle.load(f, encoding="latin1")
+    for key in flame_masks.keys():
+        flame_masks[key] = flame_masks[key].astype(np.int64)
+    return convert_dict_from_np(flame_masks, return_tensors=return_tensors)
+
+
+########################################################################################
+# DPHM Intrinsics
+########################################################################################
+
+
+def load_intrinsics(
+    data_dir: str | Path,
+    return_tensor: str = "dict",
+    scale: float = 1.0,
+):
+    """The camera intrinsics for the kinect RGB-D sequence.
+
+    For more information please refere to:
+    https://github.com/zinsmatt/7-Scenes-Calibration
+    https://cvg.cit.tum.de/data/datasets/rgbd-dataset/intrinsic_calibration
+
+    Args:
+        data_dir (str | Path): The root path of the dphm kinect dataset.
+
+    Returns:
+        The intrinsics for the kinect camera.
+    """
+    assert return_tensor in ["dict", "pt"]
+
+    path = Path(data_dir) / "calibration.json"
+    with open(path) as f:
+        intrinsics = json.load(f)
+
+    # just the focal lengths (fx, fy) and the optical centers (cx, cy)
+    K = {
+        "fx": intrinsics["color"]["fx"] * scale,
+        "fy": intrinsics["color"]["fy"] * scale,
+        "cx": intrinsics["color"]["cx"] * scale,
+        "cy": intrinsics["color"]["cy"] * scale,
+    }
+
+    if return_tensor == "pt":
+        return torch.tensor(
+            [[K["fx"], 0.0, K["cx"]], [0.0, K["fy"], K["cy"]], [0.0, 0.0, 1.0]]
+        )
+
+    return K

@@ -31,8 +31,8 @@ class Renderer(nn.Module):
         """
         super().__init__()
 
-        self.H = image_width
-        self.W = image_height
+        self.H = image_height
+        self.W = image_width
         self.device = device
 
         settings = RasterizationSettings(

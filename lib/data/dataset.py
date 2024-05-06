@@ -3,13 +3,13 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
-from lib.data.utils import (
+from lib.renderer.camera import camera2normal, depth2camera, load_intrinsics
+from lib.utils.loader import (
     load_color,
     load_depth_masked,
     load_mediapipe_landmark_3d,
     load_points_3d,
 )
-from lib.renderer.camera import camera2normal, depth2camera, load_intrinsics
 
 
 class DPHMDataset(Dataset):

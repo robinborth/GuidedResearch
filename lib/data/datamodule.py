@@ -10,7 +10,8 @@ class DPHMDataModule(L.LightningDataModule):
         optimize_frames: int = 1,
         start_frame_idx: int = 0,
         # rasterizer settings
-        image_scale: int = 1,
+        image_scales: list[float] = [1.0],
+        milestones: list[int] = [0],
         image_width: int = 1920,
         image_height: int = 1080,
         # training
@@ -28,18 +29,39 @@ class DPHMDataModule(L.LightningDataModule):
         self.save_hyperparameters(logger=False)
         assert batch_size <= optimize_frames
 
-        self.image_scale = image_scale
-        self.image_width = int(image_width * image_scale)
-        self.image_height = int(image_height * image_scale)
+        self.image_scales = image_scales
+        self.milestones = milestones
 
-    def setup(self, stage: str) -> None:
-        self.dataset = self.hparams["dataset"](
-            image_scale=self.image_scale,
-            image_width=self.image_width,
-            image_height=self.image_height,
+        self.base_width = image_width
+        self.base_height = image_height
+
+    def update_dataset(self):
+        current_epoch = self.trainer.current_epoch
+        milestone_idx = sum(m < current_epoch for m in self.milestones)
+
+        self.image_scale = self.image_scales[milestone_idx]
+        self.image_height = int(self.image_scale * self.base_height)
+        self.image_width = int(self.image_scale * self.base_width)
+        self.dataset = self.datasets[milestone_idx]
+
+    def load_dataset(self, milestone_idx: int):
+        image_scale = self.image_scales[milestone_idx]
+        image_height = int(image_scale * self.base_height)
+        image_width = int(image_scale * self.base_width)
+        return self.hparams["dataset"](
+            image_scale=image_scale,
+            image_width=image_width,
+            image_height=image_height,
         )
 
+    def setup(self, stage: str) -> None:
+        self.datasets = []
+        for idx, _ in enumerate(self.milestones):
+            dataset = self.load_dataset(idx)
+            self.datasets.append(dataset)
+
     def train_dataloader(self) -> DataLoader:
+        self.update_dataset()
         return DataLoader(
             dataset=self.dataset,
             batch_size=self.hparams["batch_size"],

@@ -1,49 +1,8 @@
-import json
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import torch
 from torchvision.transforms import v2
-
-
-def load_intrinsics(
-    data_dir: str | Path,
-    return_tensor: str = "dict",
-    scale: float = 1.0,
-):
-    """The camera intrinsics for the kinect RGB-D sequence.
-
-    For more information please refere to:
-    https://github.com/zinsmatt/7-Scenes-Calibration
-    https://cvg.cit.tum.de/data/datasets/rgbd-dataset/intrinsic_calibration
-
-    Args:
-        data_dir (str | Path): The root path of the dphm kinect dataset.
-
-    Returns:
-        The intrinsics for the kinect camera.
-    """
-    assert return_tensor in ["dict", "pt"]
-
-    path = Path(data_dir) / "calibration.json"
-    with open(path) as f:
-        intrinsics = json.load(f)
-
-    # just the focal lengths (fx, fy) and the optical centers (cx, cy)
-    K = {
-        "fx": intrinsics["color"]["fx"] * scale,
-        "fy": intrinsics["color"]["fy"] * scale,
-        "cx": intrinsics["color"]["cx"] * scale,
-        "cy": intrinsics["color"]["cy"] * scale,
-    }
-
-    if return_tensor == "pt":
-        return torch.tensor(
-            [[K["fx"], 0.0, K["cx"]], [0.0, K["fy"], K["cy"]], [0.0, 0.0, 1.0]]
-        )
-
-    return K
 
 
 def camera2pixel(

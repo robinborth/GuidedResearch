@@ -1,0 +1,6 @@
+defaults:
+  - default
+
+accelerator: cpu
+devices: 1
+reload_dataloaders_every_n_epochs: 1 
