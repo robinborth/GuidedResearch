@@ -6,7 +6,7 @@ dataset_name: dphm_christoph_mouthmove
 data_dir: ${paths.data_dir}/${data.dataset_name}
 optimize_frames: 1
 start_frame_idx: 0 
-image_scales: [0.1]
+image_scales: [0.2]
 milestones: [0]
 image_width: 1920
 image_height: 1080

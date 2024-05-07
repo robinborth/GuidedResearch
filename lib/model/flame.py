@@ -240,7 +240,7 @@ class FLAME(L.LightningModule):
         """
         if self.vertices_mask is None:
             return self.faces
-        vertices_mask = self.vertices_mask.expand(*self.faces, -1).to(self.device)
+        vertices_mask = self.vertices_mask.expand(*self.faces.shape, -1).to(self.device)
         face_mask = (self.faces.unsqueeze(-1) == vertices_mask).any(dim=-1).all(dim=-1)
         return self.faces[face_mask]
 
@@ -345,8 +345,8 @@ class FLAME(L.LightningModule):
         self.log("train/chamfer", chamfer.mean(), prog_bar=True)
 
         # debug landmark loss
-        # landmarks = batch["lm3ds"][:, self.lm_mediapipe_idx]
-        landmarks = batch["landmarks"]
+        landmarks = batch["landmarks"][:, self.lm_mediapipe_idx]
+        # landmarks = batch["landmarks"]
         lm3d_dist = landmark_3d_distance(model["landmarks"], landmarks)  # (B,)
         self.log("train/lm3d_dist", lm3d_dist.mean(), prog_bar=True)
 
@@ -482,13 +482,63 @@ class FLAMEPoint2Point(FLAME):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        x_eps = 0.04
+        x_eps = 0.00
+        y_eps = 0.00
+        z_eps = 0.00
+
+        alpha_eps = 0.00
+        beta_eps = 0.00
+        gamma_eps = 0.00
+
+        self.init_params(
+            global_pose=[torch.pi + alpha_eps, 0.0 + beta_eps, 0.0 + gamma_eps],
+            transl=[0.0 + x_eps, 0.3 + y_eps, 0.7 + z_eps],
+        )
+
+    def optimization_step(self, batch, batch_idx):
+        # forward pass with the current frame and shape
+        model = self.model_step(
+            frame_idx=batch["frame_idx"],  # (B, )
+            shape_idx=batch["shape_idx"],  # (B, )
+        )
+        # render the current flame model
+        render = self.render_step(model)
+        # rejection based on outliers
+        mask = self.correspondence_mask(batch=batch, render=render)
+        # distance in camera space per pixel & point to point loss
+        dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
+        # point to point loss
+        loss = torch.pow(dist[mask], 2).mean()
+        self.log("train/point2point", loss)
+
+        # visualize the image that is optimized and save to disk
+        if (self.current_epoch + 0) % self.hparams["save_interval"] == 0:
+            self.debug_step(batch=batch, model=model, render=render)
+
+        return loss
+
+    def optimization_params(self):
+        pose_params = [
+            {"params": self.global_pose.parameters()},
+            {"params": self.transl.parameters()},
+        ]
+        return {"params": pose_params, "lr": self.hparams["lr"]}
+
+
+class FLAMEPoint2Plane(FLAME):
+    # NOTE: The global and trans have a custom initialization e.g. becaue this is
+    # how the camera is positioned, e.g. we need to an overlapping in oder to compute
+    # the loss
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        x_eps = 0.03
         y_eps = -0.02
         z_eps = 0.03
 
         alpha_eps = 0.03
-        beta_eps = -0.05
-        gamma_eps = 0.06
+        beta_eps = -0.02
+        gamma_eps = 0.02
 
         self.init_params(
             global_pose=[torch.pi + alpha_eps, 0.0 + beta_eps, 0.0 + gamma_eps],
@@ -504,12 +554,12 @@ class FLAMEPoint2Point(FLAME):
         # render the current flame model
         render = self.render_step(model)
         # rejection based on outliers
-        mask = self.correspondence_mask(batch=batch, render=render, verbose=False)
+        mask = self.correspondence_mask(batch=batch, render=render)
         # distance in camera space per pixel & point to point loss
-        dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
-        # point to point loss
-        loss = torch.pow(dist[mask], 2).mean()
-        self.log("train/p2p_loss", loss)
+        dist = (render["point"] - batch["point"]) * render["normal"]  # (B, W, H)
+        # point to plane loss
+        loss = torch.pow(dist.sum(-1)[mask], 2).mean()
+        self.log("train/point2plane", loss)
 
         # visualize the image that is optimized and save to disk
         if (self.current_epoch + 0) % self.hparams["save_interval"] == 0:
