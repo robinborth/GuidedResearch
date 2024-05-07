@@ -6,6 +6,8 @@ import numpy as np
 import torch
 from PIL import Image
 
+from lib.utils.image import biliteral_filter
+
 ########################################################################################
 # Utils
 ########################################################################################
@@ -32,81 +34,6 @@ def convert_dict_from_np(np_dict: dict, return_tensors: str = "pt"):
 ########################################################################################
 # DPHM: RGB and Depth
 ########################################################################################
-
-
-def load_color(
-    data_dir: str | Path,
-    idx: int,
-    return_tensor: str = "img",
-):
-    """Load the RGB data for the kinect dataset.
-
-    Args:
-        data_dir (str | Path): The root path of the dphm kinect dataset.
-        idx (int): The sequence index of the image of the recording, e.g. the dataset.
-        return_tensor: (str): The return type of the image, either "img", "np" or "pt",
-            where img is the PIL.Image format.
-    """
-    assert return_tensor in ["img", "np", "pt"]
-
-    path = Path(data_dir) / "color" / f"{idx:05}.png"
-    color = np.asarray(Image.open(path))
-
-    return convert_tensor_from_np(color, return_tensor=return_tensor)
-
-
-def load_depth(
-    data_dir: str | Path,
-    idx: int,
-    depth_factor: float = 1000,
-    return_tensor: str = "np",
-):
-    """Load the depth data for the kinect dataset.
-
-    The depth images are scaled by a factor of 1000, i.e., a pixel value of 1000 in
-    the depth image corresponds to a distance of 1 meter from the camera. A pixel value
-    of 0 means missing value/no data.
-
-    For more information please refere to:
-    https://cvg.cit.tum.de/data/datasets/rgbd-dataset/file_formats
-
-    Args:
-        data_dir (str | Path): The root path of the dphm kinect dataset.
-        idx (int): The sequence index of the image of the recording, e.g. the dataset.
-        depth_factor: (float): The pixel to depth ratio. i.e., a pixel value of 5000 in
-            the depth image corresponds to a distance of 1 meter from the camera.
-        return_tensor: (str): The return type of the image, either "np" or "pt".
-
-    Returns: The depth overservations in m.
-    """
-    assert return_tensor in ["np", "pt"]
-
-    path = Path(data_dir) / "depth" / f"{idx:05}.png"
-    depth_image = Image.open(path)
-
-    depth = np.asarray(depth_image) / depth_factor
-    return convert_tensor_from_np(depth, return_tensor=return_tensor)
-
-
-def load_normal(
-    data_dir: str | Path,
-    idx: int,
-    return_tensor: str = "np",
-):
-    """Load the normal data for the kinect dataset.
-
-    Args:
-        data_dir (str | Path): The root path of the dphm kinect dataset.
-        idx (int): The sequence index of the image of the recording, e.g. the dataset.
-        return_tensor: (str): The return type of the image, either "np" or "pt".
-
-    Returns: The normal image.
-    """
-    assert return_tensor in ["np", "pt", "img"]
-
-    path = Path(data_dir) / "depth_normals_bilateral" / f"{idx:05}_normal.jpg"
-    normal_image = np.asarray(Image.open(path))
-    return convert_tensor_from_np(normal_image, return_tensor=return_tensor)
 
 
 def load_mask(
@@ -139,41 +66,114 @@ def load_mask(
     return mask
 
 
-def load_color_masked(
+def load_color(
     data_dir: str | Path,
     idx: int,
     value: float | int = 0,
     return_tensor: str = "img",
 ):
-    assert return_tensor in ["np", "pt", "img"]
+    """Load the RGB data for the kinect dataset.
 
+    Args:
+        data_dir (str | Path): The root path of the dphm kinect dataset.
+        idx (int): The sequence index of the image of the recording, e.g. the dataset.
+        return_tensor: (str): The return type of the image, either "img", "np" or "pt",
+            where img is the PIL.Image format.
+    """
+    assert return_tensor in ["img", "np", "pt"]
     mask = load_mask(data_dir=data_dir, idx=idx, return_tensor="np")
-    color = load_color(data_dir=data_dir, idx=idx, return_tensor="np").copy()
+
+    path = Path(data_dir) / "color" / f"{idx:05}.png"
+    color = np.asarray(Image.open(path)).copy()
     color[~mask] = value
 
     return convert_tensor_from_np(color, return_tensor=return_tensor)
 
 
-def load_depth_masked(
+def load_depth(
     data_dir: str | Path,
     idx: int,
     value: float | int = 0,
     depth_factor: float = 1000,
     return_tensor: str = "np",
+    smooth: bool = False,
 ):
-    assert return_tensor in ["np", "pt"]
+    """Load the depth data for the kinect dataset.
 
+    The depth images are scaled by a factor of 1000, i.e., a pixel value of 1000 in
+    the depth image corresponds to a distance of 1 meter from the camera. A pixel value
+    of 0 means missing value/no data.
+
+    For more information please refere to:
+    https://cvg.cit.tum.de/data/datasets/rgbd-dataset/file_formats
+
+    Args:
+        data_dir (str | Path): The root path of the dphm kinect dataset.
+        idx (int): The sequence index of the image of the recording, e.g. the dataset.
+        depth_factor: (float): The pixel to depth ratio. i.e., a pixel value of 5000 in
+            the depth image corresponds to a distance of 1 meter from the camera.
+        return_tensor: (str): The return type of the image, either "np" or "pt".
+
+    Returns: The depth overservations in m.
+    """
+    assert return_tensor in ["np", "pt"]
     mask = load_mask(data_dir=data_dir, idx=idx, return_tensor="np")
 
-    depth = load_depth(
-        data_dir=data_dir,
-        idx=idx,
-        depth_factor=depth_factor,
-        return_tensor="np",
-    ).copy()
+    path = Path(data_dir) / "depth" / f"{idx:05}.png"
+    depth_image = np.asarray(Image.open(path)).copy()
+
+    depth = (depth_image / depth_factor).astype(np.float32)
+    depth[~mask] = depth[mask].max()
+
+    if smooth:
+        depth = biliteral_filter(
+            image=depth,
+            dilation=30,
+            sigma_color=150,
+            sigma_space=150,
+        )
     depth[~mask] = value
 
     return convert_tensor_from_np(depth, return_tensor=return_tensor)
+
+
+def load_normal(
+    data_dir: str | Path,
+    idx: int,
+    value: float | int = 0,
+    return_tensor: str = "np",
+    smooth: bool = False,
+):
+    """Load the normal data for the kinect dataset.
+
+    Args:
+        data_dir (str | Path): The root path of the dphm kinect dataset.
+        idx (int): The sequence index of the image of the recording, e.g. the dataset.
+        return_tensor: (str): The return type of the image, either "np" or "pt".
+        smooth (bool): Apply the bilateral filter.
+
+    Returns: The normal ranging between (-1, 1).
+    """
+
+    assert return_tensor in ["np", "pt"]
+    mask = load_mask(data_dir=data_dir, idx=idx, return_tensor="np")
+
+    path = Path(data_dir) / "depth_normals_bilateral" / f"{idx:05}_normal.jpg"
+    normal_image = np.asarray(Image.open(path)).copy()
+
+    if smooth:
+        normal_image = biliteral_filter(
+            image=normal_image,
+            dilation=30,
+            sigma_color=250,
+            sigma_space=250,
+        )
+
+    normal = ((normal_image / 255) * 2) - 1
+    normal = normal / np.linalg.norm(normal, axis=-1)[..., None]
+    normal[~mask] = value
+
+    return convert_tensor_from_np(normal, return_tensor=return_tensor)
 
 
 ########################################################################################

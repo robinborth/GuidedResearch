@@ -1,0 +1,36 @@
+# @package data
+_target_: lib.data.datamodule.DPHMDataModule
+
+# dataset settings
+dataset_name: dphm_christoph_mouthmove
+data_dir: ${paths.data_dir}/${data.dataset_name}
+optimize_frames: 1
+start_frame_idx: 0 
+image_scales: [0.25]
+milestones: [0]
+image_width: 1920
+image_height: 1080
+
+# training settings
+batch_size: 1
+num_workers: 0
+pin_memory: False
+drop_last: False
+persistent_workers: False
+shuffle: False
+
+# dataset settings
+dataset:
+  _target_: lib.data.dataset.FLAMEDataset
+  _partial_: True
+  data_dir: ${data.data_dir} 
+  optimize_frames: ${data.optimize_frames}
+  start_frame_idx: ${data.start_frame_idx}
+  # this is done dynamically in coars to fine strategy
+  image_scale: ???
+  image_width: ???
+  image_heigt: ???
+  flame_dir: ${model.flame_dir}
+  num_shape_params: ${model.num_shape_params}
+  num_expression_params: ${model.num_expression_params}
+  optimize_shapes: ${model.optimize_shapes}

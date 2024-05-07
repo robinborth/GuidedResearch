@@ -37,7 +37,7 @@ class DPHMDataModule(L.LightningDataModule):
 
     def update_dataset(self):
         current_epoch = self.trainer.current_epoch
-        milestone_idx = sum(m < current_epoch for m in self.milestones)
+        milestone_idx = sum(m <= current_epoch for m in self.milestones) - 1
 
         self.image_scale = self.image_scales[milestone_idx]
         self.image_height = int(self.image_scale * self.base_height)

@@ -7,12 +7,7 @@ import torch.nn as nn
 from PIL import Image
 
 from lib.model.lbs import lbs
-from lib.model.loss import (
-    chamfer_distance_loss,
-    distance,
-    landmark_3d_loss,
-    point_to_point_loss,
-)
+from lib.model.loss import landmark_3d_loss, point_to_point_loss
 from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_flame,
@@ -26,10 +21,6 @@ log = create_logger("flame")
 
 
 class FLAME(L.LightningModule):
-    # NOTE: The global and trans have a custom initialization e.g. becaue this is
-    # how the camera is positioned, e.g. we need to an overlapping in oder to compute
-    # the loss
-
     def __init__(
         self,
         # model settings
@@ -44,6 +35,7 @@ class FLAME(L.LightningModule):
         p2p_weight: float = 0.1,
         optimize_frames: int = 1,  # the number of different frames per shape
         optimize_shapes: int = 1,  # the number of different shapes (allways 1)
+        vertices_mask: bool = False,
         # debug settings
         renderer: Renderer | None = None,
         save_interval: int = 50,
@@ -68,17 +60,13 @@ class FLAME(L.LightningModule):
         self.expression_params = self.create_embeddings(expression_params)
 
         # pose parameters
-        # global_pose = torch.tensor([[torch.pi - 0.5, 0.1, 0.2]] * optimize_frames)
-        global_pose = torch.tensor([[torch.pi, 0, 0]] * optimize_frames)
-        self.global_pose = self.create_embeddings(global_pose)
+        self.global_pose = self.create_embeddings(torch.zeros(optimize_frames, 3))
         self.neck_pose = self.create_embeddings(torch.zeros(optimize_frames, 3))
         self.jaw_pose = self.create_embeddings(torch.zeros(optimize_frames, 3))
         self.eye_pose = self.create_embeddings(torch.zeros(optimize_frames, 6))
 
         # translation and scale pose
-        # transl = torch.tensor([[0.0, 0.25, 0.5]] * optimize_frames)
-        transl = torch.tensor([[0.0, 0.3, 0.7]] * optimize_frames)
-        self.transl = self.create_embeddings(transl)
+        self.transl = self.create_embeddings(torch.zeros(optimize_frames, 3))
         self.scale = self.create_embeddings(torch.ones(optimize_frames, 3))
 
         # load the faces, mean vertices and pca bases
@@ -98,8 +86,10 @@ class FLAME(L.LightningModule):
         self.parents = nn.Parameter(parents[0], requires_grad=False)  # (5,)
 
         # flame masks, for different vertex idx
-        face_mask = load_flame_masks(flame_dir, return_tensors="pt")["face"]
-        self.vertices_mask = torch.nn.Parameter(face_mask, requires_grad=False)
+        self.vertices_mask = None
+        if vertices_mask:
+            face_mask = load_flame_masks(flame_dir, return_tensors="pt")["face"]
+            self.vertices_mask = torch.nn.Parameter(face_mask, requires_grad=False)
 
         # flame landmarks to guide sparse landmark loss
         lms = load_static_landmark_embedding(flame_dir, return_tensors="pt")
@@ -112,6 +102,22 @@ class FLAME(L.LightningModule):
 
         # load the default intriniscs or initialize it with something good
         self.K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
+
+    def init_params(self, **kwargs):
+        """Initilize the params of the FLAME model.
+
+        Args:
+            **kwargs: dict(str, torch.Tensor): The key is the name of the nn.Embeddings
+                table, which needs to be specified in order to override the initial
+                values. The value can be a simple tensor of dim (D,) or the dimension of
+                the nn.Embedding table (B, D).
+        """
+        for key, value in kwargs.items():
+            param = self.__getattr__(key)
+            if isinstance(value, list):
+                value = torch.Tensor(value)
+            value = value.expand(param.weight.shape).to(self.device)
+            param.weight = torch.nn.Parameter(value, requires_grad=True)
 
     def forward(
         self,
@@ -226,15 +232,15 @@ class FLAME(L.LightningModule):
         """Calculates the triangular faces mask based on the masked vertices.
 
         Args:
-            vertices (torch.Tensor): The vertices in camera coordinate system (V, 3)
+            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
 
         Returns:
             (torch.Tensor): A boolean mask of the faces that should be used for the
                 computation, the final dimension of the mask is (F, 3).
         """
         if self.vertices_mask is None:
-            vertices_mask = torch.arange(vertices.shape[0], device=vertices.device)
-        vertices_mask = self.vertices_mask.expand(*self.faces.shape, -1).to(self.device)
+            return self.faces
+        vertices_mask = self.vertices_mask.expand(*self.faces, -1).to(self.device)
         face_mask = (self.faces.unsqueeze(-1) == vertices_mask).any(dim=-1).all(dim=-1)
         return self.faces[face_mask]
 
@@ -279,13 +285,14 @@ class FLAME(L.LightningModule):
             return self.hparams["image_width"]
         return self.trainer.datamodule.image_width
 
-    def renderer(self):
+    def renderer(self, **kwargs):
         return Renderer(
             K=self.K,
             image_scale=self.image_scale,
             image_height=self.image_height,
             image_width=self.image_width,
             device=self.device,
+            **kwargs,
         )
 
     ####################################################################################
@@ -333,6 +340,31 @@ class FLAME(L.LightningModule):
 
 
 class FLAMEPoints(FLAME):
+    # NOTE: The global and trans have a custom initialization e.g. becaue this is
+    # how the camera is positioned, e.g. we need to an overlapping in oder to compute
+    # the loss
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        x_eps = 0.04
+        y_eps = -0.02
+        z_eps = 0.03
+
+        alpha_eps = 0.03
+        beta_eps = -0.05
+        gamma_eps = 0.06
+
+        self.init_params(
+            global_pose=[torch.pi + alpha_eps, 0.0 + beta_eps, 0.0 + gamma_eps],
+            transl=[0.0 + x_eps, 0.27 + y_eps, 0.5 + z_eps],
+        )
+
+    def model_step(self, batch, batch_idx):
+        ...
+    
+    def debug_step(self, batch, batch_idx):
+        ...
+
     def optimization_step(self, batch, batch_idx):
         frame_idx = batch["frame_idx"]  # (B, )
         shape_idx = batch["shape_idx"]  # (B, )
@@ -341,11 +373,11 @@ class FLAMEPoints(FLAME):
         f_idx = batch["frame_idx"][b_idx].item()
 
         point = batch["point"]  # (B, H', W' 3)
-        point_mask = batch["point_mask"]  # (B, H', W') forground
+        mask = batch["mask"]  # (B, H', W') forground
         normal = batch["normal"]  # (B, H', W' 3)
-        normal_mask = batch["normal_mask"]  # (B, H', W') forground
-        image = batch["image"]  # (B, H', W', 3)
-        lm3ds = batch["lm3ds"][:, self.lm_mediapipe_idx]  # (B, 105, 3)
+        color = batch["color"]  # (B, H', W', 3)
+        # lm3ds = batch["lm3ds"][:, self.lm_mediapipe_idx]  # (B, 105, 3)  # TODO this is because of FLAME DATASET
+        lm3ds = batch["lm3ds"]  # (B, 105, 3)
 
         vertices, lm3ds_hat = self.forward(
             shape_params=self.shape_params(shape_idx),  # (B, S')
@@ -358,7 +390,10 @@ class FLAMEPoints(FLAME):
             scale=self.scale(frame_idx),
         )  # (B, V, 3)
 
-        renderer = self.renderer()
+        renderer = renderer = self.renderer(
+            diffuse=[0.0, 0.0, 0.6],
+            specular=[0.0, 0.0, 0.5],
+        )
 
         faces = self.masked_faces(vertices)  # (F', 3)
         render = renderer.render_full(
@@ -370,7 +405,7 @@ class FLAMEPoints(FLAME):
         dist = torch.norm(render["point"] - point, dim=-1)  # (B, W, H)
 
         # calculate the forground mask
-        f_mask = point_mask & render["mask"]  # (B, W, H)
+        f_mask = mask & render["mask"]  # (B, W, H)
         assert f_mask.sum()  # we have some overlap
         self.log("debug/n_f_mask", float(f_mask.sum()))
 
@@ -381,21 +416,16 @@ class FLAMEPoints(FLAME):
 
         n_threshold = 0.8  # this is the dot product, e.g. coresponds to an angle
         normal_dot = (normal * render["normal"]).sum(-1)
-        n_threshold_mask = normal_dot > n_threshold  # (B, W, H)
-        n_mask = normal_mask & render["normal_mask"] & n_threshold_mask
+        n_mask = normal_dot > n_threshold  # (B, W, H)
         self.log("debug/n_n_mask", float(n_mask.sum()))
 
-        # final mask of silhouette, depth and normal threshold
-        mask = d_mask & f_mask & n_mask
+        # final loss mask of silhouette, depth and normal threshold
+        l_mask = d_mask & f_mask & n_mask
         self.log("debug/n_mask", float(mask.sum()))
 
         # compute the loss based on the distance, mean of squared distances
-        p2p_loss = torch.pow(dist[mask], 2).mean()
-        self.log("train/p2p_loss", p2p_loss)
-
-        # compute the normal loss
-        normal_loss = (1 - normal_dot[mask]).mean()
-        self.log("train/normal_loss", normal_loss)
+        p2p_loss = torch.pow(dist[l_mask], 2).mean()
+        self.log("train/p2p_loss", p2p_loss)        
 
         loss = p2p_loss
         self.log("train/loss", loss, prog_bar=True)
@@ -403,7 +433,7 @@ class FLAMEPoints(FLAME):
         # debug chamfer loss
         chamfer = point_to_point_loss(
             vertices=vertices,
-            points=point[point_mask].reshape(B, -1, 3),
+            points=point[mask].reshape(B, -1, 3),
         )  # (B,)
         self.log("train/chamfer", chamfer.mean(), prog_bar=True)
 
@@ -427,7 +457,7 @@ class FLAMEPoints(FLAME):
             self.save_image(file_name, render["mask"][b_idx])
 
             file_name = f"mask/{f_idx:03}_{self.current_epoch:05}.png"
-            self.save_image(file_name, point_mask[b_idx])
+            self.save_image(file_name, mask[b_idx])
 
             file_name = f"render_depth/{f_idx:03}_{self.current_epoch:05}.png"
             self.save_image(file_name, render["depth_image"][b_idx])
@@ -440,22 +470,24 @@ class FLAMEPoints(FLAME):
             self.save_image(file_name, render["normal_image"][b_idx])
 
             file_name = f"normal/{f_idx:03}_{self.current_epoch:05}.png"
-            normal_image = renderer.normal_to_normal_image(normal, normal_mask)
+            normal_image = renderer.normal_to_normal_image(normal, mask)
             self.save_image(file_name, normal_image[b_idx])
 
             file_name = f"render_shading/{f_idx:03}_{self.current_epoch:05}.png"
             self.save_image(file_name, render["shading_image"][b_idx])
 
             file_name = f"render_full/{f_idx:03}_{self.current_epoch:05}.png"
-            render_full = image.clone()
-            render_full[render["normal_mask"]] = render["shading_image"][
-                render["normal_mask"]
-            ]
+            render_full = color.clone()
+            color_mask = (
+                (render["point"][:, :, :, 2] < point[:, :, :, 2])
+                | (render["mask"] & ~mask)
+            ) & render["mask"]
+            render_full[color_mask] = render["shading_image"][color_mask]
             self.save_image(file_name, render_full[b_idx])
 
             # save the gt points
             file_name = f"point/{f_idx:03}_{self.current_epoch:05}.npy"
-            points = point[point_mask].reshape(B, -1, 3)
+            points = point[mask].reshape(B, -1, 3)
             self.save_points(file_name, points[b_idx])
 
             # save the flame vertices

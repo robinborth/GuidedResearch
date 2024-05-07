@@ -3,11 +3,14 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
-from lib.renderer.camera import camera2normal, depth2camera, load_intrinsics
+from lib.model.flame import FLAME
+from lib.renderer.camera import camera2normal, depth2camera
 from lib.utils.loader import (
     load_color,
-    load_depth_masked,
+    load_depth,
+    load_intrinsics,
     load_mediapipe_landmark_3d,
+    load_normal,
     load_points_3d,
 )
 
@@ -48,7 +51,7 @@ class DPHMDataset(Dataset):
             self.lm3ds.append(lm3d)
 
     def load_color(self):
-        self.images = []
+        self.color = []
         for frame_idx in self.iter_frame_idx():
             image = load_color(
                 data_dir=self.data_dir,
@@ -59,7 +62,7 @@ class DPHMDataset(Dataset):
                 inpt=image.permute(2, 0, 1),
                 size=self.image_size,
             ).permute(1, 2, 0)
-            self.images.append(image.to(torch.uint8))  # (H',W',3)
+            self.color.append(image.to(torch.uint8))  # (H',W',3)
 
     def load_point_clouds(self):
         self.point_clouds = []
@@ -73,31 +76,32 @@ class DPHMDataset(Dataset):
 
     def load_point(self):
         self.point = []
-        self.point_mask = []
+        self.mask = []
         for frame_idx in self.iter_frame_idx():
-            depth = load_depth_masked(
+            depth = load_depth(
                 data_dir=self.data_dir,
                 idx=frame_idx,
                 return_tensor="pt",
+                smooth=True,
             )
             point, mask = depth2camera(depth=depth, K=self.K, scale=self.image_scale)
             self.point.append(point)
-            self.point_mask.append(mask)
+            self.mask.append(mask)
 
     def load_normal(self):
         self.normal = []
-        self.normal_mask = []
         for frame_idx in self.iter_frame_idx():
-            depth = load_depth_masked(
+            normal = load_normal(
                 data_dir=self.data_dir,
                 idx=frame_idx,
                 return_tensor="pt",
+                smooth=True,
             )
-            depth, _ = depth2camera(depth=depth, K=self.K, scale=self.image_scale)
-            # camera2normal takes batch as input
-            normal, normal_mask = camera2normal(depth.unsqueeze(0))
-            self.normal.append(normal[0])
-            self.normal_mask.append(normal_mask[0])
+            normal = v2.functional.resize(
+                inpt=normal.permute(2, 0, 1),
+                size=self.image_size,
+            ).permute(1, 2, 0)
+            self.normal.append(normal)
 
     def __len__(self) -> int:
         return self.optimize_frames
@@ -109,26 +113,74 @@ class DPHMDataset(Dataset):
 class DPHMPointDataset(DPHMDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.load_color()
         self.load_point()
         self.load_normal()
         self.load_lm3ds()
+        self.load_color()
 
     def __getitem__(self, idx: int):
         # (H', W', 3) this is scaled
+        mask = self.mask[idx]
         point = self.point[idx]
-        point_mask = self.point_mask[idx]
-        image = self.images[idx]
         normal = self.normal[idx]
-        normal_mask = self.normal_mask[idx]
+        color = self.color[idx]
         lm3ds = self.lm3ds[idx]
         return {
             "shape_idx": 0,
             "frame_idx": idx,
+            "mask": mask,
             "point": point,
-            "point_mask": point_mask,
-            "image": image,
             "normal": normal,
-            "normal_mask": normal_mask,
+            "color": color,
             "lm3ds": lm3ds,
+        }
+
+
+class FLAMEDataset(DPHMDataset):
+    def __init__(
+        self,
+        flame_dir: str = "/flame",
+        num_shape_params: int = 100,
+        num_expression_params: int = 50,
+        optimize_frames: int = 1,
+        optimize_shapes: int = 1,
+        **kwargs,
+    ):
+        super().__init__(**kwargs, optimize_frames=optimize_frames)
+        flame = FLAME(
+            flame_dir=flame_dir,
+            data_dir=kwargs["data_dir"],
+            num_shape_params=num_shape_params,
+            num_expression_params=num_expression_params,
+            optimize_frames=optimize_frames,
+            optimize_shapes=optimize_shapes,
+            image_scale=self.image_scale,
+            image_height=self.image_size[0],
+            image_width=self.image_size[1],
+        )
+
+        flame.init_params(
+            global_pose=[torch.pi, 0, 0],
+            transl=[0.0, 0.27, 0.5],
+        )
+        vertices, lm3ds = flame()
+        renderer = flame.renderer(diffuse=[0.6, 0.0, 0.0], specular=[0.5, 0.0, 0.0])
+
+        render = renderer.render_full(vertices, flame.masked_faces(vertices))
+        self.mask = render["mask"][0].detach().cpu().numpy()
+        self.point = render["point"][0].detach().cpu().numpy()
+        self.normal = render["normal"][0].detach().cpu().numpy()
+        self.color = render["shading_image"][0].detach().cpu().numpy()
+        self.color[~self.mask, :] = 255
+        self.lm3ds = lm3ds[0].detach().cpu().numpy()
+
+    def __getitem__(self, idx: int):
+        return {
+            "shape_idx": 0,
+            "frame_idx": 0,
+            "mask": self.mask,
+            "point": self.point,
+            "normal": self.normal,
+            "color": self.color,
+            "lm3ds": self.lm3ds,
         }

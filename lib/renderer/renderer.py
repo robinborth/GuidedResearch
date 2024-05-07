@@ -4,6 +4,7 @@ from pytorch3d.renderer import MeshRasterizer, PerspectiveCameras, Rasterization
 from pytorch3d.structures import Meshes
 
 from lib.renderer.camera import camera2normal
+from lib.utils.mesh import weighted_vertex_normals
 
 
 class Renderer(nn.Module):
@@ -17,6 +18,7 @@ class Renderer(nn.Module):
         specular: list[float] = [0.3, 0.3, 0.3],
         light: list[float] = [-1.0, 1.0, 0.0],
         device: str = "cpu",
+        **kwargs,
     ):
         """The rendering settings.
 
@@ -175,10 +177,6 @@ class Renderer(nn.Module):
         depth_image = self.depth_to_depth_image(depth)
         return depth_image, mask
 
-    def point_to_normal(self, point):
-        normal, normal_mask = camera2normal(point)
-        return normal, normal_mask
-
     def render_normal(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render an depth map which camera z coordinate.
 
@@ -189,9 +187,13 @@ class Renderer(nn.Module):
         Returns:
             (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W, 3).
         """
-        point, _ = self.render_point(vertices=vertices, faces=faces)
-        normal, normal_mask = self.point_to_normal(point)  # (B, H', W', 3)
-        return normal, normal_mask
+        vertex_normals = weighted_vertex_normals(vertices, faces)
+        normal, mask = self.render(
+            vertices=vertices,
+            faces=faces,
+            attributes=vertex_normals,
+        )  # (B, H', W', 3)
+        return normal, mask
 
     def normal_to_normal_image(self, normal, mask):
         normal_image = (((normal + 1) / 2) * 255).to(torch.uint8)
@@ -226,19 +228,20 @@ class Renderer(nn.Module):
 
     def render_full(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render all images."""
-        point, mask = self.render_point(vertices, faces)
+        # depth based
+        point, _ = self.render_point(vertices, faces)
         depth = self.point_to_depth(point)
         depth_image = self.depth_to_depth_image(depth)
-        normal, normal_mask = self.point_to_normal(point)
-        normal_image = self.normal_to_normal_image(normal, normal_mask)
-        shading_image = self.normal_to_shading_image(normal, normal_mask)
+        # normal based
+        normal, mask = self.render_normal(vertices, faces)
+        normal_image = self.normal_to_normal_image(normal, mask)
+        shading_image = self.normal_to_shading_image(normal, mask)
         return {
             "mask": mask,
             "point": point,
             "depth": depth,
-            "depth_image": depth_image,
             "normal": normal,
-            "normal_mask": normal_mask,
+            "depth_image": depth_image,
             "normal_image": normal_image,
             "shading_image": shading_image,
         }
