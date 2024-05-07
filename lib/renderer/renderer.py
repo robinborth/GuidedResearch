@@ -148,6 +148,7 @@ class Renderer(nn.Module):
         point[~mask, :] = 0
         return point, mask  # (B, H, W, 3),  (B, H, W)
 
+    @classmethod
     def point_to_depth(self, point):
         return point[:, :, :, 2]  # (H, W, 3)
 
@@ -169,6 +170,7 @@ class Renderer(nn.Module):
         depth = self.point_to_depth(point)
         return depth, mask
 
+    @classmethod
     def depth_to_depth_image(self, depth):
         return (depth.clip(0, 1) * 255).to(torch.uint8)
 
@@ -195,6 +197,7 @@ class Renderer(nn.Module):
         )  # (B, H', W', 3)
         return normal, mask
 
+    @classmethod
     def normal_to_normal_image(self, normal, mask):
         normal_image = (((normal + 1) / 2) * 255).to(torch.uint8)
         normal_image[~mask] = 0

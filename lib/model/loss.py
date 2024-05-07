@@ -18,7 +18,7 @@ def distance(vertices: torch.Tensor, points: torch.Tensor):
     return torch.sqrt(dist_in + 1e-20)  # (B, V, P)
 
 
-def point_to_point_loss(vertices: torch.Tensor, points: torch.Tensor):
+def point_to_point_full(vertices: torch.Tensor, points: torch.Tensor):
     """Calculates the point-to-point distance between vertiices and a point cloud.
 
     Args:
@@ -32,7 +32,7 @@ def point_to_point_loss(vertices: torch.Tensor, points: torch.Tensor):
     return dist.min(-1).values  # (B, V)
 
 
-def chamfer_distance_loss(vertices: torch.Tensor, points: torch.Tensor):
+def chamfer_distance(vertices: torch.Tensor, points: torch.Tensor):
     """Calculates the point-to-point distance between vertiices and a point cloud.
 
     Args:
@@ -46,7 +46,7 @@ def chamfer_distance_loss(vertices: torch.Tensor, points: torch.Tensor):
     return dist.min(-1).values.mean(-1) + dist.min(-2).values.mean(-1)  # (B,)
 
 
-def landmark_3d_loss(
+def landmark_3d_distance(
     landmarks: torch.Tensor,
     gt_landmarks: torch.Tensor,
 ):

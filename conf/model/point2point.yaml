@@ -1,5 +1,5 @@
 # @package model
-_target_: lib.model.flame.FLAMEPoints
+_target_: lib.model.flame.FLAMEPoint2Point
 
 # model settings
 flame_dir: ${paths.root_dir}/checkpoints/flame2023

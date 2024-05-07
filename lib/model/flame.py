@@ -7,7 +7,7 @@ import torch.nn as nn
 from PIL import Image
 
 from lib.model.lbs import lbs
-from lib.model.loss import landmark_3d_loss, point_to_point_loss
+from lib.model.loss import chamfer_distance, landmark_3d_distance
 from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_flame,
@@ -263,6 +263,141 @@ class FLAME(L.LightningModule):
         transl_grad = optimizer.param_groups[0]["params"][0][0]
         self.log_dict({"debug/transl_z_grad": transl_grad[2]})
 
+    def model_step(self, frame_idx: torch.Tensor, shape_idx: torch.Tensor):
+        vertices, landmarks = self.forward(
+            shape_params=self.shape_params(shape_idx),  # (B, S')
+            expression_params=self.expression_params(frame_idx),  # (B, E')
+            global_pose=self.global_pose(frame_idx),
+            neck_pose=self.neck_pose(frame_idx),
+            jaw_pose=self.jaw_pose(frame_idx),
+            eye_pose=self.eye_pose(frame_idx),
+            transl=self.transl(frame_idx),
+            scale=self.scale(frame_idx),
+        )  # (B, V, 3)
+        return {
+            "vertices": vertices,
+            "landmarks": landmarks,
+        }
+
+    def render_step(self, model: dict[str, torch.Tensor]):
+        # initilize the renderer with the correct dimension
+        renderer = self.renderer(
+            diffuse=[0.0, 0.0, 0.6],
+            specular=[0.0, 0.0, 0.5],
+        )
+        # render the current flame model
+        faces = self.masked_faces(model["vertices"])  # (F', 3)
+        render = renderer.render_full(
+            vertices=model["vertices"],  # (B, V, 3)
+            faces=faces,  # (F, 3)
+        )  # (B, H', W')
+        return render
+
+    def correspondence_mask(
+        self,
+        batch: dict[str, torch.Tensor],
+        render: dict[str, torch.Tensor],
+        n_threshold: float = 0.8,
+        d_threshold: float = 0.1,
+        verbose: bool = True,
+    ):
+        # per pixel distance in 3d, just the length
+        dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
+
+        # calculate the forground mask
+        f_mask = batch["mask"] & render["mask"]  # (B, W, H)
+
+        # the depth mask based on some epsilon of distance 10cm
+        d_mask = dist < d_threshold  # (B, W, H)
+
+        # dot product, e.g. coresponds to an angle
+        normal_dot = (batch["normal"] * render["normal"]).sum(-1)
+        n_mask = normal_dot > n_threshold  # (B, W, H)
+
+        # final loss mask of silhouette, depth and normal threshold
+        mask = d_mask & f_mask & n_mask
+        assert mask.sum()  # we have some overlap
+
+        if verbose:
+            self.log("debug/forground_mask", float(f_mask.sum()))
+            self.log("debug/dist_mask", float(d_mask.sum()))
+            self.log("debug/normal_mask", float(n_mask.sum()))
+            self.log("debug/mask", float(mask.sum()))
+
+        return mask
+
+    def debug_step(
+        self,
+        batch: dict[str, torch.Tensor],
+        model: dict[str, torch.Tensor],
+        render: dict[str, torch.Tensor],
+    ):
+        # debug settings
+        B = batch["frame_idx"].shape[0]
+        b_idx = 0
+        f_idx = batch["frame_idx"][b_idx].item()
+
+        # debug chamfer loss
+        chamfer = chamfer_distance(
+            vertices=model["vertices"],
+            points=batch["point"][batch["mask"]].reshape(B, -1, 3),
+        )  # (B,)
+        self.log("train/chamfer", chamfer.mean(), prog_bar=True)
+
+        # debug landmark loss
+        # landmarks = batch["lm3ds"][:, self.lm_mediapipe_idx]
+        landmarks = batch["landmarks"]
+        lm3d_dist = landmark_3d_distance(model["landmarks"], landmarks)  # (B,)
+        self.log("train/lm3d_dist", lm3d_dist.mean(), prog_bar=True)
+
+        # # visualize the image that is optimized and save to disk and the 3d points
+        # file_name = f"error_image/{f_idx:03}_{self.current_epoch:05}.png"
+        # error_image = self.error_images(dist, f_mask)  # (B, H, W, 3)
+        # self.save_image(file_name, error_image[b_idx])
+
+        file_name = f"render_mask/{f_idx:03}_{self.current_epoch:05}.png"
+        self.save_image(file_name, render["mask"][b_idx])
+
+        file_name = f"batch_mask/{f_idx:03}_{self.current_epoch:05}.png"
+        self.save_image(file_name, batch["mask"][b_idx])
+
+        file_name = f"render_depth/{f_idx:03}_{self.current_epoch:05}.png"
+        self.save_image(file_name, render["depth_image"][b_idx])
+
+        file_name = f"batch_depth/{f_idx:03}_{self.current_epoch:05}.png"
+        depth = Renderer.point_to_depth(batch["point"])
+        depth_image = Renderer.depth_to_depth_image(depth)
+        self.save_image(file_name, depth_image[b_idx])
+
+        file_name = f"render_normal/{f_idx:03}_{self.current_epoch:05}.png"
+        self.save_image(file_name, render["normal_image"][b_idx])
+
+        file_name = f"batch_normal/{f_idx:03}_{self.current_epoch:05}.png"
+        normal_image = Renderer.normal_to_normal_image(batch["normal"], batch["mask"])
+        self.save_image(file_name, normal_image[b_idx])
+
+        file_name = f"render_shading/{f_idx:03}_{self.current_epoch:05}.png"
+        self.save_image(file_name, render["shading_image"][b_idx])
+
+        file_name = f"render_full/{f_idx:03}_{self.current_epoch:05}.png"
+        render_full = batch["color"].clone()
+        color_mask = (
+            (render["point"][:, :, :, 2] < batch["point"][:, :, :, 2])
+            | (render["mask"] & ~batch["mask"])
+        ) & render["mask"]
+        render_full[color_mask] = render["shading_image"][color_mask]
+        self.save_image(file_name, render_full[b_idx])
+
+        # save the gt points
+        file_name = f"batch_point/{f_idx:03}_{self.current_epoch:05}.npy"
+        points = batch["point"][batch["mask"]].reshape(B, -1, 3)
+        self.save_points(file_name, points[b_idx])
+
+        # save the flame vertices
+        file_name = f"render_point/{f_idx:03}_{self.current_epoch:05}.npy"
+        render_points = render["point"][render["mask"]].reshape(B, -1, 3)
+        self.save_points(file_name, render_points[b_idx])
+
     ####################################################################################
     # Dataset Utils Coarse To Fine
     ####################################################################################
@@ -298,34 +433,35 @@ class FLAME(L.LightningModule):
     ####################################################################################
     # Logging and Debuging Utils
     ####################################################################################
-    def error_images(self, loss: torch.Tensor, mask: torch.Tensor):
-        """The error image per pixel.
 
-        Args:
-            loss (torch.Tensor): The loss image per pixel of dim (B, H, W)
-            mask (torch.Tensor): The mask to set the error to zero (B, H, W)
+    # def error_images(self, loss: torch.Tensor, mask: torch.Tensor):
+    #     """The error image per pixel.
 
-        Returns:
-            (torch.Tensor): The error image as pixel values ranging from
-                0 ... 255, where 255 means a high error of dim (B, H, W, 3)
-        """
-        error_image = torch.zeros((*loss.shape, 3), device=loss.device)
-        error_image[:, :, :, 0] = loss * 4
-        error_image = (error_image.clip(0, 1) * 255).to(torch.uint8)
-        error_image[~mask] = 0
-        return error_image
+    #     Args:
+    #         loss (torch.Tensor): The loss image per pixel of dim (B, H, W)
+    #         mask (torch.Tensor): The mask to set the error to zero (B, H, W)
 
-    def points_direction_image(
-        self,
-        s_points: torch.Tensor,
-        t_points: torch.Tensor,
-        mask: torch.Tensor,
-    ):
-        point_dir = t_points - s_points
-        point_dir = point_dir / torch.norm(point_dir, dim=-1).unsqueeze(-1)
-        point_dir = (((point_dir + 1) / 2) * 255).to(torch.uint8)
-        point_dir[~mask, :] = 0
-        return point_dir
+    #     Returns:
+    #         (torch.Tensor): The error image as pixel values ranging from
+    #             0 ... 255, where 255 means a high error of dim (B, H, W, 3)
+    #     """
+    #     error_image = torch.zeros((*loss.shape, 3), device=loss.device)
+    #     error_image[:, :, :, 0] = loss * 4
+    #     error_image = (error_image.clip(0, 1) * 255).to(torch.uint8)
+    #     error_image[~mask] = 0
+    #     return error_image
+
+    # def points_direction_image(
+    #     self,
+    #     s_points: torch.Tensor,
+    #     t_points: torch.Tensor,
+    #     mask: torch.Tensor,
+    # ):
+    #     point_dir = t_points - s_points
+    #     point_dir = point_dir / torch.norm(point_dir, dim=-1).unsqueeze(-1)
+    #     point_dir = (((point_dir + 1) / 2) * 255).to(torch.uint8)
+    #     point_dir[~mask, :] = 0
+    #     return point_dir
 
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.logger.save_dir) / file_name  # type: ignore
@@ -339,7 +475,7 @@ class FLAME(L.LightningModule):
             np.save(f, points.detach().cpu().numpy())
 
 
-class FLAMEPoints(FLAME):
+class FLAMEPoint2Point(FLAME):
     # NOTE: The global and trans have a custom initialization e.g. becaue this is
     # how the camera is positioned, e.g. we need to an overlapping in oder to compute
     # the loss
@@ -359,141 +495,25 @@ class FLAMEPoints(FLAME):
             transl=[0.0 + x_eps, 0.27 + y_eps, 0.5 + z_eps],
         )
 
-    def model_step(self, batch, batch_idx):
-        ...
-    
-    def debug_step(self, batch, batch_idx):
-        ...
-
     def optimization_step(self, batch, batch_idx):
-        frame_idx = batch["frame_idx"]  # (B, )
-        shape_idx = batch["shape_idx"]  # (B, )
-        B = batch["frame_idx"].shape[0]  # batch_size
-        b_idx = 0
-        f_idx = batch["frame_idx"][b_idx].item()
-
-        point = batch["point"]  # (B, H', W' 3)
-        mask = batch["mask"]  # (B, H', W') forground
-        normal = batch["normal"]  # (B, H', W' 3)
-        color = batch["color"]  # (B, H', W', 3)
-        # lm3ds = batch["lm3ds"][:, self.lm_mediapipe_idx]  # (B, 105, 3)  # TODO this is because of FLAME DATASET
-        lm3ds = batch["lm3ds"]  # (B, 105, 3)
-
-        vertices, lm3ds_hat = self.forward(
-            shape_params=self.shape_params(shape_idx),  # (B, S')
-            expression_params=self.expression_params(frame_idx),  # (B, E')
-            global_pose=self.global_pose(frame_idx),
-            neck_pose=self.neck_pose(frame_idx),
-            jaw_pose=self.jaw_pose(frame_idx),
-            eye_pose=self.eye_pose(frame_idx),
-            transl=self.transl(frame_idx),
-            scale=self.scale(frame_idx),
-        )  # (B, V, 3)
-
-        renderer = renderer = self.renderer(
-            diffuse=[0.0, 0.0, 0.6],
-            specular=[0.0, 0.0, 0.5],
+        # forward pass with the current frame and shape
+        model = self.model_step(
+            frame_idx=batch["frame_idx"],  # (B, )
+            shape_idx=batch["shape_idx"],  # (B, )
         )
+        # render the current flame model
+        render = self.render_step(model)
+        # rejection based on outliers
+        mask = self.correspondence_mask(batch=batch, render=render, verbose=False)
+        # distance in camera space per pixel & point to point loss
+        dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
+        # point to point loss
+        loss = torch.pow(dist[mask], 2).mean()
+        self.log("train/p2p_loss", loss)
 
-        faces = self.masked_faces(vertices)  # (F', 3)
-        render = renderer.render_full(
-            vertices=vertices,  # (B, V, 3)
-            faces=faces,  # (F, 3)
-        )  # (B, H', W')
-
-        # per pixel distance in 3d, just the length
-        dist = torch.norm(render["point"] - point, dim=-1)  # (B, W, H)
-
-        # calculate the forground mask
-        f_mask = mask & render["mask"]  # (B, W, H)
-        assert f_mask.sum()  # we have some overlap
-        self.log("debug/n_f_mask", float(f_mask.sum()))
-
-        # the depth mask based on some epsilon of distance
-        d_threshold = 0.1  # 10cm
-        d_mask = dist < d_threshold  # (B, W, H)
-        self.log("debug/n_d_mask", float(d_mask.sum()))
-
-        n_threshold = 0.8  # this is the dot product, e.g. coresponds to an angle
-        normal_dot = (normal * render["normal"]).sum(-1)
-        n_mask = normal_dot > n_threshold  # (B, W, H)
-        self.log("debug/n_n_mask", float(n_mask.sum()))
-
-        # final loss mask of silhouette, depth and normal threshold
-        l_mask = d_mask & f_mask & n_mask
-        self.log("debug/n_mask", float(mask.sum()))
-
-        # compute the loss based on the distance, mean of squared distances
-        p2p_loss = torch.pow(dist[l_mask], 2).mean()
-        self.log("train/p2p_loss", p2p_loss)        
-
-        loss = p2p_loss
-        self.log("train/loss", loss, prog_bar=True)
-
-        # debug chamfer loss
-        chamfer = point_to_point_loss(
-            vertices=vertices,
-            points=point[mask].reshape(B, -1, 3),
-        )  # (B,)
-        self.log("train/chamfer", chamfer.mean(), prog_bar=True)
-
-        # debug landmark loss
-        lm_loss = landmark_3d_loss(lm3ds_hat, lm3ds)  # (B,)
-        self.log("train/lm_loss", lm_loss.mean(), prog_bar=True)
-
-        # visualize the image that is optimized and save to disk and the 3d points
+        # visualize the image that is optimized and save to disk
         if (self.current_epoch + 0) % self.hparams["save_interval"] == 0:
-            file_name = f"error/{f_idx:03}_{self.current_epoch:05}.png"
-            error_image = self.error_images(dist, f_mask)  # (B, H, W, 3)
-            self.save_image(file_name, error_image[b_idx])
-
-            file_name = f"points_direction/{f_idx:03}_{self.current_epoch:05}.png"
-            points_direction_image = self.points_direction_image(
-                point, render["point"], render["mask"]
-            )
-            self.save_image(file_name, points_direction_image[b_idx])
-
-            file_name = f"render_mask/{f_idx:03}_{self.current_epoch:05}.png"
-            self.save_image(file_name, render["mask"][b_idx])
-
-            file_name = f"mask/{f_idx:03}_{self.current_epoch:05}.png"
-            self.save_image(file_name, mask[b_idx])
-
-            file_name = f"render_depth/{f_idx:03}_{self.current_epoch:05}.png"
-            self.save_image(file_name, render["depth_image"][b_idx])
-
-            file_name = f"depth/{f_idx:03}_{self.current_epoch:05}.png"
-            depth_image = renderer.depth_to_depth_image(renderer.point_to_depth(point))
-            self.save_image(file_name, depth_image[b_idx])
-
-            file_name = f"render_normal/{f_idx:03}_{self.current_epoch:05}.png"
-            self.save_image(file_name, render["normal_image"][b_idx])
-
-            file_name = f"normal/{f_idx:03}_{self.current_epoch:05}.png"
-            normal_image = renderer.normal_to_normal_image(normal, mask)
-            self.save_image(file_name, normal_image[b_idx])
-
-            file_name = f"render_shading/{f_idx:03}_{self.current_epoch:05}.png"
-            self.save_image(file_name, render["shading_image"][b_idx])
-
-            file_name = f"render_full/{f_idx:03}_{self.current_epoch:05}.png"
-            render_full = color.clone()
-            color_mask = (
-                (render["point"][:, :, :, 2] < point[:, :, :, 2])
-                | (render["mask"] & ~mask)
-            ) & render["mask"]
-            render_full[color_mask] = render["shading_image"][color_mask]
-            self.save_image(file_name, render_full[b_idx])
-
-            # save the gt points
-            file_name = f"point/{f_idx:03}_{self.current_epoch:05}.npy"
-            points = point[mask].reshape(B, -1, 3)
-            self.save_points(file_name, points[b_idx])
-
-            # save the flame vertices
-            file_name = f"render_point/{f_idx:03}_{self.current_epoch:05}.npy"
-            render_points = render["point"][render["mask"]].reshape(B, -1, 3)
-            self.save_points(file_name, render_points[b_idx])
+            self.debug_step(batch=batch, model=model, render=render)
 
         return loss
 

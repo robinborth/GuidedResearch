@@ -1,10 +1,9 @@
-import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
 from lib.model.flame import FLAME
-from lib.renderer.camera import camera2normal, depth2camera
+from lib.renderer.camera import depth2camera
 from lib.utils.loader import (
     load_color,
     load_depth,
@@ -44,11 +43,11 @@ class DPHMDataset(Dataset):
             self.start_frame_idx, self.start_frame_idx + self.optimize_frames
         )
 
-    def load_lm3ds(self):
-        self.lm3ds = []
+    def load_landmarks(self):
+        self.landmarks = []
         for frame_idx in self.iter_frame_idx():
-            lm3d = load_mediapipe_landmark_3d(self.data_dir, idx=frame_idx)
-            self.lm3ds.append(lm3d)
+            landmarks = load_mediapipe_landmark_3d(self.data_dir, idx=frame_idx)
+            self.landmarks.append(landmarks)
 
     def load_color(self):
         self.color = []
@@ -115,7 +114,7 @@ class DPHMPointDataset(DPHMDataset):
         super().__init__(**kwargs)
         self.load_point()
         self.load_normal()
-        self.load_lm3ds()
+        self.load_landmarks()
         self.load_color()
 
     def __getitem__(self, idx: int):
@@ -124,7 +123,7 @@ class DPHMPointDataset(DPHMDataset):
         point = self.point[idx]
         normal = self.normal[idx]
         color = self.color[idx]
-        lm3ds = self.lm3ds[idx]
+        landmarks = self.landmarks[idx]
         return {
             "shape_idx": 0,
             "frame_idx": idx,
@@ -132,7 +131,7 @@ class DPHMPointDataset(DPHMDataset):
             "point": point,
             "normal": normal,
             "color": color,
-            "lm3ds": lm3ds,
+            "landmarks": landmarks,
         }
 
 
@@ -163,7 +162,7 @@ class FLAMEDataset(DPHMDataset):
             global_pose=[torch.pi, 0, 0],
             transl=[0.0, 0.27, 0.5],
         )
-        vertices, lm3ds = flame()
+        vertices, landmarks = flame()
         renderer = flame.renderer(diffuse=[0.6, 0.0, 0.0], specular=[0.5, 0.0, 0.0])
 
         render = renderer.render_full(vertices, flame.masked_faces(vertices))
@@ -172,7 +171,7 @@ class FLAMEDataset(DPHMDataset):
         self.normal = render["normal"][0].detach().cpu().numpy()
         self.color = render["shading_image"][0].detach().cpu().numpy()
         self.color[~self.mask, :] = 255
-        self.lm3ds = lm3ds[0].detach().cpu().numpy()
+        self.landmarks = landmarks[0].detach().cpu().numpy()
 
     def __getitem__(self, idx: int):
         return {
@@ -182,5 +181,5 @@ class FLAMEDataset(DPHMDataset):
             "point": self.point,
             "normal": self.normal,
             "color": self.color,
-            "lm3ds": self.lm3ds,
+            "landmarks": self.landmarks,
         }
