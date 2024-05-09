@@ -1,0 +1,6 @@
+# @package callbacks
+
+optimzier_scheduler:
+  _target_: lib.data.scheduler.OptimizerScheduler
+  milestones: [0]
+  modes: ["default"]

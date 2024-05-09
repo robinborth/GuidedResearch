@@ -8,8 +8,7 @@ from lib.model.flame import FLAME
 
 
 class Scheduler:
-    def __init__(self, milestones: list[int] = []):
-        self.milestones = milestones
+    milestones: list[int]
 
     def skip(self, current_epoch):
         """Skip the scheduler if now new milestone is reached."""
@@ -27,7 +26,7 @@ class Scheduler:
         assert len(attribute) == len(self.milestones)
 
 
-class CoarseToFineScheduler(Scheduler, Callback):
+class CoarseToFineScheduler(Callback, Scheduler):
     """Changes the data of the optimization."""
 
     def __init__(
@@ -35,20 +34,44 @@ class CoarseToFineScheduler(Scheduler, Callback):
         milestones: list[int] = [0],
         image_scales: list[float] = [1.0],
     ) -> None:
-        super().__init__(milestones)
+        self.milestones = milestones
         self.check_attribute(image_scales)
         self.image_scales = image_scales
 
-    def on_train_epoch_start(self, trainer: L.Trainer, pl_module: L.LightningModule):
-        if self.skip(trainer.current_epoch):
+    def schedule_dataset(
+        self,
+        trainer: L.Trainer,
+        current_epoch: int,
+    ):
+        if self.skip(current_epoch):
             return
-        # override the rendering settings in the datamodule, which implictily sets the
-        # scale, width, height in the flame model, by reference.
-        image_scale = self.get_attribute(self.image_scales, trainer.current_epoch)
-        trainer.datamodule.set_dataset(image_scale)  # type: ignore
+        image_scale = self.get_attribute(self.image_scales, current_epoch)
+        trainer.datamodule.prepare_dataset(image_scale)  # type: ignore
+
+    def schedule_model(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+        current_epoch: int,
+    ):
+        if self.skip(current_epoch):
+            return
+        assert isinstance(pl_module, FLAME)
+        datamodule = trainer.datamodule  # type: ignore
+        pl_module.hparams["image_scale"] = datamodule.image_scale
+        pl_module.hparams["image_height"] = datamodule.image_height
+        pl_module.hparams["image_width"] = datamodule.image_width
+
+    def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule):
+        self.schedule_dataset(trainer, trainer.current_epoch)
+        self.schedule_model(trainer, pl_module, trainer.current_epoch)
+
+    def on_train_epoch_start(self, trainer: L.Trainer, pl_module: L.LightningModule):
+        self.schedule_dataset(trainer, trainer.current_epoch + 1)
+        self.schedule_model(trainer, pl_module, trainer.current_epoch)
 
 
-class OptimizerScheduler(Scheduler, Callback):
+class OptimizerScheduler(Callback, Scheduler):
     """The optimizer scheduler manages to loss mode during optimization."""
 
     def __init__(
@@ -56,7 +79,7 @@ class OptimizerScheduler(Scheduler, Callback):
         milestones: list[int] = [0],
         modes: list[str] = ["default"],
     ) -> None:
-        super().__init__(milestones)
+        self.milestones = milestones
         self.check_attribute(modes)
         self.modes = modes
 
@@ -72,7 +95,7 @@ class OptimizerScheduler(Scheduler, Callback):
         pl_module.set_optimize_mode(mode)
 
 
-class FinetuneScheduler(Scheduler, BaseFinetuning):
+class FinetuneScheduler(BaseFinetuning, Scheduler):
     """The finetune scheduler manages which flame params are unfreezed.
 
     This scheduler manages which parameters are frozen in the optimization. One can
@@ -85,7 +108,8 @@ class FinetuneScheduler(Scheduler, BaseFinetuning):
         milestones: list[int] = [0],
         params: list[str] = ["global_pose|transl"],
     ) -> None:
-        super().__init__(milestones)
+        super().__init__()
+        self.milestones = milestones
         self.check_attribute(params)
         self.params = params
 

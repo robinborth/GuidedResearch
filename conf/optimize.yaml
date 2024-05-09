@@ -7,6 +7,10 @@ defaults:
   - logger: csv # csv, wandb
   - callbacks:
     - rich_progress_bar
+  - scheduler:  # this is internally handled like a callback
+    - coarse_to_fine
+    - finetune
+    - optimizer 
   - hydra: default
   - paths: default
   - debug: null

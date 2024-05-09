@@ -261,30 +261,12 @@ class FLAME(L.LightningModule):
     # Render the FLAME model, which needs to be in sync with the dataset.
     ####################################################################################
 
-    @property
-    def image_scale(self):
-        if "image_scale" in self.hparams:
-            return self.hparams["image_scale"]
-        return self.trainer.datamodule.image_scale
-
-    @property
-    def image_height(self):
-        if "image_height" in self.hparams:
-            return self.hparams["image_height"]
-        return self.trainer.datamodule.image_height
-
-    @property
-    def image_width(self):
-        if "image_width" in self.hparams:
-            return self.hparams["image_width"]
-        return self.trainer.datamodule.image_width
-
     def renderer(self, **kwargs):
         return Renderer(
             K=self.K,
-            image_scale=self.image_scale,
-            image_height=self.image_height,
-            image_width=self.image_width,
+            image_scale=self.hparams["image_scale"],
+            image_height=self.hparams["image_height"],
+            image_width=self.hparams["image_width"],
             device=self.device,
             **kwargs,
         )
