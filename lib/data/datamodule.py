@@ -7,11 +7,8 @@ class DPHMDataModule(L.LightningDataModule):
         self,
         # dataset settings
         data_dir: str = "/data",
-        optimize_frames: int = 1,
-        start_frame_idx: int = 0,
         # rasterizer settings
-        image_scales: list[float] = [1.0],
-        milestones: list[int] = [0],
+        image_scale: float = 1.0,
         image_width: int = 1920,
         image_height: int = 1080,
         # training
@@ -27,41 +24,27 @@ class DPHMDataModule(L.LightningDataModule):
     ) -> None:
         super().__init__()
         self.save_hyperparameters(logger=False)
-        assert batch_size <= optimize_frames
-
-        self.image_scales = image_scales
-        self.milestones = milestones
-
+        self.base_scale = image_scale
         self.base_width = image_width
         self.base_height = image_height
 
-    def update_dataset(self):
-        current_epoch = self.trainer.current_epoch
-        milestone_idx = sum(m <= current_epoch for m in self.milestones) - 1
-
-        self.image_scale = self.image_scales[milestone_idx]
+    def prepare_dataset(self, image_scale):
+        self.image_scale = image_scale
         self.image_height = int(self.image_scale * self.base_height)
         self.image_width = int(self.image_scale * self.base_width)
-        self.dataset = self.datasets[milestone_idx]
-
-    def load_dataset(self, milestone_idx: int):
-        image_scale = self.image_scales[milestone_idx]
-        image_height = int(image_scale * self.base_height)
-        image_width = int(image_scale * self.base_width)
-        return self.hparams["dataset"](
-            image_scale=image_scale,
-            image_width=image_width,
-            image_height=image_height,
+        self.dataset = self.hparams["dataset"](
+            image_scale=self.image_scale,
+            image_width=self.image_width,
+            image_height=self.image_height,
         )
-
-    def setup(self, stage: str) -> None:
-        self.datasets = []
-        for idx, _ in enumerate(self.milestones):
-            dataset = self.load_dataset(idx)
-            self.datasets.append(dataset)
+        assert self.hparams["batch_size"] <= self.dataset.optimize_frames
 
     def train_dataloader(self) -> DataLoader:
-        self.update_dataset()
+        # default settings if coarse to fine scheduler is not set, note that if one
+        # want's to use multiple gpu's this should be moved to setup.
+        if not hasattr(self, "dataset"):
+            self.prepare_dataset(self.base_scale)
+
         return DataLoader(
             dataset=self.dataset,
             batch_size=self.hparams["batch_size"],

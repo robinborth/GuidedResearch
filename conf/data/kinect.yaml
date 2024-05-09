@@ -4,10 +4,8 @@ _target_: lib.data.datamodule.DPHMDataModule
 # dataset settings
 dataset_name: dphm_christoph_mouthmove
 data_dir: ${paths.data_dir}/${data.dataset_name}
-optimize_frames: 1
 start_frame_idx: 0 
-image_scales: [0.2]
-milestones: [0]
+image_scale: 0.1
 image_width: 1920
 image_height: 1080
 
@@ -24,7 +22,7 @@ dataset:
   _target_: lib.data.dataset.DPHMPointDataset
   _partial_: True
   data_dir: ${data.data_dir} 
-  optimize_frames: ${data.optimize_frames}
+  optimize_frames: ${model.optimize_frames}
   start_frame_idx: ${data.start_frame_idx}
   # this is done dynamically in coars to fine strategy
   image_scale: ???

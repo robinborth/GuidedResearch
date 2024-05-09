@@ -345,6 +345,7 @@ def load_flame_masks(flame_dir: str | Path, return_tensors: str = "np"):
         flame_masks = pickle.load(f, encoding="latin1")
     for key in flame_masks.keys():
         flame_masks[key] = flame_masks[key].astype(np.int64)
+    flame_masks["full"] = np.arange(5023, dtype=np.int64)
     return convert_dict_from_np(flame_masks, return_tensors=return_tensors)
 
 

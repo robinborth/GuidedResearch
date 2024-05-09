@@ -16,7 +16,7 @@
             "program": "scripts/optimize.py",
             "args": [
                 "model=point2plane",
-                "data=flame",
+                "data=kinect",
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

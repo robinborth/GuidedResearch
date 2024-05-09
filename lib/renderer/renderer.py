@@ -82,7 +82,7 @@ class Renderer(nn.Module):
             (B, H, W) and the coresponding bary coordinates of dim (B, H, W, 3).
         """
         verts = vertices.cpu().clone()
-        verts[:, :1] = -verts[:, :1]
+        verts[:, :, :1] = -verts[:, :, :1]
         faces = faces.expand(verts.shape[0], -1, -1).cpu()
         meshes = Meshes(verts=verts, faces=faces)
         fragments = self.rasterizer(meshes)
@@ -226,8 +226,8 @@ class Renderer(nn.Module):
     def render_shading_image(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render the shaded image in RGB space."""
         normal, mask = self.render_normal(vertices, faces)
-        shading, mask = self.normal_to_shading(normal, mask)
-        return shading, mask
+        shading = self.normal_to_shading_image(normal, mask)
+        return shading
 
     def render_full(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render all images."""

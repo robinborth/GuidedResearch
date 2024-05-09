@@ -14,7 +14,7 @@ scheduler:
   _partial_: True
   step_size: 200
   gamma: 0.5
-optimize_frames: ${data.optimize_frames}
+optimize_frames: 1 
 optimize_shapes: 1
 
 save_interval: 1
