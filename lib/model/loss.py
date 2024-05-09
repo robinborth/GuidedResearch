@@ -57,3 +57,11 @@ def landmark_3d_distance(
         gt_landmarks: (torch.Tensor): The 3d coords of the mediapipe landmarks (105, 3)
     """
     return torch.norm(landmarks - gt_landmarks, dim=-1)
+
+
+def point2point(q: torch.Tensor, p: torch.Tensor):
+    return torch.pow((q - p).sum(-1), 2)  # (B, W, H)
+
+
+def point2plane(q: torch.Tensor, p: torch.Tensor, n: torch.Tensor):
+    return torch.pow(((q - p) * n).sum(-1), 2)  # (B, W, H)

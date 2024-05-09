@@ -9,7 +9,12 @@ from matplotlib import cm
 from PIL import Image
 
 from lib.model.lbs import lbs
-from lib.model.loss import chamfer_distance, landmark_3d_distance
+from lib.model.loss import (
+    chamfer_distance,
+    landmark_3d_distance,
+    point2plane,
+    point2point,
+)
 from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_flame,
@@ -333,15 +338,34 @@ class FLAME(L.LightningModule):
         B = batch["frame_idx"].shape[0]
         return B, 0, batch["frame_idx"][0].item()
 
-    def debug_loss(self, batch: dict, render: dict, loss: torch.Tensor, max_loss=3e-04):
+    def debug_loss(self, batch: dict, render: dict, max_loss=1e-02):
+        """The max is an error of 10cm"""
         _, b_idx, f_idx = self.debug_idx(batch)
+
         # color entcoding for the loss map
         norm = plt.Normalize(0.0, vmax=max_loss)
         cmap = plt.get_cmap("jet")
         sm = cm.ScalarMappable(norm=norm, cmap=cmap)
-        # loss error map
-        file_name = f"error_map/{f_idx:03}_{self.current_epoch:05}.png"
-        error_map = loss[b_idx].detach().cpu().numpy()
+
+        # point to point error map
+        file_name = f"point2point_error_map/{f_idx:03}_{self.current_epoch:05}.png"
+        loss = torch.sqrt(point2point(batch["point"], render["point"]))  # (B, W, H)
+        error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
+        error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
+        error_map[~render["mask"][b_idx], :] = 1.0
+        error_map = (error_map * 255).to(torch.uint8)
+        self.save_image(file_name, error_map)
+
+        # point to plane error map
+        file_name = f"plane2plane_error_map/{f_idx:03}_{self.current_epoch:05}.png"
+        loss = torch.sqrt(
+            point2plane(
+                p=render["point"],
+                q=batch["point"],
+                n=render["normal"],
+            )
+        )  # (B, W, H)
+        error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
         error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
         error_map[~render["mask"][b_idx], :] = 1.0
         error_map = (error_map * 255).to(torch.uint8)
@@ -450,9 +474,6 @@ class FLAMEPoint2Point(FLAME):
         super().__init__(**kwargs)
         self.init_params_dphm(0.01)
 
-    def point2point(self, q: torch.Tensor, p: torch.Tensor):
-        return torch.pow((q - p).sum(-1), 2)  # (B, W, H)
-
     def optimization_step(self, batch, batch_idx):
         # forward pass with the current frame and shape
         model = self.model_step(
@@ -464,16 +485,16 @@ class FLAMEPoint2Point(FLAME):
         # rejection based on outliers
         mask = self.inlier_mask(batch=batch, render=render)
         # distance in camera space per pixel & point to point loss
-        point2point = self.point2point(batch["point"], render["point"])  # (B, W, H)
+        p2p = point2point(batch["point"], render["point"])  # (B, W, H)
         # point to point loss
-        loss = point2point[mask["mask"]].mean()
+        loss = p2p[mask["mask"]].mean()
         self.log("train/point2point", loss, prog_bar=True)
         # log metrics
         self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)
-            self.debug_loss(batch=batch, render=render, loss=point2point)
+            self.debug_loss(batch=batch, render=render)
 
         return loss
 
@@ -483,9 +504,6 @@ class FLAMEPoint2Plane(FLAME):
         super().__init__(**kwargs)
         self.init_params_dphm(0.01)
 
-    def point2plane(self, q: torch.Tensor, p: torch.Tensor, n: torch.Tensor):
-        return torch.pow(((q - p) * n).sum(-1), 2)  # (B, W, H)
-
     def optimization_step(self, batch, batch_idx):
         # forward pass with the current frame and shape
         model = self.model_step(
@@ -497,18 +515,18 @@ class FLAMEPoint2Plane(FLAME):
         # rejection based on outliers
         mask = self.inlier_mask(batch=batch, render=render)
         # distance in camera space per pixel & point to point loss
-        point2plane = self.point2plane(
+        p2p = point2plane(
             p=render["point"],
             q=batch["point"],
             n=render["normal"],
         )  # (B, W, H)
         # point to plane loss
-        loss = point2plane[mask["mask"]].mean()
+        loss = p2p[mask["mask"]].mean()
         self.log("train/point2plane", loss, prog_bar=True)
         # log metrics
         self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)
-            self.debug_loss(batch=batch, render=render, loss=point2plane)
+            self.debug_loss(batch=batch, render=render)
         return loss

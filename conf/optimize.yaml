@@ -3,12 +3,12 @@
 defaults:
   - data: flame  # kinect, flame
   - model: point2point # point2point, point2plane
-  - trainer: coarse2fine  # default, coarse2fine
-  - logger: csv # csv, wandb
+  - trainer: default  # default, gpu
+  - logger: csv # csv, wand
   - callbacks:
     - rich_progress_bar
   - scheduler:  # this is internally handled like a callback
-    - coarse_to_fine
+    - coarse2fine
     - finetune
     - optimizer 
   - hydra: default
