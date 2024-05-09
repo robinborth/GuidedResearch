@@ -32,7 +32,7 @@ class FLAME(L.LightningModule):
         scheduler=None,
         optimize_frames: int = 1,  # the number of different frames per shape
         optimize_shapes: int = 1,  # the number of different shapes (allways 1)
-        vertices_mask: str = "full",  # specify the mask that is used
+        vertices_mask: str = "face",  # full, face
         # debug settings
         save_interval: int = 50,
         **kwargs,
@@ -333,7 +333,7 @@ class FLAME(L.LightningModule):
         B = batch["frame_idx"].shape[0]
         return B, 0, batch["frame_idx"][0].item()
 
-    def debug_loss(self, batch: dict, render: dict, loss: torch.Tensor, max_loss=0.1):
+    def debug_loss(self, batch: dict, render: dict, loss: torch.Tensor, max_loss=3e-04):
         _, b_idx, f_idx = self.debug_idx(batch)
         # color entcoding for the loss map
         norm = plt.Normalize(0.0, vmax=max_loss)
@@ -464,11 +464,12 @@ class FLAMEPoint2Point(FLAME):
         # rejection based on outliers
         mask = self.inlier_mask(batch=batch, render=render)
         # distance in camera space per pixel & point to point loss
-        point2point = self.point2point(batch["point", render["point"]])  # (B, W, H)
+        point2point = self.point2point(batch["point"], render["point"])  # (B, W, H)
         # point to point loss
         loss = point2point[mask["mask"]].mean()
         self.log("train/point2point", loss, prog_bar=True)
-
+        # log metrics
+        self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)
@@ -504,6 +505,8 @@ class FLAMEPoint2Plane(FLAME):
         # point to plane loss
         loss = point2plane[mask["mask"]].mean()
         self.log("train/point2plane", loss, prog_bar=True)
+        # log metrics
+        self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)

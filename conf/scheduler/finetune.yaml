@@ -2,5 +2,5 @@
 
 finetune_scheduler:
   _target_: lib.data.scheduler.FinetuneScheduler
-  milestones: [0, 10]
-  params: ["global_pose|transl", "scale"]
+  milestones: [0]
+  params: ["global_pose|transl"]
