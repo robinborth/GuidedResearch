@@ -8,13 +8,10 @@ num_shape_params: 100
 num_expression_params: 50
 
 # optimization settings
-lr: 1e-03
-scheduler:
-  _target_: torch.optim.lr_scheduler.StepLR 
-  _partial_: True
-  step_size: 200
-  gamma: 0.5
+lr: 1e-02
+scheduler: null
 optimize_frames: 1 
 optimize_shapes: 1
-
 save_interval: 1
+init_mode: kinect
+vertices_mask: full

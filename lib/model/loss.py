@@ -60,7 +60,7 @@ def landmark_3d_distance(
 
 
 def point2point(q: torch.Tensor, p: torch.Tensor):
-    return torch.pow((q - p).sum(-1), 2)  # (B, W, H)
+    return torch.pow(q - p, 2).sum(-1)  # (B, W, H)
 
 
 def point2plane(q: torch.Tensor, p: torch.Tensor, n: torch.Tensor):

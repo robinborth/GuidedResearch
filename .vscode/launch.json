@@ -10,7 +10,7 @@
             "justMyCode": false
         },
         {
-            "name": "Debug: Optimize",
+            "name": "Debug: Point2Plane Optimize",
             "type": "debugpy",
             "request": "launch",
             "program": "scripts/optimize.py",
@@ -20,6 +20,65 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
-        }
+        },
+        {
+            "name": "Debug: Point2Point Optimize",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/optimize.py",
+            "args": [
+                "model=point2point",
+                "data=kinect",
+                "callbacks.coarse2fine_scheduler.milestones=[0]",
+                "callbacks.coarse2fine_scheduler.image_scales=[0.5]"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "Debug: Point2Point Shape",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/optimize.py",
+            "args": [
+                "model=point2point",
+                "data=kinect",
+                "logger=wandb",
+                "model.lr=1e-02",
+                "model.init_mode=kinect",
+                "model.vertices_mask=face",
+                "trainer.max_epochs=150",
+                "callbacks.coarse2fine_scheduler.milestones=[0]",
+                "callbacks.coarse2fine_scheduler.image_scales=[0.25]",
+                "callbacks.finetune_scheduler.milestones=[0,30]",
+                "callbacks.finetune_scheduler.params=['global_pose|transl','shape_params']"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "Debug: Point2Plane FLAME",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/optimize.py",
+            "args": [
+                "model=point2plane",
+                "data=flame",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "Debug: Point2Point FLAME",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/optimize.py",
+            "args": [
+                "model=point2point",
+                "data=flame",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
     ]
 }

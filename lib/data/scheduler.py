@@ -128,5 +128,10 @@ class FinetuneScheduler(BaseFinetuning, Scheduler):
         assert isinstance(pl_module, FLAME)
         param_string = self.get_attribute(self.params, current_epoch)
         for param in param_string.split("|"):
+            print("UNFREEZE: ", param)
             modules = getattr(pl_module, param)
-            self.unfreeze_and_add_param_group(modules=modules, optimizer=optimizer)
+            self.unfreeze_and_add_param_group(
+                modules=modules,
+                optimizer=optimizer,
+                lr=1e-02,
+            )

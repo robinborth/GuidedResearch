@@ -32,3 +32,4 @@ dataset:
   num_shape_params: ${model.num_shape_params}
   num_expression_params: ${model.num_expression_params}
   optimize_shapes: ${model.optimize_shapes}
+  vertices_mask: ${model.vertices_mask}

@@ -15,6 +15,7 @@ from lib.model.loss import (
     point2plane,
     point2point,
 )
+from lib.renderer.camera import camera2pixel
 from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_flame,
@@ -40,6 +41,7 @@ class FLAME(L.LightningModule):
         vertices_mask: str = "face",  # full, face
         # debug settings
         save_interval: int = 50,
+        init_mode: str = "kinect",
         **kwargs,
     ):
         super().__init__()
@@ -249,8 +251,8 @@ class FLAME(L.LightningModule):
     def configure_optimizers(self):
         # 6 DoF initialization
         inti_params = [
-            {"params": self.global_pose.parameters()},
             {"params": self.transl.parameters()},
+            {"params": self.global_pose.parameters()},
         ]
         optimizer_params = {"params": inti_params, "lr": self.hparams["lr"]}
         optimizer = torch.optim.Adam(**optimizer_params)
@@ -279,6 +281,14 @@ class FLAME(L.LightningModule):
     ####################################################################################
     # Model Utils
     ####################################################################################
+
+    def init_params_flame(self, sigma: float = 0.01, seed: int = 1):
+        np.random.seed(seed)
+        s = np.random.normal(0, sigma, 6)
+        self.init_params(
+            global_pose=[np.pi + s[0], 0 + s[1], 0 + s[2]],
+            transl=[0 + s[3], 0.27 + s[4], 0.5 + s[5]],
+        )
 
     def init_params_dphm(self, sigma: float = 0.01, seed: int = 1):
         np.random.seed(seed)
@@ -357,7 +367,7 @@ class FLAME(L.LightningModule):
         self.save_image(file_name, error_map)
 
         # point to plane error map
-        file_name = f"plane2plane_error_map/{f_idx:03}_{self.current_epoch:05}.png"
+        file_name = f"point2plane_error_map/{f_idx:03}_{self.current_epoch:05}.png"
         loss = torch.sqrt(
             point2plane(
                 p=render["point"],
@@ -370,6 +380,68 @@ class FLAME(L.LightningModule):
         error_map[~render["mask"][b_idx], :] = 1.0
         error_map = (error_map * 255).to(torch.uint8)
         self.save_image(file_name, error_map)
+
+    def debug_correspondence(self, batch: dict, render: dict, model: dict):
+        _, b_idx, f_idx = self.debug_idx(batch)
+
+        file_name = f"batch_landmarks/{f_idx:03}_{self.current_epoch:05}.png"
+        landmarks = batch["landmarks"]
+        if batch["landmarks"].shape[1] != 105:
+            landmarks = batch["landmarks"][:, self.lm_mediapipe_idx]
+        K = self.K
+        vp = camera2pixel(
+            landmarks[b_idx],
+            K[0, 0] * self.hparams["image_scale"],
+            K[1, 1] * self.hparams["image_scale"],
+            K[0, 2] * self.hparams["image_scale"],
+            K[1, 2] * self.hparams["image_scale"],
+        )
+        vp = vp[:, :2].to(torch.int64)
+        image = batch["color"][b_idx].clone()
+        image[vp[:, 1], vp[:, 0]] = torch.tensor(
+            [255, 0, 0], dtype=image.dtype, device=image.device
+        )
+        image[~batch["mask"][b_idx], :] = 255
+        image_batch = image.clone()
+        pixel_batch = vp.clone()
+        self.save_image(file_name, image)
+
+        file_name = f"render_landmarks/{f_idx:03}_{self.current_epoch:05}.png"
+        landmarks = model["landmarks"]
+        K = self.K
+        vp = camera2pixel(
+            landmarks[b_idx],
+            K[0, 0] * self.hparams["image_scale"],
+            K[1, 1] * self.hparams["image_scale"],
+            K[0, 2] * self.hparams["image_scale"],
+            K[1, 2] * self.hparams["image_scale"],
+        )
+        vp = vp[:, :2].to(torch.int64)
+        image = render["shading_image"][b_idx].clone()
+        image[~render["mask"][b_idx], :] = 255
+        image[vp[:, 1], vp[:, 0]] = torch.tensor(
+            [255, 0, 0], dtype=image.dtype, device=image.device
+        )
+        image_render = image.clone()
+        pixel_render = vp.clone()
+        self.save_image(file_name, image)
+
+        file_name = f"correspondence/{f_idx:03}_{self.current_epoch:05}.png"
+        merge = torch.concatenate([image_batch, image_render], dim=1)
+
+        for pr, pb in zip(pixel_render, pixel_batch):
+            d = image_render.shape[1]
+            x = [pr[0] + d, pb[0]]
+            y = [pr[1], pb[1]]
+            plt.plot(x, y, color="red", linewidth=1)
+        plt.imshow(merge.detach().cpu().numpy())
+        # Getting the current figure
+        fig = plt.gcf()
+        # Extracting the pixel data
+        fig.canvas.draw()
+        image_array = np.array(fig.canvas.renderer._renderer)
+        image = torch.tensor(image_array)
+        self.save_image(file_name, image)
 
     def debug_render(self, batch: dict, render: dict):
         _, b_idx, f_idx = self.debug_idx(batch)
@@ -446,16 +518,18 @@ class FLAME(L.LightningModule):
 
     def debug_gradients(self, optimizer):
         self.log_dict({"debug/transl_x": self.transl.weight[0, 0]})
-        transl_grad = optimizer.param_groups[0]["params"][0][0]
-        self.log_dict({"debug/transl_x_grad": transl_grad[0]})
-
+        self.log_dict({"debug/transl_x_grad": self.transl.weight.grad[0, 0]})
         self.log_dict({"debug/transl_y": self.transl.weight[0, 1]})
-        transl_grad = optimizer.param_groups[0]["params"][0][0]
-        self.log_dict({"debug/transl_y_grad": transl_grad[1]})
-
+        self.log_dict({"debug/transl_y_grad": self.transl.weight.grad[0, 1]})
         self.log_dict({"debug/transl_z": self.transl.weight[0, 2]})
-        transl_grad = optimizer.param_groups[0]["params"][0][0]
-        self.log_dict({"debug/transl_z_grad": transl_grad[2]})
+        self.log_dict({"debug/transl_z_grad": self.transl.weight.grad[0, 1]})
+
+        self.log_dict({"debug/global_pose_x": self.global_pose.weight[0, 0]})
+        self.log_dict({"debug/global_pose_x_grad": self.global_pose.weight.grad[0, 0]})
+        self.log_dict({"debug/global_pose_y": self.global_pose.weight[0, 1]})
+        self.log_dict({"debug/global_pose_y_grad": self.global_pose.weight.grad[0, 1]})
+        self.log_dict({"debug/global_pose_z": self.global_pose.weight[0, 2]})
+        self.log_dict({"debug/global_pose_z_grad": self.global_pose.weight.grad[0, 2]})
 
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.logger.save_dir) / file_name  # type: ignore
@@ -472,7 +546,10 @@ class FLAME(L.LightningModule):
 class FLAMEPoint2Point(FLAME):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.init_params_dphm(0.01)
+        if self.hparams["init_mode"] == "kinect":
+            self.init_params_dphm(0.01, seed=2)
+        else:
+            self.init_params_flame(0.02, seed=2)
 
     def optimization_step(self, batch, batch_idx):
         # forward pass with the current frame and shape
@@ -494,15 +571,24 @@ class FLAMEPoint2Point(FLAME):
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)
+            # self.debug_3d_points(batch=batch, render=render)
+            # self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
             self.debug_loss(batch=batch, render=render)
+            # self.debug_correspondence(batch=batch, render=render, model=model)
 
         return loss
+
+    def on_before_optimizer_step(self, optimizer):
+        self.debug_gradients(optimizer)
 
 
 class FLAMEPoint2Plane(FLAME):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.init_params_dphm(0.01)
+        if self.hparams["init_mode"] == "kinect":
+            self.init_params_dphm(0.01, seed=2)
+        else:
+            self.init_params_flame(0.02, seed=2)
 
     def optimization_step(self, batch, batch_idx):
         # forward pass with the current frame and shape
@@ -516,9 +602,9 @@ class FLAMEPoint2Plane(FLAME):
         mask = self.inlier_mask(batch=batch, render=render)
         # distance in camera space per pixel & point to point loss
         p2p = point2plane(
-            p=render["point"],
-            q=batch["point"],
-            n=render["normal"],
+            q=render["point"],
+            p=batch["point"].detach(),
+            n=render["normal"].detach(),
         )  # (B, W, H)
         # point to plane loss
         loss = p2p[mask["mask"]].mean()
@@ -528,5 +614,10 @@ class FLAMEPoint2Plane(FLAME):
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)
+            # self.debug_3d_points(batch=batch, render=render)
+            # self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
             self.debug_loss(batch=batch, render=render)
         return loss
+
+    def on_before_optimizer_step(self, optimizer):
+        self.debug_gradients(optimizer)
