@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/lib/rasterizer",
+                "/home/borth/miniconda3/envs/guided/include/python3.10",
+                "/home/borth/miniconda3/envs/guided/lib/python3.10/site-packages/torch/include",
+                "/home/borth/miniconda3/envs/guided/lib/python3.10/site-packages/torch/include/torch/csrc/api/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}

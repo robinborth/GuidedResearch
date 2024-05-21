@@ -2,16 +2,21 @@
     "jupyter.notebookFileRoot": "${workspaceFolder}",
     "editor.formatOnSave": true,
     "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit"
         },
-        "editor.rulers": [
-            88,
-        ]
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools",
     },
     "python.testing.pytestArgs": [
         "tests"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "files.associations": {
+        "ostream": "cpp"
+    },
 }

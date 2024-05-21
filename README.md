@@ -5,11 +5,20 @@ We present a novel approach for real-time facial tracking and reconstruction of 
 
 ```bash
 conda create -n guided python=3.10 -y
-pip install .
-conda install -c fvcore -c iopath -c conda-forge fvcore iopath
-conda install pytorch3d -c pytorch3d
+pip install . -e 
 ```
 
 ## TODOS
 
 - Specify how to store the FLAME model
+
+
+# Rasterizer
+
+Make sure that ninja is installed, e.g. this is needed for the torch.utils.cpp_extension to work.
+
+```bash
+sudo apt-get install ninja-build
+sudo apt-get install libnvidia-gl-535
+sudo apt-get install libegl1 
+```
