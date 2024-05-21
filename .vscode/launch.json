@@ -81,12 +81,12 @@
             "justMyCode": false,
         },
         {
-            "name": "Debug OpenGL",
+            "name": "Debug Rasterizer",
             "type": "cppdbg",
             "request": "launch",
             "program": "/home/borth/miniconda3/envs/guided/bin/python",
             "args": [
-                "${workspaceFolder}/test.py"
+                "${workspaceFolder}/tests/rasterizer.py"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

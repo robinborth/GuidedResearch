@@ -1,5 +1,6 @@
 import importlib
 
+import torch
 from torch.utils.cpp_extension import load
 
 # # loads the rasterizer module in cpp
@@ -19,11 +20,11 @@ rasterizer = load(
 plugin = importlib.import_module(plugin_name)
 
 
-def rasterize():
+def rasterize(vertices: torch.Tensor, width: int, height: int):
     """
     The interface of the python function.
     """
-    plugin.rasterize()
+    return plugin.rasterize(vertices, width, height)
 
 
 __all__ = ["rasterize"]

@@ -6,6 +6,8 @@ struct EGLContextData
     EGLDisplay eglDpy;
     EGLSurface eglSurf;
     EGLContext eglCtx;
+    EGLint numConfigs;
+    EGLConfig eglCfg;
     int pbufferWidth = 800;
     int pbufferHeight = 600;
 };

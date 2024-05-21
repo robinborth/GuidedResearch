@@ -11,6 +11,8 @@ readme = "README.md"
 
 dependencies = [
   # dev
+  "torch",
+  "torchvision",
   "lightning",
   "open3d",
   "wandb",
