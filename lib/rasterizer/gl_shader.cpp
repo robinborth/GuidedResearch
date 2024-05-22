@@ -1,7 +1,8 @@
 
 #include <GLES3/gl3.h>
-#include "shader.h"
-#include "utils.h"
+
+#include "gl_shader.h"
+#include "gl_utils.h"
 
 Shader::Shader(const char *vShaderCode, const char *fShaderCode)
 {

@@ -1,6 +1,7 @@
 #pragma once
 
 #define STRINGIFY_SHADER_SOURCE(x) #x
+
 class Shader
 {
   public:

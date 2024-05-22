@@ -1,4 +1,8 @@
-#include "egl_utils.h"
+#include "gl_utils.h"
+#include "gl_context.h"
+
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
 #include <GL/gl.h>
 #include <iostream>
 

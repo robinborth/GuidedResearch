@@ -1,18 +1,15 @@
-#include "utils.h"
+#include "gl_utils.h"
+
 #include <GLES3/gl3.h>
 #include <iostream>
 
 constexpr const char *shaderTypeToString(GLenum shaderType)
 {
-    switch (shaderType)
-    {
-    case GL_VERTEX_SHADER:
+    if (shaderType == GL_VERTEX_SHADER)
         return "VERTEX";
-    case GL_FRAGMENT_SHADER:
+    if (shaderType == GL_FRAGMENT_SHADER)
         return "FRAGMENT";
-    default:
-        return "UNKNOWN";
-    }
+    return "UNKNOWN";
 }
 
 void glCheckShaderCompileTimeError(int shader, GLenum shaderType)
@@ -42,7 +39,7 @@ void glCheckLinkShaderError(int program)
     }
 }
 
-GLenum glCheckError_(const char *file, int line)
+GLenum glCheckError(const char *file, int line)
 {
     GLenum errorCode;
     while ((errorCode = glGetError()) != GL_NO_ERROR)

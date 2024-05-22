@@ -1,35 +1,12 @@
-#include <EGL/egl.h>
-#include <GL/gl.h>
+#include "gl_utils.h"
+#include "gl_context.h"
+#include "gl_shader.h"
+#include "torch_utils.h"
+
 #include <GLES3/gl3.h>
-
-#include <torch/extension.h>
-
 #include <iostream>
-#include "shader.h"
-#include "egl_utils.h"
-#include "utils.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
-// Function to read the current image from OpenGL into a torch::Tensor
-torch::Tensor readImageFromOpenGL(int pbufferWidth, int pbufferHeight)
-{
-    // Allocate memory to store the pixel data
-    std::vector<unsigned char> pixels(pbufferWidth * pbufferHeight * 4); // RGBA format
-
-    // Use glReadPixels to read the pixel data from the framebuffer
-    glReadPixels(0, 0, pbufferWidth, pbufferHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-
-    // Copy the pixel data from the vector into a torch::Tensor
-    // Note: Assuming RGBA format
-    auto options = torch::TensorOptions().dtype(torch::kUInt8).device(torch::kCPU);
-    return torch::from_blob(pixels.data(), {pbufferHeight, pbufferWidth, 4}, options).clone();
-}
-
-torch::Tensor rasterize(torch::Tensor vertices, int width, int height)
+torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width, int height)
 {
     // init the context
     EGLContextData eglData;
@@ -54,14 +31,29 @@ torch::Tensor rasterize(torch::Tensor vertices, int width, int height)
 
     // creates the vertex attribute object and the vertex buffer object
     // this should be probabiliyt be better without copying when using cuda or so.
-    unsigned int VAO, VBO;
-    glGenBuffers(1, &VBO);
+    unsigned int VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    // TODO we should check that the type of the tensor is indeed a float32
+
     glBufferData(GL_ARRAY_BUFFER, vertices.numel() * sizeof(float), vertices.data_ptr<float>(), GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+
+    // unsigned int _indices[] = {
+    //     0, 1, 3,
+    //     1, 2, 3};
+    // std::cout << "_indices: size" << sizeof(_indices) << std::endl;
+    // std::cout << "torch: size" << indices.numel() * sizeof(uint32_t) << std::endl;
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.numel() * sizeof(uint32_t), indices.data_ptr<uint32_t>(), GL_STATIC_DRAW);
+
+    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    // glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(_indices), _indices, GL_STATIC_DRAW);
+
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
 
@@ -70,7 +62,7 @@ torch::Tensor rasterize(torch::Tensor vertices, int width, int height)
     glClearColor(0.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
     // read the output into a tensor again
     std::vector<unsigned char> pixels(eglData.pbufferWidth * eglData.pbufferHeight * 4); // RGBA format
@@ -82,9 +74,4 @@ torch::Tensor rasterize(torch::Tensor vertices, int width, int height)
 
     // return the tensor
     return out;
-}
-
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
-{
-    m.def("rasterize", &rasterize, "OpenGL Rasterizer");
 }
