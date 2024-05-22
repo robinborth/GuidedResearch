@@ -4,33 +4,48 @@
 #include "gl_shader.h"
 #include "gl_utils.h"
 
+Shader::Shader(const char *vShaderCode, const char *gShaderCode, const char *fShaderCode)
+{
+    compileShader(vertexShader, vShaderCode, GL_VERTEX_SHADER);
+    compileShader(geometryShader, gShaderCode, GL_GEOMETRY_SHADER);
+    compileShader(fragmentShader, fShaderCode, GL_FRAGMENT_SHADER);
+    linkProgram(vertexShader, geometryShader, fragmentShader);
+}
+
 Shader::Shader(const char *vShaderCode, const char *fShaderCode)
 {
-    // compile the vertex shader
-    unsigned int vertexShader;
-    vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vShaderCode, nullptr);
-    glCompileShader(vertexShader);
-    glCheckShaderCompileTimeError(vertexShader, GL_VERTEX_SHADER);
-
-    // compile the fragment shader
-    unsigned int fragmentShader;
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fShaderCode, nullptr);
-    glCompileShader(fragmentShader);
-    glCheckShaderCompileTimeError(fragmentShader, GL_FRAGMENT_SHADER);
-
-    // create a shader program that links the shaders together
-    ID = glCreateProgram();
-    glAttachShader(ID, vertexShader);
-    glAttachShader(ID, fragmentShader);
-    glLinkProgram(ID);
-    glCheckLinkShaderError(ID);
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    compileShader(vertexShader, vShaderCode, GL_VERTEX_SHADER);
+    compileShader(fragmentShader, fShaderCode, GL_FRAGMENT_SHADER);
+    linkProgram(vertexShader, fragmentShader);
 }
 
 void Shader::use()
 {
     glUseProgram(ID);
+}
+
+void Shader::compileShader(unsigned int &shader, const char *shaderCode, GLenum shader_type)
+{
+    shader = GL_CHECK_ERROR(glCreateShader(shader_type));
+    GL_CHECK_ERROR(glShaderSource(shader, 1, &shaderCode, nullptr));
+    GL_CHECK_ERROR(glCompileShader(shader));
+    glCheckShaderCompileTimeError(shader, shader_type);
+}
+
+template <typename... T>
+void Shader::linkProgram(T... shaders)
+{
+    std::vector<unsigned int> shaderVec = {shaders...};
+    linkProgram(shaderVec);
+}
+
+void Shader::linkProgram(const std::vector<unsigned int> &shaders)
+{
+    ID = GL_CHECK_ERROR(glCreateProgram());
+    for (auto shader : shaders)
+        GL_CHECK_ERROR(glAttachShader(ID, shader));
+    GL_CHECK_ERROR(glLinkProgram(ID));
+    glCheckLinkShaderError(ID);
+    for (auto shader : shaders)
+        GL_CHECK_ERROR(glDeleteShader(shader));
 }

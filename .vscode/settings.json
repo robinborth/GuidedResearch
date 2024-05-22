@@ -17,6 +17,13 @@
     "python.testing.pytestEnabled": true,
     "editor.defaultFormatter": "ms-python.black-formatter",
     "files.associations": {
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "*.tcc": "cpp",
+        "bitset": "cpp",
+        "__locale": "cpp",
+        "ios": "cpp",
+        "istream": "cpp",
+        "locale": "cpp",
+        "streambuf": "cpp"
     },
 }
