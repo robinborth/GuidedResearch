@@ -25,12 +25,11 @@ plugin = importlib.import_module(plugin_name)
 def rasterize(
     vertices: torch.Tensor,
     indices: torch.Tensor,
-    normals: torch.Tensor,
     width: int,
     height: int,
-    cuda_device_idx: int,
+    cuda_device_idx: int = -1,
 ):
     """
     The interface of the python function.
     """
-    return plugin.rasterize(vertices, indices, normals, width, height, cuda_device_idx)
+    return plugin.rasterize(vertices, indices, width, height, cuda_device_idx)
