@@ -17,28 +17,61 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     const char *vShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
         layout(location = 0) in vec4 aPos;
 
+        out VS_OUT {
+            vec3 color;
+            vec3 bary;
+        } vs_out;
+
         void main() {
             gl_Position = aPos;
+            vs_out.color = vec3(1.0, 0.0, 0.0);
         });
 
     const char *gShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
         layout(triangles) in;
         layout(triangle_strip, max_vertices = 3) out;
 
+        in VS_OUT {
+            vec3 color;
+            vec3 bary;
+        } gs_in[];
+
+        out VS_OUT {
+            vec3 color;
+            vec3 bary;
+        } gs_out;
+
         void main() {
+            gs_out.color = gs_in[0].color;
+            gs_out.bary = vec3(1.0, 0.0, 0.0);
             gl_Position = gl_in[0].gl_Position;
             EmitVertex();
+
+            gs_out.color = gs_in[1].color;
+            gs_out.bary = vec3(0.0, 1.0, 0.0);
             gl_Position = gl_in[1].gl_Position;
             EmitVertex();
+
+            gs_out.color = vec3(0.0, 1.0, 1.0);
+            gs_out.bary = vec3(0.0, 0.0, 1.0);
             gl_Position = gl_in[2].gl_Position;
             EmitVertex();
+
             EndPrimitive();
         });
 
     const char *fShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
-        out vec4 FragColor;
+        layout(location = 0) out vec4 gColor;
+        layout(location = 1) out vec4 gPosition;
+
+        in VS_OUT {
+            vec3 color;
+            vec3 bary;
+        } fs_in;
+
         void main() {
-            FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+            gColor = vec4(fs_in.color, 1.0);
+            gPosition = vec4(1.0, 0.0, 0.0, 1.0);
         });
     Shader shader(vShaderCode, gShaderCode, fShaderCode);
 
@@ -61,6 +94,35 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     GL_CHECK_ERROR(glEnableVertexAttribArray(0));
     GL_CHECK_ERROR(glBindVertexArray(0));
 
+    unsigned int gBuffer;
+    glGenFramebuffers(1, &gBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+    unsigned int gColor, gPosition;
+
+    // - color gbuffer
+    GL_CHECK_ERROR(glGenTextures(1, &gColor));
+    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, gColor));
+    GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, eglData.pbufferWidth, eglData.pbufferHeight, 0, GL_RGBA, GL_FLOAT, nullptr));
+    GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gColor, 0));
+
+    GL_CHECK_ERROR(glGenTextures(1, &gPosition));
+    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, gPosition));
+    GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, eglData.pbufferWidth, eglData.pbufferHeight, 0, GL_RGBA, GL_FLOAT, nullptr));
+    GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gPosition, 0));
+
+    unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    GL_CHECK_ERROR(glDrawBuffers(2, attachments));
+
+    // Check if the framebuffer is complete
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        std::cout << "ERROR FRAMEBUFFER NOT COMPLETE" << std::endl;
+    }
+
     // rasterizes the vertices using opengl
     shader.use();
     GL_CHECK_ERROR(glClearColor(0.0f, 1.0f, 1.0f, 1.0f));
@@ -69,8 +131,7 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     GL_CHECK_ERROR(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0));
 
     // read the output into a tensor again
-    std::vector<unsigned char> pixels(eglData.pbufferWidth * eglData.pbufferHeight * 4); // RGBA format
-    glReadPixels(0, 0, eglData.pbufferWidth, eglData.pbufferHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    GL_CHECK_ERROR(glReadBuffer(GL_COLOR_ATTACHMENT1));
     torch::Tensor out = readImageFromOpenGL(eglData.pbufferWidth, eglData.pbufferHeight);
 
     // destroy the context

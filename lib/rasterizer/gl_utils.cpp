@@ -7,6 +7,8 @@ constexpr const char *shaderTypeToString(GLenum shaderType)
 {
     if (shaderType == GL_VERTEX_SHADER)
         return "VERTEX";
+    if (shaderType == GL_GEOMETRY_SHADER)
+        return "GEOMETRY";
     if (shaderType == GL_FRAGMENT_SHADER)
         return "FRAGMENT";
     return "UNKNOWN";
