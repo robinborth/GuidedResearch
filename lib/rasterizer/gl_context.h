@@ -9,6 +9,7 @@ struct EGLContextData
     EGLContext eglCtx;
     EGLint numConfigs;
     EGLConfig eglCfg;
+    int cudaDeviceIdx = -1;
     int pbufferWidth = 800;
     int pbufferHeight = 600;
 };

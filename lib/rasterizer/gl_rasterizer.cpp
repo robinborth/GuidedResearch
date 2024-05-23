@@ -6,25 +6,28 @@
 #include <GLES3/gl3.h>
 #include <iostream>
 
-torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width, int height)
+torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, torch::Tensor normals, int width, int height, int cudaDeviceIdx)
 {
     // init the context
     EGLContextData eglData;
     eglData.pbufferHeight = height;
     eglData.pbufferWidth = width;
+    eglData.cudaDeviceIdx = cudaDeviceIdx;
     initEGL(eglData);
 
     const char *vShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
         layout(location = 0) in vec4 aPos;
+        // layout(location = 1) in vec3 aNormal;
 
         out VS_OUT {
-            vec3 color;
             vec3 bary;
+            // vec3 normal;
         } vs_out;
 
         void main() {
             gl_Position = aPos;
-            vs_out.color = vec3(1.0, 0.0, 0.0);
+            vs_out.bary = vec3(0.0, 0.0, 0.0);
+            // vs_out.normal = aNormal;
         });
 
     const char *gShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
@@ -32,28 +35,28 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
         layout(triangle_strip, max_vertices = 3) out;
 
         in VS_OUT {
-            vec3 color;
             vec3 bary;
+            // vec3 normal;
         } gs_in[];
 
         out VS_OUT {
-            vec3 color;
             vec3 bary;
+            // vec3 normal;
         } gs_out;
 
         void main() {
-            gs_out.color = gs_in[0].color;
             gs_out.bary = vec3(1.0, 0.0, 0.0);
+            // gs_out.normal = gs_in[0].normal;
             gl_Position = gl_in[0].gl_Position;
             EmitVertex();
 
-            gs_out.color = gs_in[1].color;
             gs_out.bary = vec3(0.0, 1.0, 0.0);
+            // gs_out.normal = gs_in[1].normal;
             gl_Position = gl_in[1].gl_Position;
             EmitVertex();
 
-            gs_out.color = vec3(0.0, 1.0, 1.0);
             gs_out.bary = vec3(0.0, 0.0, 1.0);
+            // gs_out.normal = gs_in[2].normal;
             gl_Position = gl_in[2].gl_Position;
             EmitVertex();
 
@@ -61,17 +64,20 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
         });
 
     const char *fShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
-        layout(location = 0) out vec4 gColor;
-        layout(location = 1) out vec4 gPosition;
+        layout(location = 0) out vec3 gBary;
+        // layout(location = 1) out int gPrimitiveID;
+        // layout(location = 2) out vec3 gNormal;
 
         in VS_OUT {
-            vec3 color;
             vec3 bary;
+            // vec3 normal;
         } fs_in;
 
         void main() {
-            gColor = vec4(fs_in.color, 1.0);
-            gPosition = vec4(1.0, 0.0, 0.0, 1.0);
+            gBary = fs_in.bary;
+            // gBary = vec4(fs_in.bary, 1.0);
+            // gPrimitiveID = gl_PrimitiveID;
+            // gNormal = fs_in.normal;
         });
     Shader shader(vShaderCode, gShaderCode, fShaderCode);
 
@@ -88,6 +94,9 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     GL_CHECK_ERROR(glBufferData(GL_ARRAY_BUFFER, vertices.numel() * sizeof(float), vertices.data_ptr<float>(), GL_STATIC_DRAW));
     GL_CHECK_ERROR(glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0));
 
+    // GL_CHECK_ERROR(glBufferData(GL_ARRAY_BUFFER, normals.numel() * sizeof(float), normals.data_ptr<float>(), GL_STATIC_DRAW));
+    // GL_CHECK_ERROR(glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void *)4));
+
     GL_CHECK_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO));
     GL_CHECK_ERROR(glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.numel() * sizeof(uint32_t), indices.data_ptr<uint32_t>(), GL_STATIC_DRAW));
 
@@ -95,27 +104,42 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     GL_CHECK_ERROR(glBindVertexArray(0));
 
     unsigned int gBuffer;
-    glGenFramebuffers(1, &gBuffer);
-    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
-    unsigned int gColor, gPosition;
+    GL_CHECK_ERROR(glGenFramebuffers(1, &gBuffer));
+    GL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, gBuffer));
+    unsigned int gBary, gPrimitiveID, gNormal;
 
-    // - color gbuffer
-    GL_CHECK_ERROR(glGenTextures(1, &gColor));
-    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, gColor));
-    GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, eglData.pbufferWidth, eglData.pbufferHeight, 0, GL_RGBA, GL_FLOAT, nullptr));
+    // bary centric coordinates
+    GL_CHECK_ERROR(glGenTextures(1, &gBary));
+    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, gBary));
+    GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, eglData.pbufferWidth, eglData.pbufferHeight, 0, GL_RGB, GL_FLOAT, nullptr));
     GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
     GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-    GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gColor, 0));
+    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, 0));
+    GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gBary, 0));
 
-    GL_CHECK_ERROR(glGenTextures(1, &gPosition));
-    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, gPosition));
-    GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, eglData.pbufferWidth, eglData.pbufferHeight, 0, GL_RGBA, GL_FLOAT, nullptr));
-    GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-    GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-    GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gPosition, 0));
+    // triangle ids
+    // GL_CHECK_ERROR(glGenTextures(1, &gPrimitiveID));
+    // GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, gPrimitiveID));
+    // GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_INT, eglData.pbufferWidth, eglData.pbufferHeight, 0, GL_INT, GL_INT, nullptr));
+    // GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    // GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    // GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, 0));
+    // GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gPrimitiveID, 0));
 
-    unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-    GL_CHECK_ERROR(glDrawBuffers(2, attachments));
+    // normal maps
+    // GL_CHECK_ERROR(glGenTextures(1, &gNormal));
+    // GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, gNormal));
+    // GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, eglData.pbufferWidth, eglData.pbufferHeight, 0, GL_RGB, GL_FLOAT, nullptr));
+    // GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    // GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    // GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, 0));
+    // GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gNormal, 0));
+
+    // unsigned int attachments[3] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
+    // GL_CHECK_ERROR(glDrawBuffers(3, attachments));
+
+    unsigned int attachments[1] = {GL_COLOR_ATTACHMENT0};
+    GL_CHECK_ERROR(glDrawBuffers(1, attachments));
 
     // Check if the framebuffer is complete
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -131,7 +155,7 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     GL_CHECK_ERROR(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0));
 
     // read the output into a tensor again
-    GL_CHECK_ERROR(glReadBuffer(GL_COLOR_ATTACHMENT1));
+    GL_CHECK_ERROR(glReadBuffer(GL_COLOR_ATTACHMENT0));
     torch::Tensor out = readImageFromOpenGL(eglData.pbufferWidth, eglData.pbufferHeight);
 
     // destroy the context

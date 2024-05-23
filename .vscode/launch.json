@@ -86,7 +86,7 @@
             "request": "launch",
             "program": "/home/borth/miniconda3/envs/guided/bin/python",
             "args": [
-                "${workspaceFolder}/tests/rasterizer.py"
+                "${workspaceFolder}/test.py"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
