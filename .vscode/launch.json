@@ -81,12 +81,40 @@
             "justMyCode": false,
         },
         {
-            "name": "Debug Rasterizer",
+            "name": "Debug Triangles Rasterizer",
             "type": "cppdbg",
             "request": "launch",
             "program": "/home/borth/miniconda3/envs/guided/bin/python",
             "args": [
-                "${workspaceFolder}/test.py"
+                "${workspaceFolder}/tests/triangles.py"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb",
+            "logging": {
+                "moduleLoad": true,
+                "trace": true,
+                "engineLogging": true
+            },
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "name": "Debug FLAME Rasterizer",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/home/borth/miniconda3/envs/guided/bin/python",
+            "args": [
+                "${workspaceFolder}/tests/flame.py"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

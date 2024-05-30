@@ -74,23 +74,33 @@ Fragments rasterize(GLContext glctx, torch::Tensor vertices, torch::Tensor indic
     GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, glctx.width, glctx.height, 0, GL_RGBA, GL_FLOAT, nullptr));
     GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
     GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, 0));
     GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s.glOut, 0));
+
+    unsigned int rbo;
+    GL_CHECK_ERROR(glGenRenderbuffers(1, &rbo));
+    GL_CHECK_ERROR(glBindRenderbuffer(GL_RENDERBUFFER, rbo));
+    GL_CHECK_ERROR(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, glctx.width, glctx.height));
+    GL_CHECK_ERROR(glBindRenderbuffer(GL_RENDERBUFFER, 0));
+    GL_CHECK_ERROR(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo));
+
     // add attachments to the framebuffer
     unsigned int attachments[1] = {GL_COLOR_ATTACHMENT0};
     GL_CHECK_ERROR(glDrawBuffers(1, attachments));
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         std::cout << "ERROR FRAMEBUFFER NOT COMPLETE" << std::endl;
+
     // unbind the framebuffer
-    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, 0));
     GL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 
     // rasterizes the vertices using opengl
     shader.use();
     GL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, s.glFBO));
     GL_CHECK_ERROR(glClearColor(0.0f, 0.0f, 0.0f, -1.0f));
-    GL_CHECK_ERROR(glClear(GL_COLOR_BUFFER_BIT));
+    GL_CHECK_ERROR(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+    GL_CHECK_ERROR(glEnable(GL_DEPTH_TEST));
+    GL_CHECK_ERROR(glDepthFunc(GL_LESS));
     GL_CHECK_ERROR(glBindVertexArray(s.glVAO));
-
     GL_CHECK_ERROR(glDrawElements(GL_TRIANGLES, s.elementCount, GL_UNSIGNED_INT, 0));
 
     // allocate output tensors.

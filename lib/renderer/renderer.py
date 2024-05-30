@@ -8,10 +8,8 @@ from lib.utils.mesh import weighted_vertex_normals
 class Renderer(nn.Module):
     def __init__(
         self,
-        K: torch.Tensor,
-        image_scale: float = 1.0,
-        image_width: int = 1920,
-        image_height: int = 1080,
+        width: int = 1920,
+        height: int = 1080,
         diffuse: list[float] = [0.5, 0.5, 0.5],
         specular: list[float] = [0.3, 0.3, 0.3],
         light: list[float] = [-1.0, 1.0, 0.0],
@@ -31,21 +29,8 @@ class Renderer(nn.Module):
         """
         super().__init__()
 
-        self.H = image_height
-        self.W = image_width
-        self.device = device
-
-        # fx = K[0, 0] * image_scale
-        # fy = K[1, 1] * image_scale
-        # cx = K[0, 2] * image_scale
-        # cy = K[1, 2] * image_scale
-        # cameras = PerspectiveCameras(
-        #     image_size=[[self.H, self.W]],
-        #     focal_length=[(fx, fy)],
-        #     principal_point=[(cx, cy)],
-        #     in_ndc=False,
-        # )
-        self.rasterizer = Rasterizer(width=self.W, height=self.H)
+        # create the rasterizer
+        self.rasterizer = Rasterizer(width=width, height=height)
 
         # rendering settings for shading
         self.diffuse = torch.tensor(diffuse, device=device)
@@ -75,12 +60,12 @@ class Renderer(nn.Module):
         vertices_idx = faces[fragments.pix_to_face]  # (B, H, W, 3)
 
         # access the vertex attributes
-        B, H, W, C = vertices_idx.shape  # (B, H, W, 3)
+        B, H, W, _ = vertices_idx.shape  # (B, H, W, 3)
         _, _, D = attributes.shape  # (B, V, D)
         v_idx = vertices_idx.reshape(B, -1)  # (B, *)
         b_idx = torch.arange(v_idx.size(0)).unsqueeze(1).to(v_idx)
         vertex_attribute = attributes[b_idx, v_idx]  # (B, *, D)
-        vertex_attribute = vertex_attribute.reshape(B, H, W, C, D)  # (B, H, W, 3, D)
+        vertex_attribute = vertex_attribute.reshape(B, H, W, 3, D)  # (B, H, W, 3, D)
 
         bary_coords = fragments.bary_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
         attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)

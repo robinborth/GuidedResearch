@@ -1,21 +1,25 @@
 import importlib
+import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 from torch.utils.cpp_extension import load
 
 # # loads the rasterizer module in cpp
 plugin_name = "rasterizer_plugin"
+root_folder = Path(__file__).parent.parent.parent
+sources = [
+    root_folder / "lib/rasterizer/gl_context.cpp",
+    root_folder / "lib/rasterizer/gl_rasterizer.cpp",
+    root_folder / "lib/rasterizer/gl_shader.cpp",
+    root_folder / "lib/rasterizer/gl_utils.cpp",
+    root_folder / "lib/rasterizer/torch_bindings.cpp",
+    root_folder / "lib/rasterizer/torch_utils.cpp",
+]
 rasterizer = load(
     name=plugin_name,
-    sources=[
-        "lib/rasterizer/gl_context.cpp",
-        "lib/rasterizer/gl_rasterizer.cpp",
-        "lib/rasterizer/gl_shader.cpp",
-        "lib/rasterizer/gl_utils.cpp",
-        "lib/rasterizer/torch_bindings.cpp",
-        "lib/rasterizer/torch_utils.cpp",
-    ],
+    sources=[str(path.resolve()) for path in sources],
     extra_cflags=["-g"],
     extra_ldflags=["-lEGL", "-lGL"],
     verbose=True,
@@ -69,5 +73,9 @@ class Rasterizer:
         pix_to_face = torch.stack(_pix_to_face, dim=0)
         assert len(bary_coords.shape) == 4  # (B, H, W, 3)
         assert len(pix_to_face.shape) == 3  # (B, H, W)
+
+        # flip the memory order of image data from bottom-up to top-down
+        pix_to_face = torch.flip(pix_to_face.squeeze(-1), [1])
+        bary_coords = torch.flip(bary_coords.squeeze(-2), [1])
 
         return Fragments(pix_to_face=pix_to_face, bary_coords=bary_coords)

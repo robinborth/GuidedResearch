@@ -439,7 +439,7 @@ class FLAME(L.LightningModule):
         fig = plt.gcf()
         # Extracting the pixel data
         fig.canvas.draw()
-        image_array = np.array(fig.canvas.renderer._renderer)
+        image_array = np.array(fig.canvas.renderer._renderer)  # type: ignore
         image = torch.tensor(image_array)
         self.save_image(file_name, image)
 
