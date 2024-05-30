@@ -57,13 +57,8 @@ const char *FragmentShader::vShaderCode()
     return "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
         layout(location = 0) in vec4 aPos;
 
-        out VS_OUT {
-            vec3 bary;
-        } vs_out;
-
         void main() {
             gl_Position = aPos;
-            vs_out.bary = vec3(0.0, 0.0, 0.0);
         });
 }
 
@@ -73,22 +68,18 @@ const char *FragmentShader::gShaderCode()
         layout(triangles) in;
         layout(triangle_strip, max_vertices = 3) out;
 
-        in VS_OUT {
-            vec3 bary;
-        } gs_in[];
-
-        out VS_OUT {
-            vec3 bary;
-        } gs_out;
+        out vec3 bary;
+        flat out int primitiveID;
 
         void main() {
-            gs_out.bary = vec3(1.0, 0.0, 0.0);
+            primitiveID = gl_PrimitiveIDIn;
+            bary = vec3(1.0, 0.0, 0.0);
             gl_Position = gl_in[0].gl_Position;
             EmitVertex();
-            gs_out.bary = vec3(0.0, 1.0, 0.0);
+            bary = vec3(0.0, 1.0, 0.0);
             gl_Position = gl_in[1].gl_Position;
             EmitVertex();
-            gs_out.bary = vec3(0.0, 0.0, 1.0);
+            bary = vec3(0.0, 0.0, 1.0);
             gl_Position = gl_in[2].gl_Position;
             EmitVertex();
             EndPrimitive();
@@ -100,12 +91,10 @@ const char *FragmentShader::fShaderCode()
     return "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
         layout(location = 0) out vec4 gOut;
 
-        in VS_OUT {
-            vec3 bary;
-        } fs_in;
+        in vec3 bary;
+        flat in int primitiveID;
 
         void main() {
-            int primitiveID = gl_PrimitiveID;
-            gOut = vec4(fs_in.bary, primitiveID + 1.0);
+            gOut = vec4(bary, primitiveID);
         });
 };

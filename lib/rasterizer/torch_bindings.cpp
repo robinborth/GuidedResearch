@@ -15,7 +15,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def_readwrite("context", &GLContext::context)
         .def_readwrite("width", &GLContext::width)
         .def_readwrite("height", &GLContext::height)
-        .def_readwrite("depth", &GLContext::depth)
         .def_readwrite("cudaDeviceIdx", &GLContext::cudaDeviceIdx)
         .def("destroy", &GLContext::destroy);
     m.def("rasterize", &rasterize, "OpenGL Rasterizer");
