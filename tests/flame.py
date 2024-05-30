@@ -7,6 +7,7 @@ from torchvision.transforms import v2
 from lib.model.flame import FLAME
 from lib.rasterizer import Rasterizer
 from lib.renderer.renderer import Renderer
+from lib.utils.mesh import weighted_vertex_normals
 
 width = 800
 height = 800
@@ -54,13 +55,13 @@ def fov_perspective_projection(
 
 
 verts_homo = convert_to_homo_coords(vertices)
-M = fov_perspective_projection(fov=45, aspect=(width / height))
-vertices = torch.matmul(verts_homo, M)
+M = fov_perspective_projection(fov=36, aspect=(width / height))
+verts_homo = torch.matmul(verts_homo, M)
 
 
 # indices of the faces (F, 3)
-# indices = flame.faces
-indices = flame.masked_faces(vertices)
+faces = flame.faces
+# faces = flame.masked_faces(vertices)
 
 # make this more robust when not working on the gpu
 device = "cuda"
@@ -68,38 +69,30 @@ print("Cuda device index: ", torch.cuda.current_device())
 print("Input device:", device)
 
 print("Input Vertices: ")
-print("shape: ", vertices.shape)
-print("min: ", vertices.min())
-print("max: ", vertices.max())
-print("mean: ", vertices.mean())
+print("shape: ", verts_homo.shape)
+print("min: ", verts_homo.min())
+print("max: ", verts_homo.max())
+print("mean: ", verts_homo.mean())
 
 print("Input indices: ")
-print("shape: ", indices.shape)
-print("min: ", indices.min())
-print("max: ", indices.max())
+print("shape: ", faces.shape)
+print("min: ", faces.min())
+print("max: ", faces.max())
 
 # for now we just output the normals
-rasterizer = Rasterizer(width=width, height=height)
-fragments = rasterizer.rasterize(
-    vertices=vertices.to(device),
-    indices=indices.to(device),
+renderer = Renderer(width=width, height=height, device=device)
+vertex_normals = weighted_vertex_normals(vertices, faces)
+normal, mask = renderer.render(
+    vertices=verts_homo.to(device),
+    faces=faces.to(device),
+    attributes=vertex_normals.to(device),
 )
-print("Output device:", fragments.bary_coords.device)
-
-print("bary_coords:")
-print("shape: ", fragments.bary_coords.shape)
-print("min: ", fragments.bary_coords.min())
-print("max: ", fragments.bary_coords.max())
-print("mean: ", fragments.bary_coords.mean())
-
-print("pix_to_face:")
-print("shape: ", fragments.pix_to_face.shape)
-print("min: ", fragments.pix_to_face.min())
-print("max: ", fragments.pix_to_face.max())
+normal_image = (((normal + 1) / 2) * 255).to(torch.uint8)
+normal_image[~mask] = 0
 
 # save multiple images per batch
-for idx, bc in enumerate(fragments.bary_coords):
-    image = v2.functional.to_pil_image(bc.permute(2, 0, 1))
+for idx, img in enumerate(normal_image):
+    image = v2.functional.to_pil_image(img.permute(2, 0, 1))
     path = root_folder / f"temp/flame/output{idx}.png"
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
