@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from lib.rasterizer import rasterize
+from lib.rasterizer import Rasterizer
 from lib.utils.mesh import weighted_vertex_normals
 
 
@@ -45,39 +45,12 @@ class Renderer(nn.Module):
         #     principal_point=[(cx, cy)],
         #     in_ndc=False,
         # )
-
-        # define the rasterizer
-        # self.rasterizer = MeshRasterizer(
-        #     cameras=cameras,
-        #     raster_settings=settings,
-        # )
+        self.rasterizer = Rasterizer(width=self.W, height=self.H)
 
         # rendering settings for shading
         self.diffuse = torch.tensor(diffuse, device=device)
         self.specular = torch.tensor(specular, device=device)
         self.light = torch.tensor(light, device=device)
-
-    # def rasterize(self, vertices: torch.Tensor, faces: torch.Tensor):
-    #     """Rendering of the attributes with mesh rasterization.
-
-    #     NOTE: The rasterization only works on cpu currently.
-
-    #     Args:
-    #         faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
-    #         vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
-
-    #     Returns:
-    #         (torch.Tensor, torch.Tensor) A tuple of pix_to_face cordinates of dim
-    #         (B, H, W) and the coresponding bary coordinates of dim (B, H, W, 3).
-    #     """
-    #     verts = vertices.cpu().clone()
-    #     verts[:, :, :1] = -verts[:, :, :1]
-    #     faces = faces.expand(verts.shape[0], -1, -1).cpu()
-    #     fragments = rasterize(meshes)
-    #     # opengl convension is that we store the down row first
-    #     pix_to_face = torch.flip(fragments.pix_to_face.squeeze(-1), [1])
-    #     bary_coords = torch.flip(fragments.bary_coords.squeeze(-2), [1])
-    #     return pix_to_face.to(self.device), bary_coords.to(self.device)
 
     def render(
         self,
@@ -98,13 +71,7 @@ class Renderer(nn.Module):
                 we have a row-major matrix representation.
         """
         # (B, H, W), (B, H, W, 3)
-        fragments = rasterize(
-            vertices=vertices,
-            indices=faces,
-            width=self.W,
-            height=self.H,
-            cuda_device_idx=torch.cuda.current_device(),  # (0)
-        )
+        fragments = self.rasterizer.rasterize(vertices, faces)
         vertices_idx = faces[fragments.pix_to_face]  # (B, H, W, 3)
 
         # access the vertex attributes
