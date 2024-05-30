@@ -4,21 +4,24 @@
 #include <GL/gl.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/CUDAUtils.h>
-#include <cuda_gl_interop.h>
+// #include <cuda_gl_interop.h>
 #include "gl_context.h"
 #include "gl_shader.h"
 
 struct RasterizeGLState
 {
-    int vertexCount;
-    int elementCount;
-    GLuint glFBO;
-    GLuint glVAO;                   // vertex array object
-    GLuint glVBO;                   // vertex buffer object
-    GLuint glEBO;                   // element buffer object
-    GLuint glOutBary;               // texture that stores barycentric coordinates
-    cudaGraphicsResource_t cudaVBO; // vertex buffer object
-    cudaGraphicsResource_t cudaEBO; // element buffer object
+    int vertexCount;                    // number of verticies in the tensor
+    int elementCount;                   // number of the indices of the vertices
+    const float *vertexPtr;          // pointer to vertex tensor
+    const uint32_t *elementPtr;          // pointer to vertex tensor
+    GLuint glFBO;                       // frame buffer object with multi render targets / deferred rendering
+    GLuint glVAO;                       // vertex array object
+    GLuint glVBO;                       // vertex buffer object
+    GLuint glEBO;                       // element buffer object
+    GLuint glOutBary;                   // output texture that stores barycentric coordinates
+    cudaGraphicsResource_t cudaVBO;     // vertex buffer object
+    cudaGraphicsResource_t cudaEBO;     // element buffer object
+    cudaGraphicsResource_t cudaOutBary; // output texture that stores barycentric coordinates
 };
 
 torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width, int height, int cudaDeviceIdx);
