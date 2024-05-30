@@ -2,6 +2,7 @@
 
 #include <GL/gl.h>
 #include <vector>
+#include "gl_rasterizer.h"
 
 #define STRINGIFY_SHADER_SOURCE(x) #x
 
@@ -23,4 +24,15 @@ class Shader
     template <typename... T>
     void linkProgram(T... shaders);
     void linkProgram(const std::vector<unsigned int> &shaders);
+};
+
+class FragmentShader : public Shader
+{
+  public:
+    FragmentShader() : Shader(vShaderCode(), gShaderCode(), fShaderCode()){};
+
+  private:
+    static const char *vShaderCode();
+    static const char *gShaderCode();
+    static const char *fShaderCode();
 };

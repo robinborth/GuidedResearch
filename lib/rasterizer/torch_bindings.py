@@ -1,4 +1,5 @@
 import importlib
+from dataclasses import dataclass
 
 import torch
 from torch.utils.cpp_extension import load
@@ -22,14 +23,21 @@ rasterizer = load(
 plugin = importlib.import_module(plugin_name)
 
 
+@dataclass
+class Fragments:
+    pix_to_face: torch.Tensor
+    bary_coords: torch.Tensor
+
+
 def rasterize(
     vertices: torch.Tensor,
     indices: torch.Tensor,
     width: int,
     height: int,
     cuda_device_idx: int = -1,
-):
+) -> Fragments:
     """
     The interface of the python function.
     """
-    return plugin.rasterize(vertices, indices, width, height, cuda_device_idx)
+    f = plugin.rasterize(vertices, indices, width, height, cuda_device_idx)
+    return Fragments(pix_to_face=f.pix_to_face, bary_coords=f.bary_coords)

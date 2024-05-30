@@ -1,14 +1,18 @@
 #pragma once
 #include <EGL/egl.h>
 
-struct GLContext
+class GLContext
 {
+  public:
     EGLDisplay display;
     EGLContext context;
     int width;
     int height;
     int cudaDeviceIdx;
-};
 
-void destroyContext(GLContext &glctx);
-int initContext(GLContext &glctx);
+    GLContext(int width, int height, int cudaDeviceIdx);
+    void destroy();
+
+  private:
+    EGLDisplay getCudaDisplay(int cudaDeviceIdx);
+};

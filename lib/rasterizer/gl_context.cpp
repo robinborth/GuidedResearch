@@ -7,7 +7,7 @@
 #include <GL/gl.h>
 #include <iostream>
 
-static EGLDisplay getCudaDisplay(int cudaDeviceIdx)
+EGLDisplay GLContext::getCudaDisplay(int cudaDeviceIdx)
 {
     typedef EGLBoolean (*eglQueryDevicesEXT_t)(EGLint, EGLDeviceEXT, EGLint *);
     typedef EGLBoolean (*eglQueryDeviceAttribEXT_t)(EGLDeviceEXT, EGLint, EGLAttrib *);
@@ -60,41 +60,46 @@ static EGLDisplay getCudaDisplay(int cudaDeviceIdx)
     return display;
 }
 
-int initContext(GLContext &glctx)
+GLContext::GLContext(int width, int height, int cudaDeviceIdx)
 {
+    // init the params
+    this->width = width;
+    this->height = height;
+    this->cudaDeviceIdx = cudaDeviceIdx;
+
     // 1. create the display either from the current cuda device or use the default egl display
-    glctx.display = 0;
-    if (glctx.cudaDeviceIdx >= 0)
+    display = 0;
+    if (cudaDeviceIdx >= 0)
     {
-        std::cout << "Creating GL context for cuda device " << glctx.cudaDeviceIdx << std::endl;
-        glctx.display = getCudaDisplay(glctx.cudaDeviceIdx);
-        if (!glctx.display)
+        std::cout << "Creating GL context for cuda device " << cudaDeviceIdx << std::endl;
+        display = getCudaDisplay(cudaDeviceIdx);
+        if (!display)
         {
 
             EGLint error = eglGetError();
             std::cout << "Failed, falling back to default display" << error << std::endl;
         }
     }
-    if (!glctx.display)
+    if (!this->display)
     {
         std::cout << "Creating GL context for default device " << std::endl;
-        glctx.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-        if (glctx.display == EGL_NO_DISPLAY)
+        display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        if (display == EGL_NO_DISPLAY)
         {
             EGLint error = eglGetError();
             std::cout << "Unable to get EGL display: " << error << std::endl;
-            return -1;
+            return;
         }
     }
 
     // 2. initilize egl
     EGLint major, minor;
-    EGLBoolean success = eglInitialize(glctx.display, &major, &minor);
+    EGLBoolean success = eglInitialize(display, &major, &minor);
     if (!success)
     {
         EGLint error = eglGetError();
         std::cout << "Unable to initialize EGL. EGL error: " << error << std::endl;
-        return -1;
+        return;
     }
     std::cout << "Successfully initialized EGL version " << major << "." << minor << std::endl;
 
@@ -109,38 +114,36 @@ int initContext(GLContext &glctx)
         EGL_DEPTH_SIZE, 8,
         EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
         EGL_NONE};
-    eglChooseConfig(glctx.display, configAttribs, &config, 1, &numConfigs);
+    eglChooseConfig(display, configAttribs, &config, 1, &numConfigs);
 
     // 4. create a surface
     static const EGLint pbufferAttribs[] = {
         EGL_WIDTH,
-        glctx.width,
+        width,
         EGL_HEIGHT,
-        glctx.height,
+        height,
         EGL_NONE,
     };
-    EGLSurface eglSurf = eglCreatePbufferSurface(glctx.display, config, pbufferAttribs);
+    EGLSurface eglSurf = eglCreatePbufferSurface(display, config, pbufferAttribs);
 
     // 5. bind the api
     eglBindAPI(EGL_OPENGL_API);
 
     // 6. create the context
-    glctx.context = eglCreateContext(glctx.display, config, EGL_NO_CONTEXT, nullptr);
-    eglMakeCurrent(glctx.display, eglSurf, eglSurf, glctx.context);
+    context = eglCreateContext(display, config, EGL_NO_CONTEXT, nullptr);
+    eglMakeCurrent(display, eglSurf, eglSurf, context);
 
     // 7. check that the OpenGL version is correct
     const unsigned char *version = glGetString(GL_VERSION);
     if (!version)
     {
         std::cout << "Unable to retrieve OpenGL version." << std::endl;
-        return -1;
+        return;
     }
     std::cout << "Successfully initialized OpenGL version " << version << std::endl;
-
-    return 0;
 }
 
-void destroyContext(GLContext &glctx)
+void GLContext::destroy()
 {
-    eglTerminate(glctx.display);
+    eglTerminate(display);
 }

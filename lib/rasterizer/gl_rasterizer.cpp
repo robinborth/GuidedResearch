@@ -11,69 +11,10 @@
 #include <cuda_gl_interop.h>
 #include <iostream>
 
-Shader initShader()
-{
-    const char *vShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
-        layout(location = 0) in vec4 aPos;
-
-        out VS_OUT {
-            vec3 bary;
-        } vs_out;
-
-        void main() {
-            gl_Position = aPos;
-            vs_out.bary = vec3(0.0, 0.0, 0.0);
-        });
-
-    const char *gShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
-        layout(triangles) in;
-        layout(triangle_strip, max_vertices = 3) out;
-
-        in VS_OUT {
-            vec3 bary;
-        } gs_in[];
-
-        out VS_OUT {
-            vec3 bary;
-        } gs_out;
-
-        void main() {
-            gs_out.bary = vec3(1.0, 0.0, 0.0);
-            gl_Position = gl_in[0].gl_Position;
-            EmitVertex();
-            gs_out.bary = vec3(0.0, 1.0, 0.0);
-            gl_Position = gl_in[1].gl_Position;
-            EmitVertex();
-            gs_out.bary = vec3(0.0, 0.0, 1.0);
-            gl_Position = gl_in[2].gl_Position;
-            EmitVertex();
-            EndPrimitive();
-        });
-
-    const char *fShaderCode = "#version 460 core\n" STRINGIFY_SHADER_SOURCE(
-        layout(location = 0) out vec4 gBary;
-        // layout(location = 1) out int gPrimitiveID;
-
-        in VS_OUT {
-            vec3 bary;
-        } fs_in;
-
-        void main() {
-            gBary = vec4(fs_in.bary, 1.0);
-            // gPrimitiveID = gl_PrimitiveID;
-        });
-    Shader shader(vShaderCode, gShaderCode, fShaderCode);
-    return shader;
-}
-
-torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width, int height, int cudaDeviceIdx)
+Fragments rasterize(torch::Tensor vertices, torch::Tensor indices, int width, int height, int cudaDeviceIdx)
 {
     // set the current opengl context
-    GLContext glctx;
-    glctx.width = width;
-    glctx.height = height;
-    glctx.cudaDeviceIdx = cudaDeviceIdx;
-    initContext(glctx);
+    GLContext glctx(width, height, cudaDeviceIdx);
 
     // define the rasterization state
     RasterizeGLState s;
@@ -85,14 +26,14 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     GL_CHECK_ERROR(glGenVertexArrays(1, &s.glVAO));
     GL_CHECK_ERROR(glGenBuffers(1, &s.glVBO));
     GL_CHECK_ERROR(glGenBuffers(1, &s.glEBO));
-    GL_CHECK_ERROR(glGenTextures(1, &s.glOutBary));
+    GL_CHECK_ERROR(glGenTextures(1, &s.glOut));
 
     // access the current cuda stream that is used in pytorch
     const at::cuda::OptionalCUDAGuard device_guard(device_of(vertices));
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-    // initilize the shader
-    Shader shader = initShader();
+    // initilize the fragment shader
+    FragmentShader shader = FragmentShader();
 
     // enable the vertex attribute object
     GL_CHECK_ERROR(glBindVertexArray(s.glVAO));
@@ -130,11 +71,11 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
 
     // bind the framebuffer
     GL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, s.glFBO));
-    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, s.glOutBary));
+    GL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, s.glOut));
     GL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, glctx.width, glctx.height, 0, GL_RGBA, GL_FLOAT, nullptr));
     GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
     GL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-    GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s.glOutBary, 0));
+    GL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s.glOut, 0));
     // add attachments to the framebuffer
     unsigned int attachments[1] = {GL_COLOR_ATTACHMENT0};
     GL_CHECK_ERROR(glDrawBuffers(1, attachments));
@@ -147,7 +88,7 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     // rasterizes the vertices using opengl
     shader.use();
     GL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, s.glFBO));
-    GL_CHECK_ERROR(glClearColor(1.0f, 1.0f, 0.0f, 1.0f));
+    GL_CHECK_ERROR(glClearColor(0.0f, 0.0f, 0.0f, -1.0f));
     GL_CHECK_ERROR(glClear(GL_COLOR_BUFFER_BIT));
     GL_CHECK_ERROR(glBindVertexArray(s.glVAO));
     GL_CHECK_ERROR(glDrawElements(GL_TRIANGLES, s.elementCount, GL_UNSIGNED_INT, 0));
@@ -159,9 +100,9 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
     float *outputPtr = out.data_ptr<float>();
     // register to cuda
     cudaArray_t cudaOut = 0;
-    CUDA_CHECK_ERROR(cudaGraphicsGLRegisterImage(&s.cudaOutBary, s.glOutBary, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
-    CUDA_CHECK_ERROR(cudaGraphicsMapResources(1, &s.cudaOutBary, stream));
-    CUDA_CHECK_ERROR(cudaGraphicsSubResourceGetMappedArray(&cudaOut, s.cudaOutBary, 0, 0));
+    CUDA_CHECK_ERROR(cudaGraphicsGLRegisterImage(&s.cudaOut, s.glOut, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
+    CUDA_CHECK_ERROR(cudaGraphicsMapResources(1, &s.cudaOut, stream));
+    CUDA_CHECK_ERROR(cudaGraphicsSubResourceGetMappedArray(&cudaOut, s.cudaOut, 0, 0));
     // perform the asynchronous copy
     CUDA_CHECK_ERROR(cudaMemcpy2DFromArrayAsync(
         outputPtr,                       // Destination pointer
@@ -172,30 +113,16 @@ torch::Tensor rasterize(torch::Tensor vertices, torch::Tensor indices, int width
         glctx.height,                    // Height of the 2D region to copy in rows
         cudaMemcpyDeviceToDevice,        // Copy kind
         stream));
-    CUDA_CHECK_ERROR(cudaGraphicsUnmapResources(1, &s.cudaOutBary, stream));
-    CUDA_CHECK_ERROR(cudaGraphicsUnregisterResource(s.cudaOutBary));
+    CUDA_CHECK_ERROR(cudaGraphicsUnmapResources(1, &s.cudaOut, stream));
+    CUDA_CHECK_ERROR(cudaGraphicsUnregisterResource(s.cudaOut));
+
+    Fragments fragments;
+    fragments.bary_coords = out.index({torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(0, 3)}).clone();
+    fragments.pix_to_face = out.index({torch::indexing::Slice(), torch::indexing::Slice(), 3}).to(torch::kInt32).clone();
 
     // destroy the context
-    destroyContext(glctx);
-    // return the tensor
-    return out;
-}
+    glctx.destroy();
 
-// void rasterizeCopyResults(cudaGraphicsResource_t *cudaColorBuffer, cudaStream_t stream, float *outputPtr, int width, int height)
-// {
-//     // Copy color buffers to output tensors.
-//     cudaArray_t array = 0;
-//     cudaGraphicsMapResources(1, cudaColorBuffer, stream);
-//     cudaGraphicsSubResourceGetMappedArray(&array, *cudaColorBuffer, 0, 0);
-//     cudaMemcpy3DParms p = {0};
-//     p.srcArray = array;
-//     p.dstPtr.ptr = outputPtr;
-//     p.dstPtr.pitch = width * 4 * sizeof(float);
-//     p.dstPtr.xsize = width;
-//     p.dstPtr.ysize = height;
-//     p.extent.width = width;
-//     p.extent.height = height;
-//     p.kind = cudaMemcpyDeviceToDevice;
-//     cudaMemcpy3DAsync(&p, stream);
-//     cudaGraphicsUnmapResources(1, cudaColorBuffer, stream);
-// }
+    // return the tensor
+    return fragments;
+}
