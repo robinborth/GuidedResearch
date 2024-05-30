@@ -11,13 +11,12 @@
 #include <cuda_gl_interop.h>
 #include <iostream>
 
-Fragments rasterize(torch::Tensor vertices, torch::Tensor indices, int width, int height, int cudaDeviceIdx)
+Fragments rasterize(GLContext glctx, torch::Tensor vertices, torch::Tensor indices)
 {
-    // set the current opengl context
-    GLContext glctx(width, height, cudaDeviceIdx);
-
     // define the rasterization state
     RasterizeGLState s;
+    s.batchSize = vertices.size(0);
+    s.vertexPerElement = vertices.size(1);
     s.vertexCount = vertices.numel();
     s.vertexPtr = vertices.data_ptr<float>();
     s.elementCount = indices.numel();
@@ -91,8 +90,8 @@ Fragments rasterize(torch::Tensor vertices, torch::Tensor indices, int width, in
     GL_CHECK_ERROR(glClearColor(0.0f, 0.0f, 0.0f, -1.0f));
     GL_CHECK_ERROR(glClear(GL_COLOR_BUFFER_BIT));
     GL_CHECK_ERROR(glBindVertexArray(s.glVAO));
+
     GL_CHECK_ERROR(glDrawElements(GL_TRIANGLES, s.elementCount, GL_UNSIGNED_INT, 0));
-    // GL_CHECK_ERROR(glDrawArrays(GL_TRIANGLES, 0, 3));
 
     // allocate output tensors.
     torch::TensorOptions opts = torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA);

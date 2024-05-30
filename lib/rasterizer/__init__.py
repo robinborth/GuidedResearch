@@ -1,3 +1,3 @@
-from .torch_bindings import rasterize
+from .torch_bindings import Fragments, Rasterizer
 
-__all__ = ["rasterize"]
+__all__ = ["Rasterizer", "Fragments"]

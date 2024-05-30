@@ -1,9 +1,7 @@
 import torch
 import torch.nn as nn
-from pytorch3d.renderer import MeshRasterizer, PerspectiveCameras, RasterizationSettings
-from pytorch3d.structures import Meshes
 
-from lib.renderer.camera import camera2normal
+from lib.rasterizer import rasterize
 from lib.utils.mesh import weighted_vertex_normals
 
 
@@ -37,59 +35,49 @@ class Renderer(nn.Module):
         self.W = image_width
         self.device = device
 
-        settings = RasterizationSettings(
-            image_size=[self.H, self.W],
-            blur_radius=0.0,
-            faces_per_pixel=1,
-            bin_size=None,
-            max_faces_per_bin=None,
-            perspective_correct=False,
-        )
-
-        fx = K[0, 0] * image_scale
-        fy = K[1, 1] * image_scale
-        cx = K[0, 2] * image_scale
-        cy = K[1, 2] * image_scale
-        cameras = PerspectiveCameras(
-            image_size=[[self.H, self.W]],
-            focal_length=[(fx, fy)],
-            principal_point=[(cx, cy)],
-            in_ndc=False,
-        )
+        # fx = K[0, 0] * image_scale
+        # fy = K[1, 1] * image_scale
+        # cx = K[0, 2] * image_scale
+        # cy = K[1, 2] * image_scale
+        # cameras = PerspectiveCameras(
+        #     image_size=[[self.H, self.W]],
+        #     focal_length=[(fx, fy)],
+        #     principal_point=[(cx, cy)],
+        #     in_ndc=False,
+        # )
 
         # define the rasterizer
-        self.rasterizer = MeshRasterizer(
-            cameras=cameras,
-            raster_settings=settings,
-        )
+        # self.rasterizer = MeshRasterizer(
+        #     cameras=cameras,
+        #     raster_settings=settings,
+        # )
 
         # rendering settings for shading
         self.diffuse = torch.tensor(diffuse, device=device)
         self.specular = torch.tensor(specular, device=device)
         self.light = torch.tensor(light, device=device)
 
-    def rasterize(self, vertices: torch.Tensor, faces: torch.Tensor):
-        """Rendering of the attributes with mesh rasterization.
+    # def rasterize(self, vertices: torch.Tensor, faces: torch.Tensor):
+    #     """Rendering of the attributes with mesh rasterization.
 
-        NOTE: The rasterization only works on cpu currently.
+    #     NOTE: The rasterization only works on cpu currently.
 
-        Args:
-            faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
-            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
+    #     Args:
+    #         faces (torch.Tensor): The indexes of the vertices, e.g. the faces (F, 3)
+    #         vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
 
-        Returns:
-            (torch.Tensor, torch.Tensor) A tuple of pix_to_face cordinates of dim
-            (B, H, W) and the coresponding bary coordinates of dim (B, H, W, 3).
-        """
-        verts = vertices.cpu().clone()
-        verts[:, :, :1] = -verts[:, :, :1]
-        faces = faces.expand(verts.shape[0], -1, -1).cpu()
-        meshes = Meshes(verts=verts, faces=faces)
-        fragments = self.rasterizer(meshes)
-        # opengl convension is that we store the down row first
-        pix_to_face = torch.flip(fragments.pix_to_face.squeeze(-1), [1])
-        bary_coords = torch.flip(fragments.bary_coords.squeeze(-2), [1])
-        return pix_to_face.to(self.device), bary_coords.to(self.device)
+    #     Returns:
+    #         (torch.Tensor, torch.Tensor) A tuple of pix_to_face cordinates of dim
+    #         (B, H, W) and the coresponding bary coordinates of dim (B, H, W, 3).
+    #     """
+    #     verts = vertices.cpu().clone()
+    #     verts[:, :, :1] = -verts[:, :, :1]
+    #     faces = faces.expand(verts.shape[0], -1, -1).cpu()
+    #     fragments = rasterize(meshes)
+    #     # opengl convension is that we store the down row first
+    #     pix_to_face = torch.flip(fragments.pix_to_face.squeeze(-1), [1])
+    #     bary_coords = torch.flip(fragments.bary_coords.squeeze(-2), [1])
+    #     return pix_to_face.to(self.device), bary_coords.to(self.device)
 
     def render(
         self,
@@ -110,8 +98,14 @@ class Renderer(nn.Module):
                 we have a row-major matrix representation.
         """
         # (B, H, W), (B, H, W, 3)
-        pix2face, b_coords = self.rasterize(vertices, faces)
-        vertices_idx = faces[pix2face]  # (B, H, W, 3)
+        fragments = rasterize(
+            vertices=vertices,
+            indices=faces,
+            width=self.W,
+            height=self.H,
+            cuda_device_idx=torch.cuda.current_device(),  # (0)
+        )
+        vertices_idx = faces[fragments.pix_to_face]  # (B, H, W, 3)
 
         # access the vertex attributes
         B, H, W, C = vertices_idx.shape  # (B, H, W, 3)
@@ -121,11 +115,11 @@ class Renderer(nn.Module):
         vertex_attribute = attributes[b_idx, v_idx]  # (B, *, D)
         vertex_attribute = vertex_attribute.reshape(B, H, W, C, D)  # (B, H, W, 3, D)
 
-        bary_coords = b_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
+        bary_coords = fragments.bary_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
         attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
 
         # forground mask
-        mask = pix2face != -1
+        mask = fragments.pix_to_face != -1
 
         return attributes, mask
 

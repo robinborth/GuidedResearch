@@ -105,7 +105,7 @@ const char *FragmentShader::fShaderCode()
         } fs_in;
 
         void main() {
-            float primitiveID = float(gl_PrimitiveID);
-            gOut = vec4(fs_in.bary, primitiveID);
+            int primitiveID = gl_PrimitiveID;
+            gOut = vec4(fs_in.bary, primitiveID + 1.0);
         });
 };
