@@ -147,6 +147,7 @@ class FLAMEDataset(DPHMDataset):
         **kwargs,
     ):
         super().__init__(**kwargs, optimize_frames=optimize_frames)
+        height, width = self.image_size
         flame = FLAME(
             flame_dir=flame_dir,
             data_dir=kwargs["data_dir"],
@@ -154,15 +155,16 @@ class FLAMEDataset(DPHMDataset):
             num_expression_params=num_expression_params,
             optimize_frames=optimize_frames,
             optimize_shapes=optimize_shapes,
-            image_scale=self.image_scale,
-            image_height=self.image_size[0],
-            image_width=self.image_size[1],
             vertices_mask=vertices_mask,
         ).to("cuda")
         flame.init_params_flame(0.0)
         vertices, landmarks = flame()
-        renderer = flame.renderer(diffuse=[0.6, 0.0, 0.0], specular=[0.5, 0.0, 0.0])
-
+        renderer = flame.renderer(
+            width=width,
+            height=height,
+            diffuse=[0.6, 0.0, 0.0],
+            specular=[0.5, 0.0, 0.0],
+        )
         render = renderer.render_full(vertices, flame.masked_faces(vertices))
         self.mask = render["mask"][0].detach().cpu().numpy()
         self.point = render["point"][0].detach().cpu().numpy()

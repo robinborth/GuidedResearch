@@ -31,8 +31,7 @@ class FoVCamera:
         """Converts coords into homogeneous coordiates in clip space."""
         homo_coords = convert_to_homo_coords(coords)
         # return torch.matmul(
-        #     self.M.to(homo_coords.device),
-        #     homo_coords.transpose(-2, -1)
+        #     self.M.to(homo_coords.device), homo_coords.transpose(-2, -1)
         # ).transpose(-2, -1)
         return torch.matmul(homo_coords, self.M.to(homo_coords.device))
 

@@ -47,7 +47,7 @@ point2point_flame:
 	model.lr=1e-02 \
 	model.init_mode=flame \
 	model.vertices_mask=full \
-	trainer.max_epochs=500 \
+	trainer.max_epochs=50 \
 	trainer.accelerator=gpu \
 	callbacks.coarse2fine_scheduler.milestones=[0] \
 	callbacks.coarse2fine_scheduler.image_scales=[0.25] \
@@ -60,8 +60,9 @@ point2plane_flame:
 	model.lr=1e-02 \
 	model.init_mode=flame \
 	model.vertices_mask=full \
-	trainer.max_epochs=100 \
-	callbacks.coarse2fine_scheduler.milestones=[0] \
-	callbacks.coarse2fine_scheduler.image_scales=[0.25] \
+	trainer.max_epochs=200 \
+	trainer.accelerator=gpu \
+	callbacks.coarse2fine_scheduler.milestones=[0,150] \
+	callbacks.coarse2fine_scheduler.image_scales=[0.1,0.25] \
 
 

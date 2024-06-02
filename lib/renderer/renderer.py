@@ -62,6 +62,9 @@ class Renderer:
         far: float | None = None,
         width: int | None = None,
         height: int | None = None,
+        diffuse: list[float] | None = None,
+        specular: list[float] | None = None,
+        light: list[float] | None = None,
     ):
         if fov is not None:
             self.fov = fov
@@ -73,6 +76,13 @@ class Renderer:
             self.width = width
         if height is not None:
             self.height = height
+        if diffuse is not None:
+            self.diffuse = torch.tensor(diffuse, device=self.diffuse.device)
+        if specular is not None:
+            self.specular = torch.tensor(specular, device=self.specular.device)
+        if light is not None:
+            self.light = torch.tensor(light, device=self.light.device)
+
         self.camera = FoVCamera(
             fov=self.fov,
             aspect=(self.width / self.height),

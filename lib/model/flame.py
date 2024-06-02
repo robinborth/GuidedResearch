@@ -10,10 +10,10 @@ from PIL import Image
 
 from lib.model.lbs import lbs
 from lib.model.loss import (
+    calculate_point2plane,
+    calculate_point2point,
     chamfer_distance,
     landmark_3d_distance,
-    point2plane,
-    point2point,
 )
 from lib.renderer.camera import camera2pixel
 from lib.renderer.renderer import Renderer
@@ -103,7 +103,7 @@ class FLAME(L.LightningModule):
 
         # load the default intriniscs or initialize it with something good
         # self.K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
-        self._renderer = Renderer()
+        self._renderer = Renderer(fov=25)
 
         # optimize modes
         self.optimize_modes: list[str] = ["default"]
@@ -317,7 +317,7 @@ class FLAME(L.LightningModule):
         self,
         batch: dict[str, torch.Tensor],
         render: dict[str, torch.Tensor],
-        n_threshold: float = 0.8,
+        n_threshold: float = 0.9,
         d_threshold: float = 0.1,
     ):
         # per pixel distance in 3d, just the length
@@ -342,7 +342,7 @@ class FLAME(L.LightningModule):
         B = batch["frame_idx"].shape[0]
         return B, 0, batch["frame_idx"][0].item()
 
-    def debug_loss(self, batch: dict, render: dict, max_loss=1e-02):
+    def debug_loss(self, batch: dict, render: dict, mask: dict, max_loss=1e-02):
         """The max is an error of 10cm"""
         _, b_idx, f_idx = self.debug_idx(batch)
 
@@ -353,7 +353,9 @@ class FLAME(L.LightningModule):
 
         # point to point error map
         file_name = f"point2point_error_map/{f_idx:03}_{self.current_epoch:05}.png"
-        loss = torch.sqrt(point2point(batch["point"], render["point"]))  # (B, W, H)
+        loss = torch.sqrt(
+            calculate_point2point(batch["point"], render["point"])
+        )  # (B, W, H)
         error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
         error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
         error_map[~render["mask"][b_idx], :] = 1.0
@@ -363,7 +365,7 @@ class FLAME(L.LightningModule):
         # point to plane error map
         file_name = f"point2plane_error_map/{f_idx:03}_{self.current_epoch:05}.png"
         loss = torch.sqrt(
-            point2plane(
+            calculate_point2plane(
                 p=render["point"],
                 q=batch["point"],
                 n=render["normal"],
@@ -374,6 +376,10 @@ class FLAME(L.LightningModule):
         error_map[~render["mask"][b_idx], :] = 1.0
         error_map = (error_map * 255).to(torch.uint8)
         self.save_image(file_name, error_map)
+
+        # error mask
+        file_name = f"error_mask/{f_idx:03}_{self.current_epoch:05}.png"
+        self.save_image(file_name, mask["mask"][b_idx])
 
     def debug_correspondence(self, batch: dict, render: dict, model: dict):
         _, b_idx, f_idx = self.debug_idx(batch)
@@ -496,7 +502,7 @@ class FLAME(L.LightningModule):
         B, _, _ = self.debug_idx(batch)
         # debug chamfer loss
         chamfer = chamfer_distance(
-            vertices=model["vertices"],
+            vertices=render["point"][render["mask"]].reshape(B, -1, 3),
             points=batch["point"][batch["mask"]].reshape(B, -1, 3),
         )  # (B,)
         self.log("train/chamfer", chamfer.mean(), prog_bar=True)
@@ -540,49 +546,6 @@ class FLAME(L.LightningModule):
 class FLAMEPoint2Point(FLAME):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # if self.hparams["init_mode"] == "kinect":
-        #     self.init_params_dphm(0.01, seed=2)
-        # else:
-        #     self.init_params_flame(0.02, seed=2)
-        self.init_params(
-            global_pose=[0.0, 0.0, 0.0],
-            transl=[0.0, 0.0, -0.6],
-        )
-
-    def optimization_step(self, batch, batch_idx):
-        # forward pass with the current frame and shape
-        model = self.model_step(
-            frame_idx=batch["frame_idx"],  # (B, )
-            shape_idx=batch["shape_idx"],  # (B, )
-        )
-        # render the current flame model
-        render = self.render_step(model)
-        # rejection based on outliers
-        mask = self.inlier_mask(batch=batch, render=render)
-        # distance in camera space per pixel & point to point loss
-        p2p = point2point(batch["point"], render["point"])  # (B, W, H)
-        # point to point loss
-        loss = p2p[mask["mask"]].mean()
-        self.log("train/point2point", loss, prog_bar=True)
-        # log metrics
-        self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
-        # visualize the image that is optimized and save to disk
-        if (self.current_epoch) % self.hparams["save_interval"] == 0:
-            self.debug_render(batch=batch, render=render)
-            self.debug_3d_points(batch=batch, render=render)
-            self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
-            self.debug_loss(batch=batch, render=render)
-            # self.debug_correspondence(batch=batch, render=render, model=model)
-
-        return loss
-
-    def on_before_optimizer_step(self, optimizer):
-        self.debug_gradients(optimizer)
-
-
-class FLAMEPoint2Plane(FLAME):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
         if self.hparams["init_mode"] == "kinect":
             self.init_params_dphm(0.01, seed=2)
         else:
@@ -599,22 +562,69 @@ class FLAMEPoint2Plane(FLAME):
         # rejection based on outliers
         mask = self.inlier_mask(batch=batch, render=render)
         # distance in camera space per pixel & point to point loss
-        p2p = point2plane(
-            q=render["point"],
-            p=batch["point"].detach(),
-            n=render["normal"].detach(),
-        )  # (B, W, H)
-        # point to plane loss
+        p2p = calculate_point2point(batch["point"], render["point"])  # (B, W, H)
+        # point to point loss
         loss = p2p[mask["mask"]].mean()
-        self.log("train/point2plane", loss, prog_bar=True)
+        self.log("train/point2point", loss, prog_bar=True)
         # log metrics
         self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)
-            # self.debug_3d_points(batch=batch, render=render)
-            # self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
-            self.debug_loss(batch=batch, render=render)
+            self.debug_3d_points(batch=batch, render=render)
+            self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
+            self.debug_loss(batch=batch, render=render, mask=mask)
+            # self.debug_correspondence(batch=batch, render=render, model=model)
+
+        return loss
+
+    def on_before_optimizer_step(self, optimizer):
+        self.debug_gradients(optimizer)
+
+
+class FLAMEPoint2Plane(FLAME):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.hparams["init_mode"] == "kinect":
+            self.init_params_dphm(0.01, seed=2)
+        else:
+            self.init_params_flame(0.03, seed=2)
+
+    def optimization_step(self, batch, batch_idx):
+        # forward pass with the current frame and shape
+        model = self.model_step(
+            frame_idx=batch["frame_idx"],  # (B, )
+            shape_idx=batch["shape_idx"],  # (B, )
+        )
+        # render the current flame model
+        render = self.render_step(model)
+        # rejection based on outliers
+        mask = self.inlier_mask(batch=batch, render=render)
+        # distance in camera space per pixel & point to point loss
+        point2plane = calculate_point2plane(
+            q=render["point"],
+            p=batch["point"].detach(),
+            n=render["normal"].detach(),
+        )  # (B, W, H)
+        point2point = calculate_point2point(
+            q=render["point"],
+            p=batch["point"].detach(),
+        )  # (B, W, H)
+        # point to plane loss
+        point2plane_loss = point2plane[mask["mask"]].mean()
+        point2point_loss = 0.1 * point2point[mask["mask"]].mean()
+        loss = point2plane_loss + point2point_loss
+        self.log("train/point2point", point2point_loss, prog_bar=True)
+        self.log("train/point2plane", point2plane_loss, prog_bar=True)
+        self.log("train/loss", loss, prog_bar=True)
+        # log metrics
+        self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
+        # visualize the image that is optimized and save to disk
+        if (self.current_epoch) % self.hparams["save_interval"] == 0:
+            self.debug_render(batch=batch, render=render)
+            self.debug_3d_points(batch=batch, render=render)
+            self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
+            self.debug_loss(batch=batch, render=render, mask=mask)
         return loss
 
     def on_before_optimizer_step(self, optimizer):

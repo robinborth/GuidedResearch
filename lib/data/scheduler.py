@@ -58,9 +58,8 @@ class CoarseToFineScheduler(Callback, Scheduler):
             return
         assert isinstance(pl_module, FLAME)
         datamodule = trainer.datamodule  # type: ignore
-        pl_module.hparams["image_scale"] = datamodule.image_scale
-        pl_module.hparams["image_height"] = datamodule.image_height
-        pl_module.hparams["image_width"] = datamodule.image_width
+        pl_module._renderer.update(width=datamodule.image_width)
+        pl_module._renderer.update(height=datamodule.image_height)
 
     def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule):
         self.schedule_dataset(trainer, trainer.current_epoch)
@@ -133,5 +132,5 @@ class FinetuneScheduler(BaseFinetuning, Scheduler):
             self.unfreeze_and_add_param_group(
                 modules=modules,
                 optimizer=optimizer,
-                lr=1e-03,
+                # initial_denom_lr=1.0,
             )

@@ -64,13 +64,13 @@
                 "model=point2point",
                 "logger=wandb",
                 "data=flame",
-                "model.lr=1e-03",
+                "model.lr=1e-02",
                 "model.init_mode=flame",
                 "model.vertices_mask=full",
                 "trainer.max_epochs=100",
                 "trainer.accelerator=gpu",
                 "callbacks.coarse2fine_scheduler.milestones=[0]",
-                "callbacks.coarse2fine_scheduler.image_scales=[0.5]"
+                "callbacks.coarse2fine_scheduler.image_scales=[0.1]"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

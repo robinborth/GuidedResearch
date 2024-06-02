@@ -15,7 +15,7 @@ def distance(vertices: torch.Tensor, points: torch.Tensor):
     sy = torch.sum(points**2, dim=-1).unsqueeze(-2)  # (B, 1, P)
     sxy = torch.bmm(vertices, points.transpose(-2, -1))  # (B, V, P)
     dist_in = torch.nn.functional.relu(sx - 2 * sxy + sy)
-    return torch.sqrt(dist_in + 1e-20)  # (B, V, P)
+    return torch.sqrt(dist_in)  # (B, V, P)
 
 
 def point_to_point_full(vertices: torch.Tensor, points: torch.Tensor):
@@ -59,9 +59,9 @@ def landmark_3d_distance(
     return torch.norm(landmarks - gt_landmarks, dim=-1)
 
 
-def point2point(q: torch.Tensor, p: torch.Tensor):
+def calculate_point2point(q: torch.Tensor, p: torch.Tensor):
     return torch.pow(q - p, 2).sum(-1)  # (B, W, H)
 
 
-def point2plane(q: torch.Tensor, p: torch.Tensor, n: torch.Tensor):
+def calculate_point2plane(q: torch.Tensor, p: torch.Tensor, n: torch.Tensor):
     return torch.pow(((q - p) * n).sum(-1), 2)  # (B, W, H)
