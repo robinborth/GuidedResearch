@@ -44,10 +44,11 @@ point2point_flame:
 	model=point2point \
 	data=flame \
 	logger=wandb \
-	model.lr=1e-03 \
+	model.lr=1e-02 \
 	model.init_mode=flame \
 	model.vertices_mask=full \
-	trainer.max_epochs=100 \
+	trainer.max_epochs=500 \
+	trainer.accelerator=gpu \
 	callbacks.coarse2fine_scheduler.milestones=[0] \
 	callbacks.coarse2fine_scheduler.image_scales=[0.25] \
 

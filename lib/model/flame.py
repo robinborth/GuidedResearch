@@ -102,7 +102,8 @@ class FLAME(L.LightningModule):
         self.lm_mediapipe_idx = torch.nn.Parameter(lm_idx, requires_grad=False)
 
         # load the default intriniscs or initialize it with something good
-        self.K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
+        # self.K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
+        self._renderer = Renderer()
 
         # optimize modes
         self.optimize_modes: list[str] = ["default"]
@@ -269,14 +270,7 @@ class FLAME(L.LightningModule):
     ####################################################################################
 
     def renderer(self, **kwargs):
-        return Renderer(
-            K=self.K,
-            image_scale=self.hparams["image_scale"],
-            image_height=self.hparams["image_height"],
-            image_width=self.hparams["image_width"],
-            device=self.device,
-            **kwargs,
-        )
+        return self._renderer.update(**kwargs).to(self.device)
 
     ####################################################################################
     # Model Utils
@@ -286,8 +280,8 @@ class FLAME(L.LightningModule):
         np.random.seed(seed)
         s = np.random.normal(0, sigma, 6)
         self.init_params(
-            global_pose=[np.pi + s[0], 0 + s[1], 0 + s[2]],
-            transl=[0 + s[3], 0.27 + s[4], 0.5 + s[5]],
+            global_pose=[s[0], s[1], s[2]],
+            transl=[0 + s[3], s[4], s[5] - 0.5],
         )
 
     def init_params_dphm(self, sigma: float = 0.01, seed: int = 1):
@@ -546,10 +540,14 @@ class FLAME(L.LightningModule):
 class FLAMEPoint2Point(FLAME):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if self.hparams["init_mode"] == "kinect":
-            self.init_params_dphm(0.01, seed=2)
-        else:
-            self.init_params_flame(0.02, seed=2)
+        # if self.hparams["init_mode"] == "kinect":
+        #     self.init_params_dphm(0.01, seed=2)
+        # else:
+        #     self.init_params_flame(0.02, seed=2)
+        self.init_params(
+            global_pose=[0.0, 0.0, 0.0],
+            transl=[0.0, 0.0, -0.6],
+        )
 
     def optimization_step(self, batch, batch_idx):
         # forward pass with the current frame and shape
@@ -571,8 +569,8 @@ class FLAMEPoint2Point(FLAME):
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)
-            # self.debug_3d_points(batch=batch, render=render)
-            # self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
+            self.debug_3d_points(batch=batch, render=render)
+            self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
             self.debug_loss(batch=batch, render=render)
             # self.debug_correspondence(batch=batch, render=render, model=model)
 

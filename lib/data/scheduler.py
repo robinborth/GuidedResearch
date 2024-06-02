@@ -133,5 +133,5 @@ class FinetuneScheduler(BaseFinetuning, Scheduler):
             self.unfreeze_and_add_param_group(
                 modules=modules,
                 optimizer=optimizer,
-                lr=1e-02,
+                lr=1e-03,
             )

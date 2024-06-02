@@ -1,4 +1,3 @@
-import math
 from pathlib import Path
 
 import torch
@@ -6,6 +5,7 @@ from torchvision.transforms import v2
 
 from lib.model.flame import FLAME
 from lib.rasterizer import Rasterizer
+from lib.renderer.camera import FoVCamera
 from lib.renderer.renderer import Renderer
 from lib.utils.mesh import weighted_vertex_normals
 
@@ -25,40 +25,6 @@ flame.init_params(
 vertices, _ = flame()
 
 
-def convert_to_homo_coords(coords):
-    shape = list(coords.shape)
-    shape[-1] = shape[-1] + 1
-    homo_coords = torch.ones(shape, device=vertices.device)
-    homo_coords[:, :, :3] = coords
-    return homo_coords
-
-
-def fov_perspective_projection(
-    fov: float,
-    aspect: float,
-    near: float = 1.0,
-    far: float = 100.0,
-):
-    scale = math.tan(fov * 0.5 * math.pi / 180) * near
-    r = aspect * scale
-    l = -r
-    t = scale
-    b = -t
-    return torch.tensor(
-        [
-            [2 * near / (r - l), 0.0, (r + l) / (r - l), 0.0],
-            [0.0, 2 * near / (t - b), (t + b) / (t - b), 0.0],
-            [0.0, 0.0, -(far + near) / (far - near), -(2 * far * near) / (far - near)],
-            [0.0, 0.0, -1.0, 0.0],
-        ]
-    )
-
-
-verts_homo = convert_to_homo_coords(vertices)
-M = fov_perspective_projection(fov=36, aspect=(width / height))
-verts_homo = torch.matmul(verts_homo, M)
-
-
 # indices of the faces (F, 3)
 faces = flame.faces
 # faces = flame.masked_faces(vertices)
@@ -69,10 +35,10 @@ print("Cuda device index: ", torch.cuda.current_device())
 print("Input device:", device)
 
 print("Input Vertices: ")
-print("shape: ", verts_homo.shape)
-print("min: ", verts_homo.min())
-print("max: ", verts_homo.max())
-print("mean: ", verts_homo.mean())
+print("shape: ", vertices.shape)
+print("min: ", vertices.min())
+print("max: ", vertices.max())
+print("mean: ", vertices.mean())
 
 print("Input indices: ")
 print("shape: ", faces.shape)
@@ -83,7 +49,7 @@ print("max: ", faces.max())
 renderer = Renderer(width=width, height=height, device=device)
 vertex_normals = weighted_vertex_normals(vertices, faces)
 normal, mask = renderer.render(
-    vertices=verts_homo.to(device),
+    vertices=vertices.to(device),
     faces=faces.to(device),
     attributes=vertex_normals.to(device),
 )

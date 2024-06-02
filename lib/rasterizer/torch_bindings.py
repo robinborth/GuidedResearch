@@ -38,6 +38,12 @@ class Rasterizer:
         cudaDeviceIdx = torch.cuda.current_device()
         self.glctx = plugin.GLContext(width, height, cudaDeviceIdx)
 
+    def update(self, width: int | None, height: int | None):
+        if width is not None:
+            self.glctx.width = width
+        if height is not None:
+            self.glctx.height = height
+
     def rasterize(self, vertices: torch.Tensor, indices: torch.Tensor) -> Fragments:
         """Rendering of the attributes with mesh rasterization.
 

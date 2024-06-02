@@ -158,7 +158,7 @@ class FLAMEDataset(DPHMDataset):
             image_height=self.image_size[0],
             image_width=self.image_size[1],
             vertices_mask=vertices_mask,
-        )
+        ).to("cuda")
         flame.init_params_flame(0.0)
         vertices, landmarks = flame()
         renderer = flame.renderer(diffuse=[0.6, 0.0, 0.0], specular=[0.5, 0.0, 0.0])

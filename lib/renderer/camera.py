@@ -1,8 +1,74 @@
+import math
 from typing import Any
 
 import numpy as np
 import torch
 from torchvision.transforms import v2
+
+
+class FoVCamera:
+    def __init__(
+        self,
+        fov: float,
+        aspect: float,
+        near: float = 1.0,
+        far: float = 100.0,
+        K=None,
+        device: str = "cpu",
+    ):
+        if K is None:
+            self.M = fov_perspective_projection(
+                fov=fov,
+                aspect=aspect,
+                near=near,
+                far=far,
+            )
+        else:
+            self.M = K
+        self.M = self.M.to(device)
+
+    def transfrom(self, coords: torch.Tensor):
+        """Converts coords into homogeneous coordiates in clip space."""
+        homo_coords = convert_to_homo_coords(coords)
+        # return torch.matmul(
+        #     self.M.to(homo_coords.device),
+        #     homo_coords.transpose(-2, -1)
+        # ).transpose(-2, -1)
+        return torch.matmul(homo_coords, self.M.to(homo_coords.device))
+
+
+def convert_to_homo_coords(coords: torch.Tensor):
+    shape = list(coords.shape)
+    shape[-1] = shape[-1] + 1
+    homo_coords = torch.ones(shape, device=coords.device)
+    homo_coords[:, :, :3] = coords
+    return homo_coords
+
+
+def fov_perspective_projection(
+    fov: float,
+    aspect: float,
+    near: float = 1.0,
+    far: float = 100.0,
+):
+    """
+    For information check out the math:
+    https://www.songho.ca/opengl/gl_projectionmatrix.html
+    """
+    deg2rad = math.pi / 180
+    tangent = math.tan(fov * 0.5 * deg2rad)
+    t = tangent * near
+    r = t * aspect
+    l = -r
+    b = -t
+    return torch.tensor(
+        [
+            [2 * near / (r - l), 0.0, (r + l) / (r - l), 0.0],
+            [0.0, 2 * near / (t - b), (t + b) / (t - b), 0.0],
+            [0.0, 0.0, -(far + near) / (far - near), -(2 * far * near) / (far - near)],
+            [0.0, 0.0, -1.0, 0.0],
+        ]
+    )
 
 
 def camera2pixel(

@@ -2,12 +2,16 @@ import torch
 import torch.nn as nn
 
 from lib.rasterizer import Rasterizer
+from lib.renderer.camera import FoVCamera
 from lib.utils.mesh import weighted_vertex_normals
 
 
-class Renderer(nn.Module):
+class Renderer:
     def __init__(
         self,
+        fov: float = 45.0,
+        near: float = 1.0,
+        far: float = 100.0,
         width: int = 1920,
         height: int = 1080,
         diffuse: list[float] = [0.5, 0.5, 0.5],
@@ -18,6 +22,9 @@ class Renderer(nn.Module):
     ):
         """The rendering settings.
 
+        The renderer is only initilized once, and updated for each rendering pass for the correct resolution camera.
+        This is because creating openGL context is only done once.
+
         Args:
             K (dict): NOTE: The scaled intrinsic based on H', W' of dim (3, 3).
             image_width (int, optional): _description_. Defaults to 1920.
@@ -27,15 +34,53 @@ class Renderer(nn.Module):
             light (list[float]): _description_. Defaults to [-1.0, 1.0, 0.0].
             device (str): _description_. Defaults to "cpu".
         """
-        super().__init__()
+        self.width = width
+        self.height = height
+        self.fov = fov
+        self.near = near
+        self.far = far
 
-        # create the rasterizer
+        self.camera = FoVCamera(fov=fov, aspect=(width / height), near=near, far=far)
         self.rasterizer = Rasterizer(width=width, height=height)
 
         # rendering settings for shading
         self.diffuse = torch.tensor(diffuse, device=device)
         self.specular = torch.tensor(specular, device=device)
         self.light = torch.tensor(light, device=device)
+
+    def to(self, device: str = "cpu"):
+        self.camera.M = self.camera.M.to(device)
+        self.diffuse = self.diffuse.to(device)
+        self.specular = self.specular.to(device)
+        self.light = self.light.to(device)
+        return self
+
+    def update(
+        self,
+        fov: float | None = None,
+        near: float | None = None,
+        far: float | None = None,
+        width: int | None = None,
+        height: int | None = None,
+    ):
+        if fov is not None:
+            self.fov = fov
+        if near is not None:
+            self.near = near
+        if far is not None:
+            self.far = far
+        if width is not None:
+            self.width = width
+        if height is not None:
+            self.height = height
+        self.camera = FoVCamera(
+            fov=self.fov,
+            aspect=(self.width / self.height),
+            near=self.near,
+            far=self.far,
+        )
+        self.rasterizer.update(width=self.width, height=self.height)
+        return self
 
     def render(
         self,
@@ -55,8 +100,8 @@ class Renderer(nn.Module):
                 that are barycentric interpolated, hence the dim is (H, W, D). Not that
                 we have a row-major matrix representation.
         """
-        # (B, H, W), (B, H, W, 3)
-        fragments = self.rasterizer.rasterize(vertices, faces)
+        homo_clip_vertices = self.camera.transfrom(vertices)  # (B, V, 4)
+        fragments = self.rasterizer.rasterize(homo_clip_vertices, faces)
         vertices_idx = faces[fragments.pix_to_face]  # (B, H, W, 3)
 
         # access the vertex attributes
@@ -96,6 +141,7 @@ class Renderer(nn.Module):
 
     @classmethod
     def point_to_depth(self, point):
+        # because we need to flip it like in opengl
         return point[:, :, :, 2]  # (H, W, 3)
 
     def render_depth(

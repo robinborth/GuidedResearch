@@ -96,6 +96,7 @@ Fragments rasterize(GLContext glctx, torch::Tensor vertices, torch::Tensor indic
     // rasterizes the vertices using opengl
     shader.use();
     GL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, s.glFBO));
+    GL_CHECK_ERROR(glViewport(0, 0, glctx.width, glctx.height));
     GL_CHECK_ERROR(glClearColor(0.0f, 0.0f, 0.0f, -1.0f));
     GL_CHECK_ERROR(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
     GL_CHECK_ERROR(glEnable(GL_DEPTH_TEST));
