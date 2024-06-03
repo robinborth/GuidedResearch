@@ -7,7 +7,7 @@ from lib.model.flame import FLAME
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import FoVCamera
 from lib.renderer.renderer import Renderer
-from lib.utils.mesh import weighted_vertex_normals
+from lib.utils.mesh import vertex_normals
 
 width = 800
 height = 800
@@ -47,11 +47,11 @@ print("max: ", faces.max())
 
 # for now we just output the normals
 renderer = Renderer(width=width, height=height, device=device)
-vertex_normals = weighted_vertex_normals(vertices, faces)
+normals = vertex_normals(vertices, faces)
 normal, mask = renderer.render(
     vertices=vertices.to(device),
     faces=faces.to(device),
-    attributes=vertex_normals.to(device),
+    attributes=normals.to(device),
 )
 normal_image = (((normal + 1) / 2) * 255).to(torch.uint8)
 normal_image[~mask] = 0

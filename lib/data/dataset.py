@@ -3,7 +3,8 @@ from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
 from lib.model.flame import FLAME
-from lib.renderer.camera import depth2camera
+from lib.renderer.camera import Camera
+from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_color,
     load_depth,
@@ -22,20 +23,26 @@ class DPHMDataset(Dataset):
         optimize_frames: int = 1,
         start_frame_idx: int = 0,
         # rasterizer settings
-        image_scale: float = 1.0,
-        image_width: int = 1920,  # scaling is already done
-        image_height: int = 1080,  # scaling is already done
+        scale: float = 1.0,
+        width: int = 1920,
+        height: int = 1080,
         **kwargs,
     ):
         self.optimize_frames = optimize_frames
         self.start_frame_idx = start_frame_idx
-        self.image_size = image_height, image_width
-        self.image_scale = image_scale
-        self.data_dir = data_dir
-        self.K = load_intrinsics(
+
+        # define the camera
+        scale = scale
+        data_dir = data_dir
+        K = load_intrinsics(
             data_dir=data_dir,
             return_tensor="pt",
-            scale=image_scale,
+        )
+        self.camera = Camera(
+            K=K,
+            width=width,
+            height=height,
+            scale=scale,
         )
 
     def iter_frame_idx(self):
@@ -59,7 +66,7 @@ class DPHMDataset(Dataset):
             )  # (H, W, 3)
             image = v2.functional.resize(
                 inpt=image.permute(2, 0, 1),
-                size=self.image_size,
+                size=(self.camera.height, self.camera.width),
             ).permute(1, 2, 0)
             self.color.append(image.to(torch.uint8))  # (H',W',3)
 
@@ -83,7 +90,7 @@ class DPHMDataset(Dataset):
                 return_tensor="pt",
                 smooth=True,
             )
-            point, mask = depth2camera(depth=depth, K=self.K, scale=self.image_scale)
+            point, mask = self.camera.depth_map_transform(depth)
             self.point.append(point)
             self.mask.append(mask)
 
@@ -98,7 +105,7 @@ class DPHMDataset(Dataset):
             )
             normal = v2.functional.resize(
                 inpt=normal.permute(2, 0, 1),
-                size=self.image_size,
+                size=(self.camera.height, self.camera.width),
             ).permute(1, 2, 0)
             self.normal.append(normal)
 
@@ -147,7 +154,7 @@ class FLAMEDataset(DPHMDataset):
         **kwargs,
     ):
         super().__init__(**kwargs, optimize_frames=optimize_frames)
-        height, width = self.image_size
+
         flame = FLAME(
             flame_dir=flame_dir,
             data_dir=kwargs["data_dir"],
@@ -159,12 +166,8 @@ class FLAMEDataset(DPHMDataset):
         ).to("cuda")
         flame.init_params_flame(0.0)
         vertices, landmarks = flame()
-        renderer = flame.renderer(
-            width=width,
-            height=height,
-            diffuse=[0.6, 0.0, 0.0],
-            specular=[0.5, 0.0, 0.0],
-        )
+
+        renderer = Renderer(camera=self.camera)
         render = renderer.render_full(vertices, flame.masked_faces(vertices))
         self.mask = render["mask"][0].detach().cpu().numpy()
         self.point = render["point"][0].detach().cpu().numpy()

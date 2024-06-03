@@ -357,7 +357,6 @@ def load_flame_masks(flame_dir: str | Path, return_tensors: str = "np"):
 def load_intrinsics(
     data_dir: str | Path,
     return_tensor: str = "dict",
-    scale: float = 1.0,
 ):
     """The camera intrinsics for the kinect RGB-D sequence.
 
@@ -379,15 +378,18 @@ def load_intrinsics(
 
     # just the focal lengths (fx, fy) and the optical centers (cx, cy)
     K = {
-        "fx": intrinsics["color"]["fx"] * scale,
-        "fy": intrinsics["color"]["fy"] * scale,
-        "cx": intrinsics["color"]["cx"] * scale,
-        "cy": intrinsics["color"]["cy"] * scale,
+        "fx": intrinsics["color"]["fx"],
+        "fy": intrinsics["color"]["fy"],
+        "cx": intrinsics["color"]["cx"],
+        "cy": intrinsics["color"]["cy"],
     }
 
     if return_tensor == "pt":
         return torch.tensor(
-            [[K["fx"], 0.0, K["cx"]], [0.0, K["fy"], K["cy"]], [0.0, 0.0, 1.0]]
+            [
+                [K["fx"], 0.0, K["cx"]],
+                [0.0, K["fy"], K["cy"]],
+                [0.0, 0.0, 1.0],
+            ]
         )
-
     return K

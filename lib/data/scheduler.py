@@ -58,8 +58,7 @@ class CoarseToFineScheduler(Callback, Scheduler):
             return
         assert isinstance(pl_module, FLAME)
         datamodule = trainer.datamodule  # type: ignore
-        pl_module._renderer.update(width=datamodule.image_width)
-        pl_module._renderer.update(height=datamodule.image_height)
+        pl_module.renderer.update(scale=datamodule.scale)
 
     def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule):
         self.schedule_dataset(trainer, trainer.current_epoch)

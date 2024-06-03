@@ -15,12 +15,10 @@ from lib.model.loss import (
     chamfer_distance,
     landmark_3d_distance,
 )
-from lib.renderer.camera import camera2pixel
 from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_flame,
     load_flame_masks,
-    load_intrinsics,
     load_static_landmark_embedding,
 )
 
@@ -102,8 +100,10 @@ class FLAME(L.LightningModule):
         self.lm_mediapipe_idx = torch.nn.Parameter(lm_idx, requires_grad=False)
 
         # load the default intriniscs or initialize it with something good
-        # self.K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
-        self._renderer = Renderer(fov=25)
+        self.renderer = Renderer(
+            diffuse=[0.0, 0.0, 0.6],
+            specular=[0.0, 0.0, 0.5],
+        )
 
         # optimize modes
         self.optimize_modes: list[str] = ["default"]
@@ -231,10 +231,7 @@ class FLAME(L.LightningModule):
 
     def render_step(self, model: dict[str, torch.Tensor]):
         # initilize the renderer with the correct dimension
-        renderer = self.renderer(
-            diffuse=[0.0, 0.0, 0.6],
-            specular=[0.0, 0.0, 0.5],
-        )
+        renderer = self.renderer.to(self.device)
         # render the current flame model
         faces = self.masked_faces(model["vertices"])  # (F', 3)
         render = renderer.render_full(
@@ -264,13 +261,6 @@ class FLAME(L.LightningModule):
                 "lr_scheduler": {"scheduler": scheduler, "monitor": "train/loss"},
             }
         return {"optimizer": optimizer}
-
-    ####################################################################################
-    # Render the FLAME model, which needs to be in sync with the dataset.
-    ####################################################################################
-
-    def renderer(self, **kwargs):
-        return self._renderer.update(**kwargs).to(self.device)
 
     ####################################################################################
     # Model Utils
@@ -381,67 +371,67 @@ class FLAME(L.LightningModule):
         file_name = f"error_mask/{f_idx:03}_{self.current_epoch:05}.png"
         self.save_image(file_name, mask["mask"][b_idx])
 
-    def debug_correspondence(self, batch: dict, render: dict, model: dict):
-        _, b_idx, f_idx = self.debug_idx(batch)
+    # def debug_correspondence(self, batch: dict, render: dict, model: dict):
+    #     _, b_idx, f_idx = self.debug_idx(batch)
 
-        file_name = f"batch_landmarks/{f_idx:03}_{self.current_epoch:05}.png"
-        landmarks = batch["landmarks"]
-        if batch["landmarks"].shape[1] != 105:
-            landmarks = batch["landmarks"][:, self.lm_mediapipe_idx]
-        K = self.K
-        vp = camera2pixel(
-            landmarks[b_idx],
-            K[0, 0] * self.hparams["image_scale"],
-            K[1, 1] * self.hparams["image_scale"],
-            K[0, 2] * self.hparams["image_scale"],
-            K[1, 2] * self.hparams["image_scale"],
-        )
-        vp = vp[:, :2].to(torch.int64)
-        image = batch["color"][b_idx].clone()
-        image[vp[:, 1], vp[:, 0]] = torch.tensor(
-            [255, 0, 0], dtype=image.dtype, device=image.device
-        )
-        image[~batch["mask"][b_idx], :] = 255
-        image_batch = image.clone()
-        pixel_batch = vp.clone()
-        self.save_image(file_name, image)
+    #     file_name = f"batch_landmarks/{f_idx:03}_{self.current_epoch:05}.png"
+    #     landmarks = batch["landmarks"]
+    #     if batch["landmarks"].shape[1] != 105:
+    #         landmarks = batch["landmarks"][:, self.lm_mediapipe_idx]
+    #     K = self.K
+    #     vp = camera2pixel(
+    #         landmarks[b_idx],
+    #         K[0, 0] * self.hparams["image_scale"],
+    #         K[1, 1] * self.hparams["image_scale"],
+    #         K[0, 2] * self.hparams["image_scale"],
+    #         K[1, 2] * self.hparams["image_scale"],
+    #     )
+    #     vp = vp[:, :2].to(torch.int64)
+    #     image = batch["color"][b_idx].clone()
+    #     image[vp[:, 1], vp[:, 0]] = torch.tensor(
+    #         [255, 0, 0], dtype=image.dtype, device=image.device
+    #     )
+    #     image[~batch["mask"][b_idx], :] = 255
+    #     image_batch = image.clone()
+    #     pixel_batch = vp.clone()
+    #     self.save_image(file_name, image)
 
-        file_name = f"render_landmarks/{f_idx:03}_{self.current_epoch:05}.png"
-        landmarks = model["landmarks"]
-        K = self.K
-        vp = camera2pixel(
-            landmarks[b_idx],
-            K[0, 0] * self.hparams["image_scale"],
-            K[1, 1] * self.hparams["image_scale"],
-            K[0, 2] * self.hparams["image_scale"],
-            K[1, 2] * self.hparams["image_scale"],
-        )
-        vp = vp[:, :2].to(torch.int64)
-        image = render["shading_image"][b_idx].clone()
-        image[~render["mask"][b_idx], :] = 255
-        image[vp[:, 1], vp[:, 0]] = torch.tensor(
-            [255, 0, 0], dtype=image.dtype, device=image.device
-        )
-        image_render = image.clone()
-        pixel_render = vp.clone()
-        self.save_image(file_name, image)
+    #     file_name = f"render_landmarks/{f_idx:03}_{self.current_epoch:05}.png"
+    #     landmarks = model["landmarks"]
+    #     K = self.K
+    #     vp = camera2pixel(
+    #         landmarks[b_idx],
+    #         K[0, 0] * self.hparams["image_scale"],
+    #         K[1, 1] * self.hparams["image_scale"],
+    #         K[0, 2] * self.hparams["image_scale"],
+    #         K[1, 2] * self.hparams["image_scale"],
+    #     )
+    #     vp = vp[:, :2].to(torch.int64)
+    #     image = render["shading_image"][b_idx].clone()
+    #     image[~render["mask"][b_idx], :] = 255
+    #     image[vp[:, 1], vp[:, 0]] = torch.tensor(
+    #         [255, 0, 0], dtype=image.dtype, device=image.device
+    #     )
+    #     image_render = image.clone()
+    #     pixel_render = vp.clone()
+    #     self.save_image(file_name, image)
 
-        file_name = f"correspondence/{f_idx:03}_{self.current_epoch:05}.png"
-        merge = torch.concatenate([image_batch, image_render], dim=1)
+    #     file_name = f"correspondence/{f_idx:03}_{self.current_epoch:05}.png"
+    #     merge = torch.concatenate([image_batch, image_render], dim=1)
 
-        for pr, pb in zip(pixel_render, pixel_batch):
-            d = image_render.shape[1]
-            x = [pr[0] + d, pb[0]]
-            y = [pr[1], pb[1]]
-            plt.plot(x, y, color="red", linewidth=1)
-        plt.imshow(merge.detach().cpu().numpy())
-        # Getting the current figure
-        fig = plt.gcf()
-        # Extracting the pixel data
-        fig.canvas.draw()
-        image_array = np.array(fig.canvas.renderer._renderer)  # type: ignore
-        image = torch.tensor(image_array)
-        self.save_image(file_name, image)
+    #     for pr, pb in zip(pixel_render, pixel_batch):
+    #         d = image_render.shape[1]
+    #         x = [pr[0] + d, pb[0]]
+    #         y = [pr[1], pb[1]]
+    #         plt.plot(x, y, color="red", linewidth=1)
+    #     plt.imshow(merge.detach().cpu().numpy())
+    #     # Getting the current figure
+    #     fig = plt.gcf()
+    #     # Extracting the pixel data
+    #     fig.canvas.draw()
+    #     image_array = np.array(fig.canvas.renderer._renderer)  # type: ignore
+    #     image = torch.tensor(image_array)
+    #     self.save_image(file_name, image)
 
     def debug_render(self, batch: dict, render: dict):
         _, b_idx, f_idx = self.debug_idx(batch)

@@ -62,7 +62,7 @@ def face_angles(vertices: torch.Tensor, faces: torch.Tensor):
     return result
 
 
-def weighted_vertex_normals(vertices: torch.Tensor, faces: torch.Tensor):
+def vertex_normals(vertices: torch.Tensor, faces: torch.Tensor):
     """Calculates the vertex normals of a given mesh.
 
     Args:

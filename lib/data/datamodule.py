@@ -24,18 +24,16 @@ class DPHMDataModule(L.LightningDataModule):
     ) -> None:
         super().__init__()
         self.save_hyperparameters(logger=False)
-        self.base_scale = image_scale
-        self.base_width = image_width
-        self.base_height = image_height
+        self.scale = image_scale
+        self.width = image_width
+        self.height = image_height
 
-    def prepare_dataset(self, image_scale):
-        self.image_scale = image_scale
-        self.image_height = int(self.image_scale * self.base_height)
-        self.image_width = int(self.image_scale * self.base_width)
+    def prepare_dataset(self, scale: float = 1.0):
+        self.scale = scale
         self.dataset = self.hparams["dataset"](
-            image_scale=self.image_scale,
-            image_width=self.image_width,
-            image_height=self.image_height,
+            image_scale=self.scale,
+            image_width=self.width,
+            image_height=self.height,
         )
         assert self.hparams["batch_size"] <= self.dataset.optimize_frames
 
@@ -43,7 +41,7 @@ class DPHMDataModule(L.LightningDataModule):
         # default settings if coarse to fine scheduler is not set, note that if one
         # want's to use multiple gpu's this should be moved to setup.
         if not hasattr(self, "dataset"):
-            self.prepare_dataset(self.base_scale)
+            self.prepare_dataset(self.scale)
 
         return DataLoader(
             dataset=self.dataset,

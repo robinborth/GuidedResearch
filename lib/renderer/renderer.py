@@ -2,46 +2,37 @@ import torch
 import torch.nn as nn
 
 from lib.rasterizer import Rasterizer
-from lib.renderer.camera import FoVCamera
-from lib.utils.mesh import weighted_vertex_normals
+from lib.renderer.camera import Camera
+from lib.utils.mesh import vertex_normals
 
 
 class Renderer:
     def __init__(
         self,
-        fov: float = 45.0,
-        near: float = 1.0,
-        far: float = 100.0,
-        width: int = 1920,
-        height: int = 1080,
+        camera: Camera | None = None,
         diffuse: list[float] = [0.5, 0.5, 0.5],
         specular: list[float] = [0.3, 0.3, 0.3],
         light: list[float] = [-1.0, 1.0, 0.0],
-        device: str = "cpu",
+        device: str = "cuda",
         **kwargs,
     ):
         """The rendering settings.
 
         The renderer is only initilized once, and updated for each rendering pass for the correct resolution camera.
         This is because creating openGL context is only done once.
-
-        Args:
-            K (dict): NOTE: The scaled intrinsic based on H', W' of dim (3, 3).
-            image_width (int, optional): _description_. Defaults to 1920.
-            image_height (int, optional): _description_. Defaults to 1080.
-            diffuse (list[float]): _description_. Defaults to [0.5, 0.5, 0.5].
-            specular (list[float]): _description_. Defaults to [0.3, 0.3, 0.3].
-            light (list[float]): _description_. Defaults to [-1.0, 1.0, 0.0].
-            device (str): _description_. Defaults to "cpu".
         """
-        self.width = width
-        self.height = height
-        self.fov = fov
-        self.near = near
-        self.far = far
 
-        self.camera = FoVCamera(fov=fov, aspect=(width / height), near=near, far=far)
-        self.rasterizer = Rasterizer(width=width, height=height)
+        # self.camera = Camera(
+        #     K=self.K,
+        #     width=self.width,
+        #     height=self.height,
+        #     near=self.near,
+        #     far=self.far,
+        #     scale=self.scale,
+        #     fov_y=self.fov_y,
+        # )
+        self.camera = Camera() if camera is None else camera
+        self.rasterizer = Rasterizer(width=self.camera.width, height=self.camera.height)
 
         # rendering settings for shading
         self.diffuse = torch.tensor(diffuse, device=device)
@@ -49,47 +40,20 @@ class Renderer:
         self.light = torch.tensor(light, device=device)
 
     def to(self, device: str = "cpu"):
-        self.camera.M = self.camera.M.to(device)
+        self.camera = self.camera.to(device)
         self.diffuse = self.diffuse.to(device)
         self.specular = self.specular.to(device)
         self.light = self.light.to(device)
         return self
 
-    def update(
-        self,
-        fov: float | None = None,
-        near: float | None = None,
-        far: float | None = None,
-        width: int | None = None,
-        height: int | None = None,
-        diffuse: list[float] | None = None,
-        specular: list[float] | None = None,
-        light: list[float] | None = None,
-    ):
-        if fov is not None:
-            self.fov = fov
-        if near is not None:
-            self.near = near
-        if far is not None:
-            self.far = far
-        if width is not None:
-            self.width = width
-        if height is not None:
-            self.height = height
-        if diffuse is not None:
-            self.diffuse = torch.tensor(diffuse, device=self.diffuse.device)
-        if specular is not None:
-            self.specular = torch.tensor(specular, device=self.specular.device)
-        if light is not None:
-            self.light = torch.tensor(light, device=self.light.device)
+    def update(self, scale: float | None = None):
+        if scale is not None:
+            self.scale = scale
 
-        self.camera = FoVCamera(
-            fov=self.fov,
-            aspect=(self.width / self.height),
-            near=self.near,
-            far=self.far,
-        )
-        self.rasterizer.update(width=self.width, height=self.height)
+        # TODO
+        raise NotImplementedError("camera")
+        self.rasterizer.update(width=self.camera.width, height=self.camera.height)
+
         return self
 
     def render(
@@ -110,7 +74,8 @@ class Renderer:
                 that are barycentric interpolated, hence the dim is (H, W, D). Not that
                 we have a row-major matrix representation.
         """
-        homo_clip_vertices = self.camera.transfrom(vertices)  # (B, V, 4)
+        homo_vertices = self.camera.convert_to_homo_coords(vertices)
+        homo_clip_vertices = self.camera.clip_transform(homo_vertices)  # (B, V, 4)
         fragments = self.rasterizer.rasterize(homo_clip_vertices, faces)
         vertices_idx = faces[fragments.pix_to_face]  # (B, H, W, 3)
 
@@ -191,11 +156,11 @@ class Renderer:
         Returns:
             (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W, 3).
         """
-        vertex_normals = weighted_vertex_normals(vertices, faces)
+        normals = vertex_normals(vertices, faces)
         normal, mask = self.render(
             vertices=vertices,
             faces=faces,
-            attributes=vertex_normals,
+            attributes=normals,
         )  # (B, H', W', 3)
         return normal, mask
 

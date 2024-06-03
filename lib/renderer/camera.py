@@ -1,215 +1,243 @@
 import math
-from typing import Any
 
-import numpy as np
 import torch
 from torchvision.transforms import v2
 
 
-class FoVCamera:
+class Camera:
+    """
+    For the camera there are four different coordinate systems (or spaces):
+    - Camera space: We follow OpenGL coordinate system with the
+        right-hand rule where we have +X points right, +Y points up and +Z
+        point to the camera.
+    - Cilp space: Any coordinate outside within the range is being clipped.
+        We use this coordinate system as an input for the rasterizer. Note
+        That we use homogeneous coordinates, hence the w value (x,y,z,w) is
+        used for clipping -w < x,y,z < w. Note that we convert here from
+        right-hand rule to left-hand rule, because +Z now points awy from
+        the camera.
+    - NDC space: This is the normalzied Clip space where each coordiante
+        in the frustrum is between (-1,1). We don't performe the
+        transformation ourselv we let OpenGL do that.
+    - Screen space: The representation of the frustrum defined in pixel space
+        instead of a normalzied space, where the top left pixel is (0,0) and
+        the bottom right corner is (W,H).
+
+    Args:
+        K: Note that the intrinsics matrix needs to be the default matrix, the
+            scaling happens inside the camera model.
+    """
+
     def __init__(
         self,
-        fov: float,
-        aspect: float,
-        near: float = 1.0,
+        width: int = 1920,
+        height: int = 1080,
+        scale: float = 1.0,
+        fov_y: float = 45.0,
+        near: float = 0.01,
         far: float = 100.0,
-        K=None,
-        device: str = "cpu",
+        K: torch.Tensor | None = None,
+        device: str = "cuda",
     ):
+        self.original_width = width
+        self.original_height = height
+        self.scale = scale
+        self.width = int(width * scale)
+        self.height = int(height * scale)
+        self.near = near
+        self.far = far
+        self.fov_y = fov_y
+
+        self.device = device
+
         if K is None:
-            self.M = fov_perspective_projection(
-                fov=fov,
-                aspect=aspect,
-                near=near,
-                far=far,
+            self.projection_matrix = self.fov_perspective_projection(
+                fov_y=self.fov_y,
+                width=self.width,
+                height=self.height,
+                near=self.near,
+                far=self.far,
             )
         else:
-            self.M = K
-        self.M = self.M.to(device)
+            self.projection_matrix = self.intrinsics_perspective_projection(
+                K=K,
+                scale=self.scale,
+                width=self.width,
+                height=self.height,
+                near=self.near,
+                far=self.far,
+            )
 
-    def transfrom(self, coords: torch.Tensor):
-        """Converts coords into homogeneous coordiates in clip space."""
-        homo_coords = convert_to_homo_coords(coords)
-        # return torch.matmul(
-        #     self.M.to(homo_coords.device), homo_coords.transpose(-2, -1)
-        # ).transpose(-2, -1)
-        return torch.matmul(homo_coords, self.M.to(homo_coords.device))
+    def fov_perspective_projection(
+        self,
+        fov_y: float,
+        width: int,
+        height: int,
+        near: float = 1.0,
+        far: float = 100.0,
+    ):
+        """
+        Returns:
+            P: Perspective projection matrix, (4, 4)
+                P = [
+                        [2*n/(r-l), 0.0,        (r+l)/(r-l),    0.0         ],
+                        [0.0,       2*n/(t-b),  (t+b)/(t-b),    0.0         ],
+                        [0.0,       0.0,        -(f+n)/(f-n),   -(f*n)/(f-n)],
+                        [0.0,       0.0,        -1.0,            0.0         ]
+                    ]
+        """
+        deg2rad = math.pi / 180
+        tan_fov_y = math.tan(fov_y * 0.5 * deg2rad)
+        tan_fov_x = tan_fov_y * (width / height)
+        top = tan_fov_y * near
+        bottom = -top
+        right = tan_fov_x * near
+        left = -right
+        z_sign = -1.0
 
+        proj = torch.zeros([4, 4], device=self.device)
 
-def convert_to_homo_coords(coords: torch.Tensor):
-    shape = list(coords.shape)
-    shape[-1] = shape[-1] + 1
-    homo_coords = torch.ones(shape, device=coords.device)
-    homo_coords[:, :, :3] = coords
-    return homo_coords
+        proj[0, 0] = 2.0 * near / (right - left)
+        proj[1, 1] = 2.0 * near / (top - bottom)
+        proj[0, 2] = (right + left) / (right - left)
+        proj[1, 2] = (top + bottom) / (top - bottom)
+        proj[3, 2] = z_sign
+        proj[2, 2] = z_sign * (far + near) / (far - near)
+        proj[2, 3] = -(2.0 * far * near) / (far - near)
+        return proj
 
+    def intrinsics_perspective_projection(
+        self,
+        K: torch.Tensor,
+        width: int,
+        height: int,
+        scale: float = 1.0,
+        near: float = 0.01,
+        far: float = 100.0,
+    ):
+        """
+        Transform points from camera space (x: right, y: up, z: out) to clip space (x: right, y: up, z: in)
 
-def fov_perspective_projection(
-    fov: float,
-    aspect: float,
-    near: float = 1.0,
-    far: float = 100.0,
-):
-    """
-    For information check out the math:
-    https://www.songho.ca/opengl/gl_projectionmatrix.html
-    """
-    deg2rad = math.pi / 180
-    tangent = math.tan(fov * 0.5 * deg2rad)
-    t = tangent * near
-    r = t * aspect
-    l = -r
-    b = -t
-    return torch.tensor(
-        [
-            [2 * near / (r - l), 0.0, (r + l) / (r - l), 0.0],
-            [0.0, 2 * near / (t - b), (t + b) / (t - b), 0.0],
-            [0.0, 0.0, -(far + near) / (far - near), -(2 * far * near) / (far - near)],
-            [0.0, 0.0, -1.0, 0.0],
-        ]
-    )
+        For information check out the math:
+        https://www.songho.ca/opengl/gl_projectionmatrix.html
 
+        Args:
+            K: Intrinsic matrix, (3, 3)
+                K = [
+                        [fx, 0, cx],
+                        [0, fy, cy],
+                        [0,  0,  1],
+                    ]
+        Returns:
+            P: Perspective projection matrix, (4, 4)
+                P = [
+                        [2*fx/w, 0.0,     (w - 2*cx)/w,             0.0                     ],
+                        [0.0,    2*fy/h,  (h - 2*cy)/h,             0.0                     ],
+                        [0.0,    0.0,     -(far+near) / (far-near), -2*far*near / (far-near)],
+                        [0.0,    0.0,     -1.0,                     0.0                     ]
+                    ]
+        """
+        w = width
+        h = height
+        fx = K[0, 0] * scale
+        fy = K[1, 1] * scale
+        cx = K[0, 2] * scale
+        cy = K[1, 2] * scale
 
-def camera2pixel(
-    points: Any,
-    fx: float,
-    fy: float,
-    cx: float,
-    cy: float,
-):
-    """Converts points in camera coordinates to points in pixel coordinates.
+        proj = torch.zeros([4, 4], device=self.device)
+        proj[0, 0] = fx * 2 / w
+        proj[1, 1] = fy * 2 / h
+        proj[0, 2] = (w - 2 * cx) / w
+        proj[1, 2] = (h - 2 * cy) / h
+        proj[2, 2] = -(far + near) / (far - near)
+        proj[2, 3] = -2 * far * near / (far - near)
+        proj[3, 2] = -1
+        return proj
 
-    We follow the perspective projection described in the CV2 lecture chapter03
-    image formation, with some modifications. We return a 3D vector of (N, 3) where
-    the z-coordinate is the actual depth value from the camera coordinate. The x,y are
-    in pixel coordinates. An example would be:
+    def convert_to_homo_coords(self, p: torch.Tensor):
+        shape = list(p.shape)
+        assert shape[-1] == 3
+        shape[-1] = shape[-1] + 1
+        p_homo = torch.ones(shape, device=p.device)
+        p_homo[..., :3] = p
+        return p_homo
 
-    Input:
-    fx = 914.415
-    fy = 914.03
-    cx = 959.598
-    cy = 547.202
-    xyz_camera = [-0.051, -0.042,  0.575] (x, y, z_c)
+    def clip_transform(self, p_camera: torch.Tensor):
+        return torch.matmul(p_camera, self.projection_matrix.T)
 
-    Output:
-    uvz_pixel = [878.0, 480.0, 0.575] (u, v, z_c)
+    def ndc_transform(self, p_camera: torch.Tensor):
+        p_clip = self.clip_transform(p_camera)
+        p_clip[..., 0] /= p_clip[..., 3]
+        p_clip[..., 1] /= p_clip[..., 3]
+        p_clip[..., 2] /= p_clip[..., 3]
+        p_clip[..., 3] /= p_clip[..., 3]
+        return p_clip
 
-    Args:
-        points (Any): The points in camera coordinate system .
-        fx (float): The intrinsics of focal lengths.
-        fy (float): The intrinsics of focal lengths.
-        cx (float): The intrinsics of pixel coordinates of the camera optical center.
-        cy (float): The intrinsics of pixel coordinates of the camera optical center.
+    def screen_transform(self, p_camera: torch.Tensor):
+        p_ndc = self.ndc_transform(p_camera)
+        depth = p_camera[..., 2]
+        u = (p_ndc[..., 0] + 1) * 0.5 * self.width
+        v = (p_ndc[..., 1] + 1) * 0.5 * self.height
+        return torch.stack([u, v, depth], dim=-1)
 
-    Returns:
-        (np.ndarray | torch.Tensor): The points in pixel coordinate system.
-    """
-    # extract the coordinates
-    xc = points[:, 0]
-    yc = points[:, 1]
-    zc = points[:, 2]
+    def unproject_points(self, xy_depth: torch.Tensor):
+        """
+        The x,y data contains the values in ndc coordinates space, hence they
+        are between (-1, 1) and the depth is the value from the z-plane in
+        camera space, hence the sign should be negative.
 
-    # from camera space to pixel space
-    u = cx + fx * (xc / zc)
-    v = cy + fy * (yc / zc)
-    depth = zc
+        xy_depth[i] = [x[i], y[i], depth[i]]
+        """
+        z_camera = xy_depth[..., 2]
+        p1 = self.projection_matrix[2, 2]
+        p2 = self.projection_matrix[2, 3]
+        p3 = self.projection_matrix[3, 2]
+        w_clip = p3 * z_camera
+        z_ndc = (p1 * z_camera + p2) / w_clip
+        p_ndc = torch.stack([xy_depth[..., 0], xy_depth[..., 1], z_ndc], dim=-1)
+        p_ndc = self.convert_to_homo_coords(p_ndc)
+        # convert back to clip space
+        p_clip = p_ndc
+        p_clip[..., 0] *= w_clip
+        p_clip[..., 1] *= w_clip
+        p_clip[..., 2] *= w_clip
+        p_clip[..., 3] *= w_clip
+        p_clip = torch.nan_to_num(p_clip, nan=0.0)
+        # extract only x,y,z component
+        p_camera = torch.matmul(p_clip, self.projection_matrix.inverse().T)
+        return p_camera[..., :3]
 
-    if isinstance(u, torch.Tensor):
-        return torch.stack([u, v, depth], dim=-1)  # (N, 3)
-    return np.stack([u, v, depth], axis=-1)  # (N, 3)
+    def depth_map_transform(self, depth: torch.Tensor):
+        """
+        Transforms a depth map to camera coordinates, where the depth values
+        are positive, which is flipped in this function, because +Z points
+        towards the camera.
+        """
+        assert depth.shape[0] == self.original_height
+        assert depth.shape[1] == self.original_width
 
+        # calculate the mask with the backgound and then output the forground, e.g the resize is
+        # downing the interpolation in a way that by boolen we just keep true.
+        size = (self.height, self.width)
+        b_mask = v2.functional.resize((depth == 0).unsqueeze(0), size=size).squeeze(0)
+        depth = v2.functional.resize(depth.unsqueeze(0), size=size).squeeze(0)
 
-def pixel2camera(
-    points: Any,
-    fx: float,
-    fy: float,
-    cx: float,
-    cy: float,
-):
-    """Converts points in pixel coordinates to points in camera coordinates.
+        depth_camera = -depth.unsqueeze(-1).to(self.device)
+        x_ndc = torch.linspace(-1, 1, steps=self.width, device=self.device)
+        y_ndc = torch.linspace(1, -1, steps=self.height, device=self.device)
+        y_grid, x_grid = torch.meshgrid(y_ndc, x_ndc, indexing="ij")
+        xy_ndc = torch.stack([x_grid, y_grid], dim=-1)
+        xy_depth = torch.concatenate([xy_ndc, depth_camera], dim=-1)
+        p_camera = self.unproject_points(xy_depth=xy_depth)
 
-    We follow the intrinsic camera calibration on the kinect documentation of the CV2
-    chair. However we asume that the points that are in pixel coordinate system, e.g.
-    have coordinates (u,v) with an additional depth information. Hence the dimension is
-    (N, 3), where we have a 1:1 correspondence between pixels and their depth. For more
-    information refer to:
+        p_camera[b_mask, :] = 0.0
+        mask = ~b_mask
 
-    https://cvg.cit.tum.de/data/datasets/rgbd-dataset/file_formats
+        return p_camera, mask
 
-
-    Args:
-        points (Any): The points in pixel space.
-        fx (float): The intrinsics of focal lengths.
-        fy (float): The intrinsics of focal lengths.
-        cx (float): The intrinsics of pixel coordinates of the camera optical center.
-        cy (float): The intrinsics of pixel coordinates of the camera optical center.
-
-    Returns:
-        (np.ndarray | torch.Tensor): The points in camera coordinate system.
-    """
-    # extract the coordinates
-    u = points[:, 0]
-    v = points[:, 1]
-    zc = points[:, 2]
-
-    # convert pixel to camera coordinates
-    xc = (u - cx) * (zc / fx)
-    yc = (v - cy) * (zc / fy)
-
-    if isinstance(u, torch.Tensor):
-        return torch.stack([xc, yc, zc], dim=-1)  # (N, 3)
-    return np.stack([xc, yc, zc], axis=-1)  # (N, 3)
-
-
-def depth2camera(
-    depth: torch.Tensor,
-    K: torch.Tensor,
-    scale: float = 1.0,
-):
-    """Converts depth image in camera coordinates as image.
-
-    After this transformation each pixel cooresponds to the 3d coordinate in camera
-    coordinate system. Further we can specify the scale of the output image, hence
-    reduce the image size, which is usefull for the coarse to fine strategy. Note that
-    we need to make sure to interpolate the binary mask of backgfound and foreground
-    properly.
-
-    Args:
-        depth (torch.Tensor): The (H,W) depth image, where each pixel stores the depth
-            value in camera coordinate measurements.
-        K (torch.Tensor): The 3x3 intrinsic matrix that is already properly scaled.
-        scale (float): The scale of the output camera
-
-    Returns:
-        (torch.Tensor): The image of the 3d camera coordinates, where values of 0 depth
-        e.g. z dim cooresponds to background.
-    """
-    H, W = int(depth.shape[0] * scale), int(depth.shape[1] * scale)
-
-    # calc the mask with the backgound and then output the forground, e.g the resize is
-    # downing the interpolation in a way that by boolen we just keep true.
-    b_mask = v2.functional.resize((depth == 0.0).unsqueeze(0), size=(H, W)).squeeze(0)
-
-    # get the new size of the depth image
-    depth = v2.functional.resize(depth.unsqueeze(0), size=(H, W)).squeeze(0)
-
-    # span the pixel indexes
-    x = torch.arange(W)
-    y = torch.arange(H)
-    idx = torch.stack(torch.meshgrid(y, x, indexing="ij"), dim=-1).flip(-1)
-
-    # get the points in camera coordinates, but with the new resolution
-    points = torch.concat([idx, depth.unsqueeze(-1)], dim=-1)
-    points[:, :, 0] *= points[:, :, 2]
-    points[:, :, 1] *= points[:, :, 2]
-    camera = K.inverse() @ points.permute(2, 0, 1).reshape(3, -1)
-    camera = camera.reshape(3, points.shape[0], points.shape[1]).permute(1, 2, 0)
-
-    # the background is just zero
-    camera[b_mask, :] = 0.0
-    mask = ~b_mask
-
-    return camera, mask
+    def to(self, device: str = "cuda"):
+        self.projection_matrix = self.projection_matrix.to(device)
+        return self
 
 
 def camera2normal(point: torch.Tensor):
