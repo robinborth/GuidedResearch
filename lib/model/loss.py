@@ -46,16 +46,18 @@ def chamfer_distance(vertices: torch.Tensor, points: torch.Tensor):
     return dist.min(-1).values.mean(-1) + dist.min(-2).values.mean(-1)  # (B,)
 
 
-def landmark_3d_distance(
-    landmarks: torch.Tensor,
-    gt_landmarks: torch.Tensor,
-):
+def landmark_3d_distance(landmarks: torch.Tensor, gt_landmarks: torch.Tensor):
     """Calculates the 3d landmark loss between the vertices.
 
     Args:
         landmarks: (torch.Tensor): The 3d coords of the flame landmarks (105, 3)
         gt_landmarks: (torch.Tensor): The 3d coords of the mediapipe landmarks (105, 3)
     """
+    return torch.norm(landmarks - gt_landmarks, dim=-1)
+
+
+def landmark_2d_distance(landmarks: torch.Tensor, gt_landmarks: torch.Tensor):
+    """Calculates the 3d landmark loss between the vertices."""
     return torch.norm(landmarks - gt_landmarks, dim=-1)
 
 

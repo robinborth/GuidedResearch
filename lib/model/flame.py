@@ -13,6 +13,7 @@ from lib.model.loss import (
     calculate_point2plane,
     calculate_point2point,
     chamfer_distance,
+    landmark_2d_distance,
     landmark_3d_distance,
 )
 from lib.rasterizer import Rasterizer
@@ -195,7 +196,11 @@ class FLAME(L.LightningModule):
 
         return vertices, landmarks  # (B, V, 3), (B, 105, 3)
 
-    def model_step(self, frame_idx: torch.Tensor, shape_idx: torch.Tensor):
+    def model_step(self, frame_idx: torch.Tensor | int, shape_idx: torch.Tensor | int):
+        if isinstance(frame_idx, int):
+            frame_idx = torch.tensor([frame_idx], device=self.device)
+        if isinstance(shape_idx, int):
+            shape_idx = torch.tensor([shape_idx], device=self.device)
         vertices, landmarks = self.forward(
             shape_params=self.shape_params(shape_idx),  # (B, S')
             expression_params=self.expression_params(frame_idx),  # (B, E')
@@ -206,7 +211,10 @@ class FLAME(L.LightningModule):
             transl=self.transl(frame_idx),
             scale=self.scale(frame_idx),
         )  # (B, V, 3)
-        return {"vertices": vertices, "landmarks": landmarks}
+        lm_3d_homo = self.renderer.camera.convert_to_homo_coords(landmarks)
+        lm_2d_ndc = self.renderer.camera.ndc_transform(lm_3d_homo)
+        lm_2d_ndc = lm_2d_ndc[..., :2]
+        return {"vertices": vertices, "lm_3d_camera": landmarks, "lm_2d_ndc": lm_2d_ndc}
 
     def render_step(self, model: dict[str, torch.Tensor]):
         # render the current flame model
@@ -248,16 +256,16 @@ class FLAME(L.LightningModule):
     # Model Utils
     ####################################################################################
 
-    def init_renderer(self, camera: Camera, rasterizer: Rasterizer):
+    def init_renderer(
+        self,
+        camera: Camera,
+        rasterizer: Rasterizer,
+        **kwargs,
+    ):
         # copy camera and rasterizer from the datamodule
         renderer = getattr(self, "renderer", None)
         if renderer is None and camera is not None and rasterizer is not None:
-            self.renderer = Renderer(
-                camera=camera,
-                rasterizer=rasterizer,
-                diffuse=[0.0, 0.0, 0.6],
-                specular=[0.0, 0.0, 0.5],
-            )
+            self.renderer = Renderer(camera=camera, rasterizer=rasterizer, **kwargs)
 
     def init_params(self, **kwargs):
         """Initilize the params of the FLAME model.
@@ -355,7 +363,7 @@ class FLAME(L.LightningModule):
         sm = cm.ScalarMappable(norm=norm, cmap=cmap)
 
         # point to point error map
-        file_name = f"point2point_error_map/{f_idx:03}_{self.current_epoch:05}.png"
+        file_name = f"error_point_to_point/{f_idx:03}_{self.current_epoch:05}.png"
         loss = torch.sqrt(
             calculate_point2point(batch["point"], render["point"])
         )  # (B, W, H)
@@ -366,7 +374,7 @@ class FLAME(L.LightningModule):
         self.save_image(file_name, error_map)
 
         # point to plane error map
-        file_name = f"point2plane_error_map/{f_idx:03}_{self.current_epoch:05}.png"
+        file_name = f"error_point_to_plane/{f_idx:03}_{self.current_epoch:05}.png"
         loss = torch.sqrt(
             calculate_point2plane(
                 p=render["point"],
@@ -384,7 +392,7 @@ class FLAME(L.LightningModule):
         file_name = f"error_mask/{f_idx:03}_{self.current_epoch:05}.png"
         self.save_image(file_name, mask["mask"][b_idx])
 
-    def debug_render(self, batch: dict, render: dict):
+    def debug_render(self, batch: dict, render: dict, model: dict):
         _, b_idx, f_idx = self.debug_idx(batch)
 
         file_name = f"render_mask/{f_idx:03}_{self.current_epoch:05}.png"
@@ -396,33 +404,47 @@ class FLAME(L.LightningModule):
         file_name = f"render_normal/{f_idx:03}_{self.current_epoch:05}.png"
         self.save_image(file_name, render["normal_image"][b_idx])
 
-        file_name = f"render_shading/{f_idx:03}_{self.current_epoch:05}.png"
-        self.save_image(file_name, render["shading_image"][b_idx])
+        file_name = f"render_color/{f_idx:03}_{self.current_epoch:05}.png"
+        self.save_image(file_name, render["color"][b_idx])
 
-        file_name = f"render_merged/{f_idx:03}_{self.current_epoch:05}.png"
-        render_merged = batch["color"].clone()
+        file_name = f"render_merged_depth/{f_idx:03}_{self.current_epoch:05}.png"
+        render_merged_depth = batch["color"].clone()
         color_mask = (
             (render["point"][:, :, :, 2] < batch["point"][:, :, :, 2])
             | (render["mask"] & ~batch["mask"])
         ) & render["mask"]
-        render_merged[color_mask] = render["shading_image"][color_mask]
+        render_merged_depth[color_mask] = render["color"][color_mask]
+        self.save_image(file_name, render_merged_depth[b_idx])
+
+        file_name = f"render_merged/{f_idx:03}_{self.current_epoch:05}.png"
+        render_merged = batch["color"].clone()
+        render_merged[render["mask"]] = render["color"][render["mask"]]
         self.save_image(file_name, render_merged[b_idx])
 
-        file_name = f"render_overlay/{f_idx:03}_{self.current_epoch:05}.png"
-        render_overlay = batch["color"].clone()
-        render_overlay[render["mask"]] = render["shading_image"][render["mask"]]
-        self.save_image(file_name, render_overlay[b_idx])
+        file_name = f"render_landmark/{f_idx:03}_{self.current_epoch:05}.png"
+        lm_2d_screen = self.renderer.camera.xy_ndc_to_screen(model["lm_2d_ndc"])
+        x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
+        y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
+        color_image = render["color"][b_idx]
+        color_image[y_idx, x_idx, :] = 255
+        self.save_image(file_name, color_image)
 
-    def debug_3d_points(self, batch: dict, render: dict):
+    def debug_3d_points(self, batch: dict, render: dict, model: dict):
         B, b_idx, f_idx = self.debug_idx(batch)
         # save the gt points
-        file_name = f"batch_point/{f_idx:03}_{self.current_epoch:05}.npy"
+        file_name = f"point_batch/{f_idx:03}_{self.current_epoch:05}.npy"
         points = batch["point"][batch["mask"]].reshape(B, -1, 3)
         self.save_points(file_name, points[b_idx])
-        # save the flame vertices
-        file_name = f"render_point/{f_idx:03}_{self.current_epoch:05}.npy"
+        # save the flame points
+        file_name = f"point_render/{f_idx:03}_{self.current_epoch:05}.npy"
         render_points = render["point"][render["mask"]].reshape(B, -1, 3)
         self.save_points(file_name, render_points[b_idx])
+        # save the lm_3d gt points
+        file_name = f"point_batch_landmark/{f_idx:03}_{self.current_epoch:05}.npy"
+        self.save_points(file_name, batch["lm_3d_camera"][b_idx])
+        # save the lm_3d flame points
+        file_name = f"point_render_landmark/{f_idx:03}_{self.current_epoch:05}.npy"
+        self.save_points(file_name, model["lm_3d_camera"][b_idx])
 
     def debug_input_batch(self, batch: dict, model: dict, render: dict):
         _, b_idx, f_idx = self.debug_idx(batch)
@@ -439,6 +461,14 @@ class FLAME(L.LightningModule):
         normal_image = Renderer.normal_to_normal_image(batch["normal"], batch["mask"])
         self.save_image(file_name, normal_image[b_idx])
 
+        file_name = f"batch_landmark/{f_idx:03}_{self.current_epoch:05}.png"
+        lm_2d_screen = self.renderer.camera.xy_ndc_to_screen(batch["lm_2d_ndc"])
+        x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
+        y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
+        color_image = batch["color"][b_idx]
+        color_image[y_idx, x_idx, :] = 255
+        self.save_image(file_name, color_image)
+
     def debug_metrics(self, batch: dict, model: dict, render: dict, mask: dict):
         B, _, _ = self.debug_idx(batch)
         # debug chamfer loss
@@ -447,12 +477,18 @@ class FLAME(L.LightningModule):
             points=batch["point"][batch["mask"]].reshape(B, -1, 3),
         )  # (B,)
         self.log("train/chamfer", chamfer.mean(), prog_bar=True)
-        # debug landmark loss, the dataset contains all >400 mediapipe landmarks
-        landmarks = batch["landmarks"]
-        if batch["landmarks"].shape[1] != 105:
-            landmarks = batch["landmarks"][:, self.lm_mediapipe_idx]
-        lm3d_dist = landmark_3d_distance(model["landmarks"], landmarks)  # (B,)
-        self.log("train/lm3d_dist", lm3d_dist.mean(), prog_bar=True)
+        # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
+        lm_3d_camera = batch["lm_3d_camera"]
+        if batch["lm_3d_camera"].shape[1] != 105:
+            lm_3d_camera = batch["lm_3d_camera"][:, self.lm_mediapipe_idx]
+        lm_3d_dist = landmark_3d_distance(model["lm_3d_camera"], lm_3d_camera)  # (B,)
+        self.log("train/lm_3d_dist", lm_3d_dist.mean(), prog_bar=True)
+        # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
+        lm_2d_ndc = batch["lm_2d_ndc"]
+        if batch["lm_2d_ndc"].shape[1] != 105:
+            lm_2d_ndc = batch["lm_2d_ndc"][:, self.lm_mediapipe_idx]
+        lm_2d_dist = landmark_2d_distance(model["lm_2d_ndc"], lm_2d_ndc)  # (B,)
+        self.log("train/lm_2d_dist", lm_2d_dist.mean(), prog_bar=True)
         # debug the overlap of the mask
         for key, value in mask.items():
             self.log(f"debug/{key}", float(value.sum()))
@@ -510,8 +546,8 @@ class FLAMEPoint2Point(FLAME):
         self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
         # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
-            self.debug_render(batch=batch, render=render)
-            self.debug_3d_points(batch=batch, render=render)
+            self.debug_render(batch=batch, model=model, render=render)
+            self.debug_3d_points(batch=batch, model=model, render=render)
             self.debug_input_batch(batch=batch, model=model, render=render)
             self.debug_loss(batch=batch, render=render, mask=mask)
 
@@ -544,8 +580,8 @@ class FLAMEPoint2Plane(FLAME):
         render = self.render_step(model)
 
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
-            self.debug_render(batch=batch, render=render)
-            self.debug_3d_points(batch=batch, render=render)
+            self.debug_3d_points(batch=batch, model=model, render=render)
+            self.debug_render(batch=batch, model=model, render=render)
             self.debug_input_batch(batch=batch, model=model, render=render)
 
         # rejection based on outliers
@@ -553,10 +589,13 @@ class FLAMEPoint2Plane(FLAME):
 
         # distance in camera space per pixel & point to point loss
         point2plane = calculate_point2plane(
-            q=render["point"], p=batch["point"].detach(), n=render["normal"].detach()
+            q=render["point"],
+            p=batch["point"].detach(),
+            n=render["normal"].detach(),
         )  # (B, W, H)
         point2point = calculate_point2point(
-            q=render["point"], p=batch["point"].detach()
+            q=render["point"],
+            p=batch["point"].detach(),
         )  # (B, W, H)
         point2plane_loss = point2plane[mask["mask"]].mean()
         point2point_loss = 0.1 * point2point[mask["mask"]].mean()

@@ -9,9 +9,9 @@ from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_color,
     load_depth,
+    load_mediapipe_landmark_2d,
     load_mediapipe_landmark_3d,
     load_normal,
-    load_points_3d,
 )
 
 
@@ -36,11 +36,23 @@ class DPHMDataset(Dataset):
             self.start_frame_idx, self.start_frame_idx + self.optimize_frames
         )
 
-    def load_landmarks(self):
-        self.landmarks = []
+    def load_lm_2d_ndc(self):
+        self.lm_2d_ndc = []
+        for frame_idx in self.iter_frame_idx():
+            landmarks = load_mediapipe_landmark_2d(self.data_dir, idx=frame_idx)
+            # the landmarks needs to be in ndc space hence bottom left is (-1,-1)
+            landmarks[:, 0] = (landmarks[:, 0] * 2) - 1
+            landmarks[:, 1] = -((landmarks[:, 1] * 2) - 1)
+            # landmarks[:, 1] = ((landmarks[:, 1] - 1) * 2) + 1
+            self.lm_2d_ndc.append(landmarks)
+
+    def load_lm_3d_camera(self):
+        self.lm_3d_camera = []
         for frame_idx in self.iter_frame_idx():
             landmarks = load_mediapipe_landmark_3d(self.data_dir, idx=frame_idx)
-            self.landmarks.append(landmarks)
+            landmarks[:, 1] = -landmarks[:, 1]
+            landmarks[:, 2] = -landmarks[:, 2]
+            self.lm_3d_camera.append(landmarks)
 
     def load_color(self):
         self.color = []
@@ -101,7 +113,8 @@ class DPHMPointDataset(DPHMDataset):
         super().__init__(**kwargs)
         self.load_point()
         self.load_normal()
-        self.load_landmarks()
+        self.load_lm_2d_ndc()
+        self.load_lm_3d_camera()
         self.load_color()
 
     def __getitem__(self, idx: int):
@@ -110,7 +123,8 @@ class DPHMPointDataset(DPHMDataset):
         point = self.point[idx]
         normal = self.normal[idx]
         color = self.color[idx]
-        landmarks = self.landmarks[idx]
+        lm_2d_ndc = self.lm_2d_ndc[idx]
+        lm_3d_camera = self.lm_3d_camera[idx]
         return {
             "shape_idx": 0,
             "frame_idx": idx,
@@ -118,20 +132,21 @@ class DPHMPointDataset(DPHMDataset):
             "point": point,
             "normal": normal,
             "color": color,
-            "landmarks": landmarks,
+            "lm_2d_ndc": lm_2d_ndc,
+            "lm_3d_camera": lm_3d_camera,
         }
 
 
 class FLAMEDataset(DPHMDataset):
     def __init__(
         self,
+        rasterizer: Rasterizer,
         flame_dir: str = "/flame",
         num_shape_params: int = 100,
         num_expression_params: int = 50,
         optimize_frames: int = 1,
         optimize_shapes: int = 1,
         vertices_mask: str = "face",
-        rasterizer: Rasterizer | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs, optimize_frames=optimize_frames)
@@ -145,21 +160,26 @@ class FLAMEDataset(DPHMDataset):
             vertices_mask=vertices_mask,
         ).to("cuda")
         flame.init_params_flame(0.0)
-        vertices, landmarks = flame()
-
-        renderer = Renderer(
+        flame.init_renderer(
             camera=self.camera,
             rasterizer=rasterizer,
             diffuse=[0.6, 0.0, 0.0],
             specular=[0.5, 0.0, 0.0],
         )
-        render = renderer.render_full(vertices, flame.masked_faces(vertices))
+
+        model = flame.model_step(0, 0)
+        vertices = model["vertices"]
+        lm_2d_ndc = model["lm_2d_ndc"]
+        lm_3d_camera = model["lm_3d_camera"]
+
+        render = flame.renderer.render_full(vertices, flame.masked_faces(vertices))
         self.mask = render["mask"][0].detach().cpu().numpy()
         self.point = render["point"][0].detach().cpu().numpy()
         self.normal = render["normal"][0].detach().cpu().numpy()
-        self.color = render["shading_image"][0].detach().cpu().numpy()
+        self.color = render["color"][0].detach().cpu().numpy()
         self.color[~self.mask, :] = 255
-        self.landmarks = landmarks[0].detach().cpu().numpy()
+        self.lm_3d_camera = lm_3d_camera[0].detach().cpu().numpy()
+        self.lm_2d_ndc = lm_2d_ndc[0].detach().cpu().numpy()
 
     def __getitem__(self, idx: int):
         return {
@@ -169,5 +189,6 @@ class FLAMEDataset(DPHMDataset):
             "point": self.point,
             "normal": self.normal,
             "color": self.color,
-            "landmarks": self.landmarks,
+            "lm_2d_ndc": self.lm_2d_ndc,
+            "lm_3d_camera": self.lm_3d_camera,
         }

@@ -181,12 +181,18 @@ class Camera:
         p_clip[..., 3] /= p_clip[..., 3]
         return p_clip
 
+    def xy_ndc_to_screen(self, xy_ndc: torch.Tensor):
+        u = (xy_ndc[..., 0] + 1) * 0.5 * self.width
+        # this is the flip because ndc is (-1,-1) bottom left we want that the scrren
+        # starts top left (0, 0), hence we can index the image with the coordiante
+        v = (1 - xy_ndc[..., 1]) * 0.5 * self.height
+        return torch.stack([u, v], dim=-1)
+
     def screen_transform(self, p_camera: torch.Tensor):
         p_ndc = self.ndc_transform(p_camera)
         depth = p_camera[..., 2]
-        u = (p_ndc[..., 0] + 1) * 0.5 * self.width
-        v = (p_ndc[..., 1] + 1) * 0.5 * self.height
-        return torch.stack([u, v, depth], dim=-1)
+        uv = self.xy_ndc_to_screen(p_ndc)
+        return torch.stack([uv[..., 0], uv[..., 1], depth], dim=-1)
 
     def unproject_points(self, xy_depth: torch.Tensor):
         """

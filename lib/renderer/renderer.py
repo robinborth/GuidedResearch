@@ -23,12 +23,13 @@ class Renderer:
         This is because creating openGL context is only done once.
         """
         self.camera = Camera() if camera is None else camera
-        self.rasterizer = rasterizer
-        if self.rasterizer is None:
-            self.rasterizer = Rasterizer(
+        if rasterizer is None:
+            rasterizer = Rasterizer(
                 width=self.camera.width,
                 height=self.camera.height,
             )
+        self.rasterizer = rasterizer
+
         # rendering settings for shading
         self.diffuse = torch.tensor(diffuse, device=device)
         self.specular = torch.tensor(specular, device=device)
@@ -39,16 +40,6 @@ class Renderer:
         self.diffuse = self.diffuse.to(device)
         self.specular = self.specular.to(device)
         self.light = self.light.to(device)
-        return self
-
-    def update(self, scale: float | None = None):
-        if scale is not None:
-            self.scale = scale
-
-        # TODO
-        raise NotImplementedError("camera")
-        self.rasterizer.update(width=self.camera.width, height=self.camera.height)
-
         return self
 
     def render(
@@ -171,7 +162,7 @@ class Renderer:
         normal_image = self.normal_to_normal_image(normal, mask)
         return normal_image
 
-    def normal_to_shading_image(self, normal, mask):
+    def normal_to_color_image(self, normal, mask):
         B, H, W, _ = normal.shape
         light = self.light / torch.norm(self.light)
         reflectance = (normal * light).sum(-1)[..., None]
@@ -179,17 +170,17 @@ class Renderer:
         specular = reflectance * self.specular.expand(B, H, W, -1)
         diffuse = self.diffuse.expand(B, H, W, -1)
 
-        shading = specular + diffuse
-        shading = (torch.clip(shading, 0, 1) * 255).to(torch.uint8)
-        shading[~mask] = 0
+        color = specular + diffuse
+        color = (torch.clip(color, 0, 1) * 255).to(torch.uint8)
+        color[~mask] = 0
 
-        return shading
+        return color
 
-    def render_shading_image(self, vertices: torch.Tensor, faces: torch.Tensor):
+    def render_color_image(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render the shaded image in RGB space."""
         normal, mask = self.render_normal(vertices, faces)
-        shading = self.normal_to_shading_image(normal, mask)
-        return shading
+        color = self.normal_to_color_image(normal, mask)
+        return color
 
     def render_full(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render all images."""
@@ -200,7 +191,7 @@ class Renderer:
         # normal based
         normal, mask = self.render_normal(vertices, faces)
         normal_image = self.normal_to_normal_image(normal, mask)
-        shading_image = self.normal_to_shading_image(normal, mask)
+        color_image = self.normal_to_color_image(normal, mask)
         return {
             "mask": mask,
             "point": point,
@@ -208,5 +199,5 @@ class Renderer:
             "normal": normal,
             "depth_image": depth_image,
             "normal_image": normal_image,
-            "shading_image": shading_image,
+            "color": color_image,
         }
