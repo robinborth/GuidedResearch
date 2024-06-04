@@ -518,13 +518,16 @@ class FLAME(L.LightningModule):
                 self.log(f"debug/param_{p_name}_l2", param_dist, prog_bar=False)
 
     def debug_gradients(self, optimizer):
-        for p_name in ["transl", "global_pose"]:
+        for p_name in self.optimization_parameters:
             param = getattr(self, p_name, None)
-            if param.weight.requires_grad:
-                for i, p in enumerate(param.weight[0]):
-                    self.log_dict({f"debug/{p_name}_{i}": p})
-                for i, p in enumerate(param.weight.grad[0]):
-                    self.log_dict({f"debug/{p_name}_{i}_grad": p})
+            if param is None or not param.weight.requires_grad:
+                continue
+            for i, p in enumerate(param.weight[0]):
+                self.log_dict({f"debug/{p_name}_{i}": p})
+            for i, p in enumerate(param.weight.grad[0]):
+                self.log_dict({f"debug/{p_name}_{i}_grad": p})
+            self.log_dict({f"debug/{p_name}_mean": param.weight.mean()})
+            self.log_dict({f"debug/{p_name}_mean_grad": param.weight.grad.mean()})
 
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.logger.save_dir) / file_name  # type: ignore
@@ -627,8 +630,7 @@ class FLAMEPoint2Plane(FLAME):
         self.log("train/lm_2d_loss", lm_2d_loss, prog_bar=True)
 
         # final loss
-        # loss = point2plane_loss + point2point_loss + lm_2d_loss
-        loss = lm_2d_loss
+        loss = point2plane_loss + point2point_loss
         self.log("train/loss", loss, prog_bar=True)
 
         # debug and logging
