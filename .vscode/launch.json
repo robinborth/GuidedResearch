@@ -61,6 +61,7 @@
             "args": [
                 "model=point2plane",
                 "data=flame",
+                "logger=wandb",
                 "model.lr=1e-02",
                 "model.init_mode=flame",
                 "model.vertices_mask=full",

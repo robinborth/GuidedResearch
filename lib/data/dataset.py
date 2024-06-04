@@ -151,6 +151,9 @@ class FLAMEDataset(DPHMDataset):
     ):
         super().__init__(**kwargs, optimize_frames=optimize_frames)
 
+        self.shape_idx = 0
+        self.frame_idx = 0
+
         flame = FLAME(
             flame_dir=flame_dir,
             num_shape_params=num_shape_params,
@@ -167,7 +170,7 @@ class FLAMEDataset(DPHMDataset):
             specular=[0.5, 0.0, 0.0],
         )
 
-        model = flame.model_step(0, 0)
+        model = flame.model_step(frame_idx=self.frame_idx, shape_idx=self.shape_idx)
         vertices = model["vertices"]
         lm_2d_ndc = model["lm_2d_ndc"]
         lm_3d_camera = model["lm_3d_camera"]
@@ -181,14 +184,33 @@ class FLAMEDataset(DPHMDataset):
         self.lm_3d_camera = lm_3d_camera[0].detach().cpu().numpy()
         self.lm_2d_ndc = lm_2d_ndc[0].detach().cpu().numpy()
 
+        self.shape_params = flame.shape_params.weight[self.shape_idx]
+        self.expression_params = flame.expression_params.weight[self.frame_idx]
+        self.global_pose = flame.global_pose.weight[self.frame_idx]
+        self.neck_pose = flame.neck_pose.weight[self.frame_idx]
+        self.jaw_pose = flame.jaw_pose.weight[self.frame_idx]
+        self.eye_pose = flame.eye_pose.weight[self.frame_idx]
+        self.transl = flame.transl.weight[self.frame_idx]
+        self.scale = flame.scale.weight[self.frame_idx]
+
     def __getitem__(self, idx: int):
         return {
-            "shape_idx": 0,
-            "frame_idx": 0,
+            # data params
+            "shape_idx": self.shape_idx,
+            "frame_idx": self.frame_idx,
             "mask": self.mask,
             "point": self.point,
             "normal": self.normal,
             "color": self.color,
             "lm_2d_ndc": self.lm_2d_ndc,
             "lm_3d_camera": self.lm_3d_camera,
+            # flame params
+            "shape_params": self.shape_params,
+            "expression_params": self.expression_params,
+            "global_pose": self.global_pose,
+            "neck_pose": self.neck_pose,
+            "jaw_pose": self.jaw_pose,
+            "eye_pose": self.eye_pose,
+            "transl": self.transl,
+            "scale": self.scale,
         }

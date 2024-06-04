@@ -105,6 +105,18 @@ class FLAME(L.LightningModule):
         self.optimize_modes: list[str] = ["default"]
         self.set_optimize_mode("default")
 
+        # set optimization parameters
+        self.optimization_parameters = [
+            "shape_params",
+            "expression_params",
+            "global_pose",
+            "neck_pose",
+            "jaw_pose",
+            "eye_pose",
+            "transl",
+            "scale",
+        ]
+
     ####################################################################################
     # Core
     ####################################################################################
@@ -493,6 +505,17 @@ class FLAME(L.LightningModule):
         for key, value in mask.items():
             self.log(f"debug/{key}", float(value.sum()))
 
+    def debug_params(self, batch: dict):
+        for p_name in self.optimization_parameters:
+            param = getattr(self, p_name, None)
+            if p_name in batch and param is not None:
+                if p_name in ["shape_params"]:
+                    weight = param(batch["shape_idx"])
+                else:
+                    weight = param(batch["frame_idx"])
+                param_dist = torch.norm(batch[p_name] - weight, dim=-1).mean()
+                self.log(f"debug/param_{p_name}_l2", param_dist, prog_bar=False)
+
     def debug_gradients(self, optimizer):
         for p_name in ["transl", "global_pose"]:
             param = getattr(self, p_name, None)
@@ -571,42 +594,42 @@ class FLAMEPoint2Plane(FLAME):
             self.init_params_flame(0.03, seed=2)
 
     def optimization_step(self, batch, batch_idx):
-        # forward pass with the current frame and shape
+        # forward pass to get the data
         model = self.model_step(
             frame_idx=batch["frame_idx"],  # (B, )
             shape_idx=batch["shape_idx"],  # (B, )
         )
-        # render the current flame model
         render = self.render_step(model)
-
-        if (self.current_epoch) % self.hparams["save_interval"] == 0:
-            self.debug_3d_points(batch=batch, model=model, render=render)
-            self.debug_render(batch=batch, model=model, render=render)
-            self.debug_input_batch(batch=batch, model=model, render=render)
-
-        # rejection based on outliers
         mask = self.inlier_mask(batch=batch, render=render)
 
-        # distance in camera space per pixel & point to point loss
+        # point2plane
         point2plane = calculate_point2plane(
             q=render["point"],
             p=batch["point"].detach(),
             n=render["normal"].detach(),
         )  # (B, W, H)
+        point2plane_loss = point2plane[mask["mask"]].mean()
+        self.log("train/point2plane", point2plane_loss, prog_bar=True)
+        # point2point
         point2point = calculate_point2point(
             q=render["point"],
             p=batch["point"].detach(),
         )  # (B, W, H)
-        point2plane_loss = point2plane[mask["mask"]].mean()
         point2point_loss = 0.1 * point2point[mask["mask"]].mean()
-        loss = point2plane_loss + point2point_loss
         self.log("train/point2point", point2point_loss, prog_bar=True)
-        self.log("train/point2plane", point2plane_loss, prog_bar=True)
+        # final loss
+        loss = point2plane_loss + point2point_loss
         self.log("train/loss", loss, prog_bar=True)
 
+        # debug and logging
         self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
-        if (self.current_epoch) % self.hparams["save_interval"] == 0:
+        if (self.current_epoch % self.hparams["save_interval"]) == 0:
+            self.debug_3d_points(batch=batch, model=model, render=render)
+            self.debug_render(batch=batch, model=model, render=render)
+            self.debug_input_batch(batch=batch, model=model, render=render)
             self.debug_loss(batch=batch, render=render, mask=mask)
+            if self.hparams["init_mode"] == "flame":
+                self.debug_params(batch=batch)
 
         return loss
 
