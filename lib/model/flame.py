@@ -224,8 +224,8 @@ class FLAME(L.LightningModule):
             scale=self.scale(frame_idx),
         )  # (B, V, 3)
         lm_3d_homo = self.renderer.camera.convert_to_homo_coords(landmarks)
-        lm_2d_ndc = self.renderer.camera.ndc_transform(lm_3d_homo)
-        lm_2d_ndc = lm_2d_ndc[..., :2]
+        lm_2d_ndc_homo = self.renderer.camera.ndc_transform(lm_3d_homo)
+        lm_2d_ndc = lm_2d_ndc_homo[..., :2]
         return {"vertices": vertices, "lm_3d_camera": landmarks, "lm_2d_ndc": lm_2d_ndc}
 
     def render_step(self, model: dict[str, torch.Tensor]):
@@ -356,6 +356,11 @@ class FLAME(L.LightningModule):
         mask = d_mask & f_mask & n_mask
         assert mask.sum()  # we have some overlap
         return {"mask": mask, "f_mask": f_mask, "n_mask": n_mask, "d_mask": d_mask}
+
+    def extract_landmarks(self, landmarks: torch.Tensor):
+        if landmarks.shape[1] != 105:
+            return landmarks[:, self.lm_mediapipe_idx]
+        return landmarks
 
     ####################################################################################
     # Logging and Debuging Utils
@@ -490,15 +495,11 @@ class FLAME(L.LightningModule):
         )  # (B,)
         self.log("train/chamfer", chamfer.mean(), prog_bar=True)
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
-        lm_3d_camera = batch["lm_3d_camera"]
-        if batch["lm_3d_camera"].shape[1] != 105:
-            lm_3d_camera = batch["lm_3d_camera"][:, self.lm_mediapipe_idx]
+        lm_3d_camera = self.extract_landmarks(batch["lm_3d_camera"])
         lm_3d_dist = landmark_3d_distance(model["lm_3d_camera"], lm_3d_camera)  # (B,)
         self.log("train/lm_3d_dist", lm_3d_dist.mean(), prog_bar=True)
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
-        lm_2d_ndc = batch["lm_2d_ndc"]
-        if batch["lm_2d_ndc"].shape[1] != 105:
-            lm_2d_ndc = batch["lm_2d_ndc"][:, self.lm_mediapipe_idx]
+        lm_2d_ndc = self.extract_landmarks(batch["lm_2d_ndc"])
         lm_2d_dist = landmark_2d_distance(model["lm_2d_ndc"], lm_2d_ndc)  # (B,)
         self.log("train/lm_2d_dist", lm_2d_dist.mean(), prog_bar=True)
         # debug the overlap of the mask
@@ -617,8 +618,17 @@ class FLAMEPoint2Plane(FLAME):
         )  # (B, W, H)
         point2point_loss = 0.1 * point2point[mask["mask"]].mean()
         self.log("train/point2point", point2point_loss, prog_bar=True)
+        # 2d landmark loss
+        lm_2d = landmark_2d_distance(
+            model["lm_2d_ndc"],
+            self.extract_landmarks(batch["lm_2d_ndc"]).detach(),
+        )  # (B, L)
+        lm_2d_loss = lm_2d.mean()
+        self.log("train/lm_2d_loss", lm_2d_loss, prog_bar=True)
+
         # final loss
-        loss = point2plane_loss + point2point_loss
+        # loss = point2plane_loss + point2point_loss + lm_2d_loss
+        loss = lm_2d_loss
         self.log("train/loss", loss, prog_bar=True)
 
         # debug and logging

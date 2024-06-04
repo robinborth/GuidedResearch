@@ -57,7 +57,7 @@ def landmark_3d_distance(landmarks: torch.Tensor, gt_landmarks: torch.Tensor):
 
 
 def landmark_2d_distance(landmarks: torch.Tensor, gt_landmarks: torch.Tensor):
-    """Calculates the 3d landmark loss between the vertices."""
+    """Calculates the 2d landmark loss between the vertices."""
     return torch.norm(landmarks - gt_landmarks, dim=-1)
 
 

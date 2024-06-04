@@ -175,11 +175,12 @@ class Camera:
 
     def ndc_transform(self, p_camera: torch.Tensor):
         p_clip = self.clip_transform(p_camera)
-        p_clip[..., 0] /= p_clip[..., 3]
-        p_clip[..., 1] /= p_clip[..., 3]
-        p_clip[..., 2] /= p_clip[..., 3]
-        p_clip[..., 3] /= p_clip[..., 3]
-        return p_clip
+        ndc_x = p_clip[..., 0] / p_clip[..., 3]
+        ndc_y = p_clip[..., 1] / p_clip[..., 3]
+        ndc_z = p_clip[..., 2] / p_clip[..., 3]
+        ndc_w = p_clip[..., 3] / p_clip[..., 3]
+        p_ndc = torch.stack([ndc_x, ndc_y, ndc_z, ndc_w], dim=-1)
+        return p_ndc
 
     def xy_ndc_to_screen(self, xy_ndc: torch.Tensor):
         u = (xy_ndc[..., 0] + 1) * 0.5 * self.width
