@@ -3,12 +3,12 @@ from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
 from lib.model.flame import FLAME
+from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_color,
     load_depth,
-    load_intrinsics,
     load_mediapipe_landmark_3d,
     load_normal,
     load_points_3d,
@@ -18,32 +18,18 @@ from lib.utils.loader import (
 class DPHMDataset(Dataset):
     def __init__(
         self,
+        # rasterizer settings
+        camera: Camera,
         # dataset settings
         data_dir: str = "/data",
         optimize_frames: int = 1,
         start_frame_idx: int = 0,
-        # rasterizer settings
-        scale: float = 1.0,
-        width: int = 1920,
-        height: int = 1080,
         **kwargs,
     ):
         self.optimize_frames = optimize_frames
         self.start_frame_idx = start_frame_idx
-
-        # define the camera
-        scale = scale
-        data_dir = data_dir
-        K = load_intrinsics(
-            data_dir=data_dir,
-            return_tensor="pt",
-        )
-        self.camera = Camera(
-            K=K,
-            width=width,
-            height=height,
-            scale=scale,
-        )
+        self.camera = camera
+        self.data_dir = data_dir
 
     def iter_frame_idx(self):
         yield from range(
@@ -69,16 +55,6 @@ class DPHMDataset(Dataset):
                 size=(self.camera.height, self.camera.width),
             ).permute(1, 2, 0)
             self.color.append(image.to(torch.uint8))  # (H',W',3)
-
-    def load_point_clouds(self):
-        self.point_clouds = []
-        for frame_idx in self.iter_frame_idx():
-            point = load_points_3d(
-                data_dir=self.data_dir,
-                idx=frame_idx,
-                return_tensor="np",
-            )
-            self.point_clouds.append(point)
 
     def load_point(self):
         self.point = []
@@ -107,6 +83,10 @@ class DPHMDataset(Dataset):
                 inpt=normal.permute(2, 0, 1),
                 size=(self.camera.height, self.camera.width),
             ).permute(1, 2, 0)
+            # to make them right-hand and follow camera space convention +X right +Y up
+            # +Z towards the camera
+            normal[:, :, 1] = -normal[:, :, 1]
+            normal[:, :, 2] = -normal[:, :, 2]
             self.normal.append(normal)
 
     def __len__(self) -> int:
@@ -151,13 +131,13 @@ class FLAMEDataset(DPHMDataset):
         optimize_frames: int = 1,
         optimize_shapes: int = 1,
         vertices_mask: str = "face",
+        rasterizer: Rasterizer | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs, optimize_frames=optimize_frames)
 
         flame = FLAME(
             flame_dir=flame_dir,
-            data_dir=kwargs["data_dir"],
             num_shape_params=num_shape_params,
             num_expression_params=num_expression_params,
             optimize_frames=optimize_frames,
@@ -167,7 +147,12 @@ class FLAMEDataset(DPHMDataset):
         flame.init_params_flame(0.0)
         vertices, landmarks = flame()
 
-        renderer = Renderer(camera=self.camera)
+        renderer = Renderer(
+            camera=self.camera,
+            rasterizer=rasterizer,
+            diffuse=[0.6, 0.0, 0.0],
+            specular=[0.5, 0.0, 0.0],
+        )
         render = renderer.render_full(vertices, flame.masked_faces(vertices))
         self.mask = render["mask"][0].detach().cpu().numpy()
         self.point = render["point"][0].detach().cpu().numpy()

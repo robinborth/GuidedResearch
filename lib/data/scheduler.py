@@ -32,41 +32,23 @@ class CoarseToFineScheduler(Callback, Scheduler):
     def __init__(
         self,
         milestones: list[int] = [0],
-        image_scales: list[float] = [1.0],
+        scales: list[float] = [1.0],
     ) -> None:
         self.milestones = milestones
-        self.check_attribute(image_scales)
-        self.image_scales = image_scales
+        self.check_attribute(scales)
+        self.scales = scales
 
-    def schedule_dataset(
-        self,
-        trainer: L.Trainer,
-        current_epoch: int,
-    ):
+    def schedule_dataset(self, trainer: L.Trainer, current_epoch: int):
         if self.skip(current_epoch):
             return
-        image_scale = self.get_attribute(self.image_scales, current_epoch)
-        trainer.datamodule.prepare_dataset(image_scale)  # type: ignore
-
-    def schedule_model(
-        self,
-        trainer: L.Trainer,
-        pl_module: L.LightningModule,
-        current_epoch: int,
-    ):
-        if self.skip(current_epoch):
-            return
-        assert isinstance(pl_module, FLAME)
-        datamodule = trainer.datamodule  # type: ignore
-        pl_module.renderer.update(scale=datamodule.scale)
+        scale = self.get_attribute(self.scales, current_epoch)
+        trainer.datamodule.update_dataset(scale)  # type: ignore
 
     def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule):
         self.schedule_dataset(trainer, trainer.current_epoch)
-        self.schedule_model(trainer, pl_module, trainer.current_epoch)
 
-    def on_train_epoch_start(self, trainer: L.Trainer, pl_module: L.LightningModule):
+    def on_train_epoch_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
         self.schedule_dataset(trainer, trainer.current_epoch + 1)
-        self.schedule_model(trainer, pl_module, trainer.current_epoch)
 
 
 class OptimizerScheduler(Callback, Scheduler):

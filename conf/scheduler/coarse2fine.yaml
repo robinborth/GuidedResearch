@@ -3,4 +3,4 @@
 coarse2fine_scheduler:
   _target_: lib.data.scheduler.CoarseToFineScheduler
   milestones: [0, 150]
-  image_scales: [0.1, 0.25]
+  scales: [0.1, 0.25]

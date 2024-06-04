@@ -10,6 +10,7 @@ class Renderer:
     def __init__(
         self,
         camera: Camera | None = None,
+        rasterizer: Rasterizer | None = None,
         diffuse: list[float] = [0.5, 0.5, 0.5],
         specular: list[float] = [0.3, 0.3, 0.3],
         light: list[float] = [-1.0, 1.0, 0.0],
@@ -21,19 +22,13 @@ class Renderer:
         The renderer is only initilized once, and updated for each rendering pass for the correct resolution camera.
         This is because creating openGL context is only done once.
         """
-
-        # self.camera = Camera(
-        #     K=self.K,
-        #     width=self.width,
-        #     height=self.height,
-        #     near=self.near,
-        #     far=self.far,
-        #     scale=self.scale,
-        #     fov_y=self.fov_y,
-        # )
         self.camera = Camera() if camera is None else camera
-        self.rasterizer = Rasterizer(width=self.camera.width, height=self.camera.height)
-
+        self.rasterizer = rasterizer
+        if self.rasterizer is None:
+            self.rasterizer = Rasterizer(
+                width=self.camera.width,
+                height=self.camera.height,
+            )
         # rendering settings for shading
         self.diffuse = torch.tensor(diffuse, device=device)
         self.specular = torch.tensor(specular, device=device)
@@ -116,8 +111,8 @@ class Renderer:
 
     @classmethod
     def point_to_depth(self, point):
-        # because we need to flip it like in opengl
-        return point[:, :, :, 2]  # (H, W, 3)
+        # we need to flip the z-axis because depth is positive
+        return -point[:, :, :, 2]  # (H, W, 3)
 
     def render_depth(
         self,

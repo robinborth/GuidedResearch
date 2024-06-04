@@ -21,10 +21,8 @@ shuffle: False
 dataset:
   _target_: lib.data.dataset.DPHMPointDataset
   _partial_: True
-  data_dir: ${data.data_dir} 
+  data_dir: ${data.data_dir}
   optimize_frames: ${model.optimize_frames}
   start_frame_idx: ${data.start_frame_idx}
   # this is done dynamically in coars to fine strategy
-  image_scale: ???
-  image_width: ???
-  image_heigt: ???
+  camera: ???

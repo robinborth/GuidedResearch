@@ -15,6 +15,8 @@ from lib.model.loss import (
     chamfer_distance,
     landmark_3d_distance,
 )
+from lib.rasterizer import Rasterizer
+from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
 from lib.utils.loader import (
     load_flame,
@@ -28,7 +30,6 @@ class FLAME(L.LightningModule):
         self,
         # model settings
         flame_dir: str = "/flame",
-        data_dir: str = "/data",
         num_shape_params: int = 100,
         num_expression_params: int = 50,
         # optimization settings
@@ -99,35 +100,13 @@ class FLAME(L.LightningModule):
         lm_idx = lms["lm_mediapipe_idx"]  # (105,)
         self.lm_mediapipe_idx = torch.nn.Parameter(lm_idx, requires_grad=False)
 
-        # load the default intriniscs or initialize it with something good
-        self.renderer = Renderer(
-            diffuse=[0.0, 0.0, 0.6],
-            specular=[0.0, 0.0, 0.5],
-        )
-
         # optimize modes
         self.optimize_modes: list[str] = ["default"]
         self.set_optimize_mode("default")
 
-    def set_optimize_mode(self, mode: str):
-        assert mode in self.optimize_modes
-        self.optimize_mode = mode
-
-    def init_params(self, **kwargs):
-        """Initilize the params of the FLAME model.
-
-        Args:
-            **kwargs: dict(str, torch.Tensor): The key is the name of the nn.Embeddings
-                table, which needs to be specified in order to override the initial
-                values. The value can be a simple tensor of dim (D,) or the dimension of
-                the nn.Embedding table (B, D).
-        """
-        for key, value in kwargs.items():
-            param = self.__getattr__(key)
-            if isinstance(value, list):
-                value = torch.Tensor(value)
-            value = value.expand(param.weight.shape).to(self.device)
-            param.weight = torch.nn.Parameter(value, requires_grad=True)
+    ####################################################################################
+    # Core
+    ####################################################################################
 
     def forward(
         self,
@@ -230,15 +209,19 @@ class FLAME(L.LightningModule):
         return {"vertices": vertices, "landmarks": landmarks}
 
     def render_step(self, model: dict[str, torch.Tensor]):
-        # initilize the renderer with the correct dimension
-        renderer = self.renderer.to(self.device)
         # render the current flame model
         faces = self.masked_faces(model["vertices"])  # (F', 3)
-        render = renderer.render_full(
+        render = self.renderer.render_full(
             vertices=model["vertices"],  # (B, V, 3)
             faces=faces,  # (F, 3)
         )  # (B, H', W')
         return render
+
+    def on_train_start(self):
+        # please here the initilizations that need some state from outside the model
+        camera = getattr(self.trainer.datamodule, "camera", None)
+        rasterizer = getattr(self.trainer.datamodule, "rasterizer", None)
+        self.init_renderer(camera=camera, rasterizer=rasterizer)
 
     def training_step(self, batch, batch_idx):
         return self.optimization_step(batch, batch_idx)
@@ -266,6 +249,33 @@ class FLAME(L.LightningModule):
     # Model Utils
     ####################################################################################
 
+    def init_renderer(self, camera: Camera, rasterizer: Rasterizer):
+        # copy camera and rasterizer from the datamodule
+        renderer = getattr(self, "renderer", None)
+        if renderer is None and camera is not None and rasterizer is not None:
+            self.renderer = Renderer(
+                camera=camera,
+                rasterizer=rasterizer,
+                diffuse=[0.0, 0.0, 0.6],
+                specular=[0.0, 0.0, 0.5],
+            )
+
+    def init_params(self, **kwargs):
+        """Initilize the params of the FLAME model.
+
+        Args:
+            **kwargs: dict(str, torch.Tensor): The key is the name of the nn.Embeddings
+                table, which needs to be specified in order to override the initial
+                values. The value can be a simple tensor of dim (D,) or the dimension of
+                the nn.Embedding table (B, D).
+        """
+        for key, value in kwargs.items():
+            param = self.__getattr__(key)
+            if isinstance(value, list):
+                value = torch.Tensor(value)
+            value = value.expand(param.weight.shape).to(self.device)
+            param.weight = torch.nn.Parameter(value, requires_grad=True)
+
     def init_params_flame(self, sigma: float = 0.01, seed: int = 1):
         np.random.seed(seed)
         s = np.random.normal(0, sigma, 6)
@@ -278,9 +288,13 @@ class FLAME(L.LightningModule):
         np.random.seed(seed)
         s = np.random.normal(0, sigma, 6)
         self.init_params(
-            global_pose=[3.1356 + s[0], 0.0297 + s[1], 0.0239 + s[2]],
-            transl=[0.0265 + s[3], 0.2846 + s[4], 0.6826 + s[5]],
+            global_pose=[s[0], s[1], s[2]],
+            transl=[s[3], s[4], s[5] - 0.5],
         )
+
+    def set_optimize_mode(self, mode: str):
+        assert mode in self.optimize_modes
+        self.optimize_mode = mode
 
     def create_embeddings(self, tensor: torch.Tensor):
         """Creates an embedding table for multi-view multi shape optimization."""
@@ -371,68 +385,6 @@ class FLAME(L.LightningModule):
         file_name = f"error_mask/{f_idx:03}_{self.current_epoch:05}.png"
         self.save_image(file_name, mask["mask"][b_idx])
 
-    # def debug_correspondence(self, batch: dict, render: dict, model: dict):
-    #     _, b_idx, f_idx = self.debug_idx(batch)
-
-    #     file_name = f"batch_landmarks/{f_idx:03}_{self.current_epoch:05}.png"
-    #     landmarks = batch["landmarks"]
-    #     if batch["landmarks"].shape[1] != 105:
-    #         landmarks = batch["landmarks"][:, self.lm_mediapipe_idx]
-    #     K = self.K
-    #     vp = camera2pixel(
-    #         landmarks[b_idx],
-    #         K[0, 0] * self.hparams["image_scale"],
-    #         K[1, 1] * self.hparams["image_scale"],
-    #         K[0, 2] * self.hparams["image_scale"],
-    #         K[1, 2] * self.hparams["image_scale"],
-    #     )
-    #     vp = vp[:, :2].to(torch.int64)
-    #     image = batch["color"][b_idx].clone()
-    #     image[vp[:, 1], vp[:, 0]] = torch.tensor(
-    #         [255, 0, 0], dtype=image.dtype, device=image.device
-    #     )
-    #     image[~batch["mask"][b_idx], :] = 255
-    #     image_batch = image.clone()
-    #     pixel_batch = vp.clone()
-    #     self.save_image(file_name, image)
-
-    #     file_name = f"render_landmarks/{f_idx:03}_{self.current_epoch:05}.png"
-    #     landmarks = model["landmarks"]
-    #     K = self.K
-    #     vp = camera2pixel(
-    #         landmarks[b_idx],
-    #         K[0, 0] * self.hparams["image_scale"],
-    #         K[1, 1] * self.hparams["image_scale"],
-    #         K[0, 2] * self.hparams["image_scale"],
-    #         K[1, 2] * self.hparams["image_scale"],
-    #     )
-    #     vp = vp[:, :2].to(torch.int64)
-    #     image = render["shading_image"][b_idx].clone()
-    #     image[~render["mask"][b_idx], :] = 255
-    #     image[vp[:, 1], vp[:, 0]] = torch.tensor(
-    #         [255, 0, 0], dtype=image.dtype, device=image.device
-    #     )
-    #     image_render = image.clone()
-    #     pixel_render = vp.clone()
-    #     self.save_image(file_name, image)
-
-    #     file_name = f"correspondence/{f_idx:03}_{self.current_epoch:05}.png"
-    #     merge = torch.concatenate([image_batch, image_render], dim=1)
-
-    #     for pr, pb in zip(pixel_render, pixel_batch):
-    #         d = image_render.shape[1]
-    #         x = [pr[0] + d, pb[0]]
-    #         y = [pr[1], pb[1]]
-    #         plt.plot(x, y, color="red", linewidth=1)
-    #     plt.imshow(merge.detach().cpu().numpy())
-    #     # Getting the current figure
-    #     fig = plt.gcf()
-    #     # Extracting the pixel data
-    #     fig.canvas.draw()
-    #     image_array = np.array(fig.canvas.renderer._renderer)  # type: ignore
-    #     image = torch.tensor(image_array)
-    #     self.save_image(file_name, image)
-
     def debug_render(self, batch: dict, render: dict):
         _, b_idx, f_idx = self.debug_idx(batch)
 
@@ -473,7 +425,7 @@ class FLAME(L.LightningModule):
         render_points = render["point"][render["mask"]].reshape(B, -1, 3)
         self.save_points(file_name, render_points[b_idx])
 
-    def debug_input_batch(self, batch: dict, model: dict, render: dict, mask: dict):
+    def debug_input_batch(self, batch: dict, model: dict, render: dict):
         _, b_idx, f_idx = self.debug_idx(batch)
 
         file_name = f"batch_mask/{f_idx:03}_{self.current_epoch:05}.png"
@@ -533,6 +485,11 @@ class FLAME(L.LightningModule):
             np.save(f, points.detach().cpu().numpy())
 
 
+########################################################################################
+# FLAMEPoint2Point
+########################################################################################
+
+
 class FLAMEPoint2Point(FLAME):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -562,14 +519,18 @@ class FLAMEPoint2Point(FLAME):
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
             self.debug_render(batch=batch, render=render)
             self.debug_3d_points(batch=batch, render=render)
-            self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
+            self.debug_input_batch(batch=batch, model=model, render=render)
             self.debug_loss(batch=batch, render=render, mask=mask)
-            # self.debug_correspondence(batch=batch, render=render, model=model)
 
         return loss
 
     def on_before_optimizer_step(self, optimizer):
         self.debug_gradients(optimizer)
+
+
+########################################################################################
+# FLAMEPoint2Plane
+########################################################################################
 
 
 class FLAMEPoint2Plane(FLAME):
@@ -588,33 +549,33 @@ class FLAMEPoint2Plane(FLAME):
         )
         # render the current flame model
         render = self.render_step(model)
+
+        if (self.current_epoch) % self.hparams["save_interval"] == 0:
+            self.debug_render(batch=batch, render=render)
+            self.debug_3d_points(batch=batch, render=render)
+            self.debug_input_batch(batch=batch, model=model, render=render)
+
         # rejection based on outliers
         mask = self.inlier_mask(batch=batch, render=render)
+
         # distance in camera space per pixel & point to point loss
         point2plane = calculate_point2plane(
-            q=render["point"],
-            p=batch["point"].detach(),
-            n=render["normal"].detach(),
+            q=render["point"], p=batch["point"].detach(), n=render["normal"].detach()
         )  # (B, W, H)
         point2point = calculate_point2point(
-            q=render["point"],
-            p=batch["point"].detach(),
+            q=render["point"], p=batch["point"].detach()
         )  # (B, W, H)
-        # point to plane loss
         point2plane_loss = point2plane[mask["mask"]].mean()
         point2point_loss = 0.1 * point2point[mask["mask"]].mean()
         loss = point2plane_loss + point2point_loss
         self.log("train/point2point", point2point_loss, prog_bar=True)
         self.log("train/point2plane", point2plane_loss, prog_bar=True)
         self.log("train/loss", loss, prog_bar=True)
-        # log metrics
+
         self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
-        # visualize the image that is optimized and save to disk
         if (self.current_epoch) % self.hparams["save_interval"] == 0:
-            self.debug_render(batch=batch, render=render)
-            self.debug_3d_points(batch=batch, render=render)
-            self.debug_input_batch(batch=batch, model=model, render=render, mask=mask)
             self.debug_loss(batch=batch, render=render, mask=mask)
+
         return loss
 
     def on_before_optimizer_step(self, optimizer):

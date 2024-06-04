@@ -10,19 +10,27 @@
             "justMyCode": false
         },
         {
-            "name": "Debug: Point2Plane Shape",
+            "name": "Debug: Point2Plane",
             "type": "debugpy",
             "request": "launch",
             "program": "scripts/optimize.py",
             "args": [
                 "model=point2plane",
                 "data=kinect",
+                "logger=wandb",
+                "model.lr=1e-02",
+                "model.init_mode=kinect",
+                "model.vertices_mask=full",
+                "trainer.max_epochs=150",
+                "trainer.accelerator=gpu",
+                "callbacks.coarse2fine_scheduler.milestones=[0, 100]",
+                "callbacks.coarse2fine_scheduler.scales=[0.1125, 0.25]",
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
         },
         {
-            "name": "Debug: Point2Point Shape",
+            "name": "Debug: Point2Point",
             "type": "debugpy",
             "request": "launch",
             "program": "scripts/optimize.py",
@@ -32,11 +40,11 @@
                 "logger=wandb",
                 "model.lr=1e-02",
                 "model.init_mode=kinect",
-                "model.vertices_mask=face",
+                "model.vertices_mask=full",
                 "trainer.max_epochs=150",
                 "trainer.accelerator=gpu",
                 "callbacks.coarse2fine_scheduler.milestones=[0]",
-                "callbacks.coarse2fine_scheduler.image_scales=[0.25]",
+                "callbacks.coarse2fine_scheduler.scales=[0.25]",
                 "callbacks.finetune_scheduler.milestones=[0,30]",
                 "callbacks.finetune_scheduler.params=['global_pose|transl','shape_params']"
             ],
@@ -51,6 +59,13 @@
             "args": [
                 "model=point2plane",
                 "data=flame",
+                "model.lr=1e-02",
+                "model.init_mode=flame",
+                "model.vertices_mask=full",
+                "trainer.max_epochs=100",
+                "trainer.accelerator=gpu",
+                "callbacks.coarse2fine_scheduler.milestones=[0]",
+                "callbacks.coarse2fine_scheduler.scales=[0.25]"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
@@ -70,7 +85,7 @@
                 "trainer.max_epochs=100",
                 "trainer.accelerator=gpu",
                 "callbacks.coarse2fine_scheduler.milestones=[0]",
-                "callbacks.coarse2fine_scheduler.image_scales=[0.1]"
+                "callbacks.coarse2fine_scheduler.scales=[0.1]"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

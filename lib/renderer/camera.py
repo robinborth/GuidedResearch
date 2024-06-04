@@ -42,15 +42,23 @@ class Camera:
         self.original_width = width
         self.original_height = height
         self.scale = scale
-        self.width = int(width * scale)
-        self.height = int(height * scale)
+        self.width = int(self.original_width * self.scale)
+        self.height = int(self.original_height * self.scale)
         self.near = near
         self.far = far
         self.fov_y = fov_y
-
+        self.K = K
         self.device = device
+        self.set_perspective_projection()
 
-        if K is None:
+    def update(self, scale: float = 1.0):
+        self.scale = scale
+        self.width = int(self.original_width * self.scale)
+        self.height = int(self.original_height * self.scale)
+        self.set_perspective_projection()
+
+    def set_perspective_projection(self):
+        if self.K is None:
             self.projection_matrix = self.fov_perspective_projection(
                 fov_y=self.fov_y,
                 width=self.width,
@@ -60,7 +68,7 @@ class Camera:
             )
         else:
             self.projection_matrix = self.intrinsics_perspective_projection(
-                K=K,
+                K=self.K,
                 scale=self.scale,
                 width=self.width,
                 height=self.height,
