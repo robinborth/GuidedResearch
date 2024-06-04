@@ -9,8 +9,8 @@ defaults:
     - rich_progress_bar
   - scheduler:  # this is internally handled like a callback
     - coarse2fine
-    # - finetune
-    # - optimizer 
+    - finetune
+    - optimizer 
   - hydra: default
   - paths: default
   - debug: null

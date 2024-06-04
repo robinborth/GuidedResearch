@@ -231,11 +231,10 @@ class FLAME(L.LightningModule):
 
     def configure_optimizers(self):
         # 6 DoF initialization
-        inti_params = [
-            {"params": self.transl.parameters()},
-            {"params": self.global_pose.parameters()},
-        ]
-        optimizer_params = {"params": inti_params, "lr": self.hparams["lr"]}
+        optimizer_params = {
+            "params": filter(lambda p: p.requires_grad, self.parameters()),
+            "lr": self.hparams["lr"],
+        }
         optimizer = torch.optim.Adam(**optimizer_params)
         if self.hparams["scheduler"] is not None:
             scheduler = self.hparams["scheduler"](optimizer=optimizer)
@@ -459,19 +458,13 @@ class FLAME(L.LightningModule):
             self.log(f"debug/{key}", float(value.sum()))
 
     def debug_gradients(self, optimizer):
-        self.log_dict({"debug/transl_x": self.transl.weight[0, 0]})
-        self.log_dict({"debug/transl_x_grad": self.transl.weight.grad[0, 0]})
-        self.log_dict({"debug/transl_y": self.transl.weight[0, 1]})
-        self.log_dict({"debug/transl_y_grad": self.transl.weight.grad[0, 1]})
-        self.log_dict({"debug/transl_z": self.transl.weight[0, 2]})
-        self.log_dict({"debug/transl_z_grad": self.transl.weight.grad[0, 1]})
-
-        self.log_dict({"debug/global_pose_x": self.global_pose.weight[0, 0]})
-        self.log_dict({"debug/global_pose_x_grad": self.global_pose.weight.grad[0, 0]})
-        self.log_dict({"debug/global_pose_y": self.global_pose.weight[0, 1]})
-        self.log_dict({"debug/global_pose_y_grad": self.global_pose.weight.grad[0, 1]})
-        self.log_dict({"debug/global_pose_z": self.global_pose.weight[0, 2]})
-        self.log_dict({"debug/global_pose_z_grad": self.global_pose.weight.grad[0, 2]})
+        for p_name in ["transl", "global_pose"]:
+            param = getattr(self, p_name, None)
+            if param.weight.requires_grad:
+                for i, p in enumerate(param.weight[0]):
+                    self.log_dict({f"debug/{p_name}_{i}": p})
+                for i, p in enumerate(param.weight.grad[0]):
+                    self.log_dict({f"debug/{p_name}_{i}_grad": p})
 
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.logger.save_dir) / file_name  # type: ignore

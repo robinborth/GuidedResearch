@@ -1,21 +1,26 @@
+import warnings
 from typing import List
 
 import hydra
 import lightning as L
+import torch
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger, WandbLogger
 from omegaconf import DictConfig
 
 from lib.utils.config import instantiate_callbacks, log_hyperparameters
-from lib.utils.logger import create_logger
+from lib.utils.logger import create_logger, disable_pydevd_warning
 
 log = create_logger("optimize")
+# disable_pydevd_warning()
+warnings.filterwarnings("ignore")
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="optimize")
 def optimize(cfg: DictConfig) -> None:
     log.info("==> loading config ...")
     L.seed_everything(cfg.seed)
+    torch.set_float32_matmul_precision("medium")  # using CUDA device RTX A400
 
     log.info(f"==> initializing datamodule <{cfg.data._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
@@ -27,6 +32,7 @@ def optimize(cfg: DictConfig) -> None:
     callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
 
     log.info("==> initializing logger ...")
+    warnings.filterwarnings("ignore")
     logger: Logger = hydra.utils.instantiate(cfg.logger)
     if isinstance(logger, WandbLogger):
         logger.watch(model, log="all")

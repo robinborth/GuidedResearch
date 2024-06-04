@@ -25,6 +25,9 @@ class Scheduler:
     def check_attribute(self, attribute):
         assert len(attribute) == len(self.milestones)
 
+    def check_milestones(self, milestones):
+        assert len(milestones) >= 1 and milestones[0] == 0
+
 
 class CoarseToFineScheduler(Callback, Scheduler):
     """Changes the data of the optimization."""
@@ -35,8 +38,9 @@ class CoarseToFineScheduler(Callback, Scheduler):
         scales: list[float] = [1.0],
     ) -> None:
         self.milestones = milestones
-        self.check_attribute(scales)
+        self.check_milestones(milestones)
         self.scales = scales
+        self.check_attribute(scales)
 
     def schedule_dataset(self, trainer: L.Trainer, current_epoch: int):
         if self.skip(current_epoch):
@@ -60,8 +64,9 @@ class OptimizerScheduler(Callback, Scheduler):
         modes: list[str] = ["default"],
     ) -> None:
         self.milestones = milestones
-        self.check_attribute(modes)
+        self.check_milestones(milestones)
         self.modes = modes
+        self.check_attribute(modes)
 
     def on_train_epoch_start(
         self,
@@ -90,12 +95,21 @@ class FinetuneScheduler(BaseFinetuning, Scheduler):
     ) -> None:
         super().__init__()
         self.milestones = milestones
-        self.check_attribute(params)
+        self.check_milestones(milestones)
         self.params = params
+        self.check_attribute(params)
+
+    def iter_modules(self, pl_module: L.LightningModule, current_epoch: int = 0):
+        param_string = self.get_attribute(self.params, current_epoch)
+        for param in param_string.split("|"):
+            yield getattr(pl_module, param), param
 
     def freeze_before_training(self, pl_module: L.LightningModule) -> None:
         assert isinstance(pl_module, FLAME)
         self.freeze(pl_module)
+        for module, param in self.iter_modules(pl_module, 0):
+            print("Initilized unfreezed:", param)
+            self.make_trainable(module)
 
     def finetune_function(
         self,
@@ -103,15 +117,13 @@ class FinetuneScheduler(BaseFinetuning, Scheduler):
         current_epoch: int,
         optimizer: torch.optim.Optimizer,
     ) -> None:
-        if self.skip(current_epoch):
+        if self.skip(current_epoch) or current_epoch == 0:
             return
         assert isinstance(pl_module, FLAME)
-        param_string = self.get_attribute(self.params, current_epoch)
-        for param in param_string.split("|"):
-            print("UNFREEZE: ", param)
-            modules = getattr(pl_module, param)
+        for module, param in self.iter_modules(pl_module, current_epoch):
+            print("Unfreeze: ", param)
             self.unfreeze_and_add_param_group(
-                modules=modules,
+                modules=module,
                 optimizer=optimizer,
-                # initial_denom_lr=1.0,
+                initial_denom_lr=1.0,
             )

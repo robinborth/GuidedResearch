@@ -20,9 +20,9 @@ sources = [
 rasterizer = load(
     name=plugin_name,
     sources=[str(path.resolve()) for path in sources],
-    extra_cflags=["-g"],
+    # extra_cflags=["-g"],
     extra_ldflags=["-lEGL", "-lGL"],
-    verbose=True,
+    # verbose=True,
 )
 plugin = importlib.import_module(plugin_name)
 

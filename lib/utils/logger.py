@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 
 def create_logger(name: str = __name__) -> logging.Logger:
@@ -44,3 +45,11 @@ def create_logger(name: str = __name__) -> logging.Logger:
 
     # Return the configured logger
     return logger
+
+
+def disable_pydevd_warning():
+    warnings.filterwarnings("ignore")
+
+
+# def disable_lightning_num_workers_warning():
+#     warnings.filterwarnings("ignore", category=UserWarning, module="lightning")
