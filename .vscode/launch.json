@@ -81,6 +81,18 @@
             "justMyCode": false,
         },
         {
+            "name": "Debug: Create Video",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/create_video.py",
+            "args": [
+                "+framerate=30",
+                "+video_dir='/home/borth/GuidedResearch/logs/optimize/runs/2024-06-06_09-47-10/render_normal'"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
             "name": "Debug Triangles Rasterizer",
             "type": "cppdbg",
             "request": "launch",

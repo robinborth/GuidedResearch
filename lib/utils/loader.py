@@ -71,6 +71,7 @@ def load_color(
     idx: int,
     value: float | int = 0,
     return_tensor: str = "img",
+    mask: bool = False,
 ):
     """Load the RGB data for the kinect dataset.
 
@@ -81,11 +82,13 @@ def load_color(
             where img is the PIL.Image format.
     """
     assert return_tensor in ["img", "np", "pt"]
-    mask = load_mask(data_dir=data_dir, idx=idx, return_tensor="np")
 
     path = Path(data_dir) / "color" / f"{idx:05}.png"
     color = np.asarray(Image.open(path)).copy()
-    color[~mask] = value
+
+    if mask:
+        mask = load_mask(data_dir=data_dir, idx=idx, return_tensor="np")
+        color[~mask] = value
 
     return convert_tensor_from_np(color, return_tensor=return_tensor)
 

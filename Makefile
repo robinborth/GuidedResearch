@@ -26,10 +26,10 @@ joint_point2plane:
 	model.lr=1e-02 \
 	model.init_mode=kinect \
 	model.vertices_mask=full \
-	model.optimize_frames=4 \
+	model.optimize_frames=6 \
 	model.save_interval=10 \
 	data=kinect \
-	data.batch_size=4 \
+	data.batch_size=5  \
 	data.start_frame_idx=19 \
 	trainer.max_epochs=801 \
 	trainer.accelerator=gpu \
@@ -50,3 +50,8 @@ point2plane_flame:
 	trainer.accelerator=gpu \
 	callbacks.coarse2fine_scheduler.milestones=[0,150] \
 	callbacks.coarse2fine_scheduler.scales=[0.1,0.25] \
+
+
+create_video:
+	python scripts/create_video.py +framerate=30 +video_dir="logs/optimize/runs/2024-06-06_10-29-05/render_normal" +video_path="temp/render_normal.mp4"
+	python scripts/create_video.py +framerate=30 +video_dir="logs/optimize/runs/2024-06-06_10-29-05/batch_color" +video_path="temp/batch_color.mp4"
