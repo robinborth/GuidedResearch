@@ -490,23 +490,36 @@ class FLAME(L.LightningModule):
             self.save_image(file_name, color_image)
 
     def debug_metrics(self, batch: dict, model: dict, render: dict, mask: dict):
-        chamfers = []
-        for _, b_idx, _ in self.iter_debug_idx(batch):
-            # debug chamfer loss
-            chamfer = chamfer_distance(
-                render["point"][b_idx][render["mask"][b_idx]].reshape(1, -1, 3),
-                batch["point"][b_idx][batch["mask"][b_idx]].reshape(1, -1, 3),
-            )  # (B,)
-            chamfers.append(chamfer)
-        self.log("train/chamfer", torch.stack(chamfers).mean(), prog_bar=True)
+        # out of memory problems
+        # chamfers = []
+        # for _, b_idx, _ in self.iter_debug_idx(batch):
+        #     # debug chamfer loss
+        #     chamfer = chamfer_distance(
+        #         render["point"][b_idx][render["mask"][b_idx]].reshape(1, -1, 3),
+        #         batch["point"][b_idx][batch["mask"][b_idx]].reshape(1, -1, 3),
+        #     )  # (B,)
+        #     chamfers.append(chamfer)
+        # self.log("train/chamfer", torch.stack(chamfers).mean(), prog_bar=True)
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_3d_camera = self.extract_landmarks(batch["lm_3d_camera"])
         lm_3d_dist = landmark_3d_distance(model["lm_3d_camera"], lm_3d_camera)  # (B,)
-        self.log("train/lm_3d_loss", lm_3d_dist.mean(), prog_bar=True)
+        self.log(
+            "train/lm_3d_loss",
+            lm_3d_dist.mean(),
+            prog_bar=True,
+            # on_step=True,
+            # on_epoch=True,
+        )
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_2d_ndc = self.extract_landmarks(batch["lm_2d_ndc"])
         lm_2d_dist = landmark_2d_distance(model["lm_2d_ndc"], lm_2d_ndc)  # (B,)
-        self.log("train/lm_2d_loss", lm_2d_dist.mean(), prog_bar=True)
+        self.log(
+            "train/lm_2d_loss",
+            lm_2d_dist.mean(),
+            prog_bar=True,
+            # on_step=True,
+            # on_epoch=True,
+        )
         # debug the overlap of the mask
         for key, value in mask.items():
             self.log(f"debug/{key}", float(value.sum()))
@@ -639,9 +652,28 @@ class FLAMEPoint2Plane(FLAME):
         # )  # (B, L)
         # lm_2d_loss = lm_2d.mean()
 
+        # reg_loss_shape = torch.norm(self.shape_params(batch["shape_idx"]), dim=-1)
+        # reg_loss_shape = 1e-06 * reg_loss_shape.mean()
+        # self.log("train/reg_loss_shape", reg_loss_shape)
+
+        # reg_loss_expression = torch.norm(
+        #     self.expression_params(batch["frame_idx"]), dim=-1
+        # )
+        # reg_loss_expression = 1e-07 * reg_loss_expression.mean()
+        # self.log("train/reg_loss_expression", reg_loss_expression)
+
+        # reg_loss = reg_loss_shape + reg_loss_expression
+        # self.log("train/reg_loss", reg_loss)
+
         # final loss
         loss = point2plane_loss
-        self.log("train/loss", loss, prog_bar=True)
+        self.log(
+            "train/loss",
+            loss,
+            prog_bar=True,
+            # on_step=True,
+            # on_epoch=True,
+        )
 
         # debug and logging
         self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
