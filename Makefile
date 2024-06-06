@@ -21,21 +21,20 @@ point2plane:
 joint_point2plane:
 	python scripts/optimize.py \
 	tags=["point2plane"] \
-	logger=wandb \
 	model=point2plane \
 	model.lr=1e-02 \
 	model.init_mode=kinect \
 	model.vertices_mask=full \
-	model.optimize_frames=6 \
+	model.optimize_frames=20 \
 	model.save_interval=10 \
 	data=kinect \
-	data.batch_size=5  \
+	data.batch_size=20  \
 	data.start_frame_idx=19 \
-	trainer.max_epochs=801 \
+	trainer.max_epochs=1001 \
 	trainer.accelerator=gpu \
-	callbacks.coarse2fine_scheduler.milestones=[0,800] \
+	callbacks.coarse2fine_scheduler.milestones=[0,1000] \
 	callbacks.coarse2fine_scheduler.scales=[0.125,1.0] \
-	callbacks.finetune_scheduler.milestones=[0,100,150,450] \
+	callbacks.finetune_scheduler.milestones=[0,100,150,350] \
 	callbacks.finetune_scheduler.params=["global_pose|transl","neck_pose|eye_pose","shape_params","expression_params"] \
 
 point2plane_flame:
@@ -53,5 +52,5 @@ point2plane_flame:
 
 
 create_video:
-	python scripts/create_video.py +framerate=30 +video_dir="logs/optimize/runs/2024-06-06_10-29-05/render_normal" +video_path="temp/render_normal.mp4"
-	python scripts/create_video.py +framerate=30 +video_dir="logs/optimize/runs/2024-06-06_10-29-05/batch_color" +video_path="temp/batch_color.mp4"
+	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-06_10-48-23/render_normal" +video_path="temp/render_normal.mp4"
+	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-06_10-48-23/batch_color" +video_path="temp/batch_color.mp4"

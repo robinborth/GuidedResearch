@@ -130,6 +130,18 @@ Fragments rasterize(GLContext glctx, torch::Tensor vertices, torch::Tensor indic
     fragments.bary_coords = out.index({torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(0, 3)}).clone();
     fragments.pix_to_face = out.index({torch::indexing::Slice(), torch::indexing::Slice(), 3}).to(torch::kInt32).clone();
 
+    // unregister the context, we allready unmapped them
+    CUDA_CHECK_ERROR(cudaGraphicsUnregisterResource(s.cudaVBO));
+    CUDA_CHECK_ERROR(cudaGraphicsUnregisterResource(s.cudaEBO));
+
+    // delete the buffers and textures
+    GL_CHECK_ERROR(glDeleteFramebuffers(1, &s.glFBO));
+    GL_CHECK_ERROR(glDeleteVertexArrays(1, &s.glVAO));
+    GL_CHECK_ERROR(glDeleteBuffers(1, &s.glVBO));
+    GL_CHECK_ERROR(glDeleteBuffers(1, &s.glEBO));
+    GL_CHECK_ERROR(glDeleteTextures(1, &s.glOut));
+    GL_CHECK_ERROR(glDeleteRenderbuffers(1, &rbo));
+
     // destroy the context
     glctx.destroy();
 
