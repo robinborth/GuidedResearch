@@ -111,7 +111,7 @@ class FLAME(L.LightningModule):
             "expression_params",
             "global_pose",
             "neck_pose",
-            "jaw_pose",
+            # "jaw_pose",
             "eye_pose",
             "transl",
             "scale",
@@ -366,142 +366,147 @@ class FLAME(L.LightningModule):
     # Logging and Debuging Utils
     ####################################################################################
 
-    def debug_idx(self, batch: dict[str, torch.Tensor]):
+    def iter_debug_idx(self, batch: dict[str, torch.Tensor]):
         B = batch["frame_idx"].shape[0]
-        return B, 0, batch["frame_idx"][0].item()
+        for idx in range(B):
+            yield B, idx, batch["frame_idx"][idx].item()
 
     def debug_loss(self, batch: dict, render: dict, mask: dict, max_loss=1e-02):
         """The max is an error of 10cm"""
-        _, b_idx, f_idx = self.debug_idx(batch)
-
         # color entcoding for the loss map
         norm = plt.Normalize(0.0, vmax=max_loss)
         cmap = plt.get_cmap("jet")
         sm = cm.ScalarMappable(norm=norm, cmap=cmap)
 
-        # point to point error map
-        file_name = f"error_point_to_point/{f_idx:03}_{self.current_epoch:05}.png"
-        loss = torch.sqrt(
-            calculate_point2point(batch["point"], render["point"])
-        )  # (B, W, H)
-        error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
-        error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
-        error_map[~render["mask"][b_idx], :] = 1.0
-        error_map = (error_map * 255).to(torch.uint8)
-        self.save_image(file_name, error_map)
+        for _, b_idx, f_idx in self.iter_debug_idx(batch):
+            # point to point error map
+            file_name = f"error_point_to_point/{f_idx:05}/{self.current_epoch:05}.png"
+            loss = torch.sqrt(
+                calculate_point2point(batch["point"], render["point"])
+            )  # (B, W, H)
+            error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
+            error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
+            error_map[~render["mask"][b_idx], :] = 1.0
+            error_map = (error_map * 255).to(torch.uint8)
+            self.save_image(file_name, error_map)
 
-        # point to plane error map
-        file_name = f"error_point_to_plane/{f_idx:03}_{self.current_epoch:05}.png"
-        loss = torch.sqrt(
-            calculate_point2plane(
-                p=render["point"],
-                q=batch["point"],
-                n=render["normal"],
-            )
-        )  # (B, W, H)
-        error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
-        error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
-        error_map[~render["mask"][b_idx], :] = 1.0
-        error_map = (error_map * 255).to(torch.uint8)
-        self.save_image(file_name, error_map)
+            # point to plane error map
+            file_name = f"error_point_to_plane/{f_idx:05}/{self.current_epoch:05}.png"
+            loss = torch.sqrt(
+                calculate_point2plane(
+                    p=render["point"],
+                    q=batch["point"],
+                    n=render["normal"],
+                )
+            )  # (B, W, H)
+            error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
+            error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
+            error_map[~render["mask"][b_idx], :] = 1.0
+            error_map = (error_map * 255).to(torch.uint8)
+            self.save_image(file_name, error_map)
 
-        # error mask
-        file_name = f"error_mask/{f_idx:03}_{self.current_epoch:05}.png"
-        self.save_image(file_name, mask["mask"][b_idx])
+            # error mask
+            file_name = f"error_mask/{f_idx:05}/{self.current_epoch:05}.png"
+            self.save_image(file_name, mask["mask"][b_idx])
 
     def debug_render(self, batch: dict, render: dict, model: dict):
-        _, b_idx, f_idx = self.debug_idx(batch)
+        for _, b_idx, f_idx in self.iter_debug_idx(batch):
+            file_name = f"render_mask/{f_idx:05}/{self.current_epoch:05}.png"
+            self.save_image(file_name, render["mask"][b_idx])
 
-        file_name = f"render_mask/{f_idx:03}_{self.current_epoch:05}.png"
-        self.save_image(file_name, render["mask"][b_idx])
+            file_name = f"render_depth/{f_idx:05}/{self.current_epoch:05}.png"
+            self.save_image(file_name, render["depth_image"][b_idx])
 
-        file_name = f"render_depth/{f_idx:03}_{self.current_epoch:05}.png"
-        self.save_image(file_name, render["depth_image"][b_idx])
+            file_name = f"render_normal/{f_idx:05}/{self.current_epoch:05}.png"
+            self.save_image(file_name, render["normal_image"][b_idx])
 
-        file_name = f"render_normal/{f_idx:03}_{self.current_epoch:05}.png"
-        self.save_image(file_name, render["normal_image"][b_idx])
+            file_name = f"render_color/{f_idx:05}/{self.current_epoch:05}.png"
+            self.save_image(file_name, render["color"][b_idx])
 
-        file_name = f"render_color/{f_idx:03}_{self.current_epoch:05}.png"
-        self.save_image(file_name, render["color"][b_idx])
+            file_name = f"render_merged_depth/{f_idx:05}/{self.current_epoch:05}.png"
+            render_merged_depth = batch["color"].clone()
+            color_mask = (
+                (render["point"][:, :, :, 2] < batch["point"][:, :, :, 2])
+                | (render["mask"] & ~batch["mask"])
+            ) & render["mask"]
+            render_merged_depth[color_mask] = render["color"][color_mask]
+            self.save_image(file_name, render_merged_depth[b_idx])
 
-        file_name = f"render_merged_depth/{f_idx:03}_{self.current_epoch:05}.png"
-        render_merged_depth = batch["color"].clone()
-        color_mask = (
-            (render["point"][:, :, :, 2] < batch["point"][:, :, :, 2])
-            | (render["mask"] & ~batch["mask"])
-        ) & render["mask"]
-        render_merged_depth[color_mask] = render["color"][color_mask]
-        self.save_image(file_name, render_merged_depth[b_idx])
+            file_name = f"render_merged/{f_idx:05}/{self.current_epoch:05}.png"
+            render_merged = batch["color"].clone()
+            render_merged[render["mask"]] = render["color"][render["mask"]]
+            self.save_image(file_name, render_merged[b_idx])
 
-        file_name = f"render_merged/{f_idx:03}_{self.current_epoch:05}.png"
-        render_merged = batch["color"].clone()
-        render_merged[render["mask"]] = render["color"][render["mask"]]
-        self.save_image(file_name, render_merged[b_idx])
-
-        file_name = f"render_landmark/{f_idx:03}_{self.current_epoch:05}.png"
-        lm_2d_screen = self.renderer.camera.xy_ndc_to_screen(model["lm_2d_ndc"])
-        x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
-        y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
-        color_image = render["color"][b_idx]
-        color_image[y_idx, x_idx, :] = 255
-        self.save_image(file_name, color_image)
+            file_name = f"render_landmark/{f_idx:05}/{self.current_epoch:05}.png"
+            lm_2d_screen = self.renderer.camera.xy_ndc_to_screen(model["lm_2d_ndc"])
+            x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
+            y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
+            color_image = render["color"][b_idx]
+            color_image[y_idx, x_idx, :] = 255
+            self.save_image(file_name, color_image)
 
     def debug_3d_points(self, batch: dict, render: dict, model: dict):
-        B, b_idx, f_idx = self.debug_idx(batch)
-        # save the gt points
-        file_name = f"point_batch/{f_idx:03}_{self.current_epoch:05}.npy"
-        points = batch["point"][batch["mask"]].reshape(B, -1, 3)
-        self.save_points(file_name, points[b_idx])
-        # save the flame points
-        file_name = f"point_render/{f_idx:03}_{self.current_epoch:05}.npy"
-        render_points = render["point"][render["mask"]].reshape(B, -1, 3)
-        self.save_points(file_name, render_points[b_idx])
-        # save the lm_3d gt points
-        file_name = f"point_batch_landmark/{f_idx:03}_{self.current_epoch:05}.npy"
-        self.save_points(file_name, batch["lm_3d_camera"][b_idx])
-        # save the lm_3d flame points
-        file_name = f"point_render_landmark/{f_idx:03}_{self.current_epoch:05}.npy"
-        self.save_points(file_name, model["lm_3d_camera"][b_idx])
+        for B, b_idx, f_idx in self.iter_debug_idx(batch):
+            # save the gt points
+            file_name = f"point_batch/{f_idx:05}/{self.current_epoch:05}.npy"
+            points = batch["point"][b_idx][batch["mask"][b_idx]].reshape(-1, 3)
+            self.save_points(file_name, points)
+            # save the flame points
+            file_name = f"point_render/{f_idx:05}/{self.current_epoch:05}.npy"
+            render_points = render["point"][b_idx][render["mask"][b_idx]].reshape(-1, 3)
+            self.save_points(file_name, render_points[b_idx])
+            # save the lm_3d gt points
+            file_name = f"point_batch_landmark/{f_idx:05}/{self.current_epoch:05}.npy"
+            self.save_points(file_name, batch["lm_3d_camera"][b_idx])
+            # save the lm_3d flame points
+            file_name = f"point_render_landmark/{f_idx:05}/{self.current_epoch:05}.npy"
+            self.save_points(file_name, model["lm_3d_camera"][b_idx])
 
     def debug_input_batch(self, batch: dict, model: dict, render: dict):
-        _, b_idx, f_idx = self.debug_idx(batch)
+        for _, b_idx, f_idx in self.iter_debug_idx(batch):
+            file_name = f"batch_mask/{f_idx:05}/{self.current_epoch:05}.png"
+            self.save_image(file_name, batch["mask"][b_idx])
 
-        file_name = f"batch_mask/{f_idx:03}_{self.current_epoch:05}.png"
-        self.save_image(file_name, batch["mask"][b_idx])
+            file_name = f"batch_depth/{f_idx:05}/{self.current_epoch:05}.png"
+            depth = Renderer.point_to_depth(batch["point"])
+            depth_image = Renderer.depth_to_depth_image(depth)
+            self.save_image(file_name, depth_image[b_idx])
 
-        file_name = f"batch_depth/{f_idx:03}_{self.current_epoch:05}.png"
-        depth = Renderer.point_to_depth(batch["point"])
-        depth_image = Renderer.depth_to_depth_image(depth)
-        self.save_image(file_name, depth_image[b_idx])
+            file_name = f"batch_normal/{f_idx:05}/{self.current_epoch:05}.png"
+            normal_image = Renderer.normal_to_normal_image(
+                batch["normal"], batch["mask"]
+            )
+            self.save_image(file_name, normal_image[b_idx])
 
-        file_name = f"batch_normal/{f_idx:03}_{self.current_epoch:05}.png"
-        normal_image = Renderer.normal_to_normal_image(batch["normal"], batch["mask"])
-        self.save_image(file_name, normal_image[b_idx])
+            file_name = f"batch_color/{f_idx:05}/{self.current_epoch:05}.png"
+            self.save_image(file_name, batch["color"][b_idx])
 
-        file_name = f"batch_landmark/{f_idx:03}_{self.current_epoch:05}.png"
-        lm_2d_screen = self.renderer.camera.xy_ndc_to_screen(batch["lm_2d_ndc"])
-        x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
-        y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
-        color_image = batch["color"][b_idx]
-        color_image[y_idx, x_idx, :] = 255
-        self.save_image(file_name, color_image)
+            file_name = f"batch_landmark/{f_idx:05}/{self.current_epoch:05}.png"
+            lm_2d_screen = self.renderer.camera.xy_ndc_to_screen(batch["lm_2d_ndc"])
+            x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
+            y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
+            color_image = batch["color"][b_idx]
+            color_image[y_idx, x_idx, :] = 255
+            self.save_image(file_name, color_image)
 
     def debug_metrics(self, batch: dict, model: dict, render: dict, mask: dict):
-        B, _, _ = self.debug_idx(batch)
-        # debug chamfer loss
-        chamfer = chamfer_distance(
-            vertices=render["point"][render["mask"]].reshape(B, -1, 3),
-            points=batch["point"][batch["mask"]].reshape(B, -1, 3),
-        )  # (B,)
-        self.log("train/chamfer", chamfer.mean(), prog_bar=True)
+        chamfers = []
+        for _, b_idx, _ in self.iter_debug_idx(batch):
+            # debug chamfer loss
+            chamfer = chamfer_distance(
+                render["point"][b_idx][render["mask"][b_idx]].reshape(1, -1, 3),
+                batch["point"][b_idx][batch["mask"][b_idx]].reshape(1, -1, 3),
+            )  # (B,)
+            chamfers.append(chamfer)
+        self.log("train/chamfer", torch.stack(chamfers).mean(), prog_bar=True)
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_3d_camera = self.extract_landmarks(batch["lm_3d_camera"])
         lm_3d_dist = landmark_3d_distance(model["lm_3d_camera"], lm_3d_camera)  # (B,)
-        self.log("train/lm_3d_dist", lm_3d_dist.mean(), prog_bar=True)
+        self.log("train/lm_3d_loss", lm_3d_dist.mean(), prog_bar=True)
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_2d_ndc = self.extract_landmarks(batch["lm_2d_ndc"])
         lm_2d_dist = landmark_2d_distance(model["lm_2d_ndc"], lm_2d_ndc)  # (B,)
-        self.log("train/lm_2d_dist", lm_2d_dist.mean(), prog_bar=True)
+        self.log("train/lm_2d_loss", lm_2d_dist.mean(), prog_bar=True)
         # debug the overlap of the mask
         for key, value in mask.items():
             self.log(f"debug/{key}", float(value.sum()))
@@ -522,12 +527,18 @@ class FLAME(L.LightningModule):
             param = getattr(self, p_name, None)
             if param is None or not param.weight.requires_grad:
                 continue
-            for i, p in enumerate(param.weight[0]):
+            for i in range(param.weight.shape[-1]):
+                p = param.weight[:, i].mean()
                 self.log_dict({f"debug/{p_name}_{i}": p})
-            for i, p in enumerate(param.weight.grad[0]):
+            for i in range(param.weight.grad.shape[-1]):
+                p = param.weight.grad[:, i].mean()
                 self.log_dict({f"debug/{p_name}_{i}_grad": p})
             self.log_dict({f"debug/{p_name}_mean": param.weight.mean()})
+            self.log_dict({f"debug/{p_name}_absmax": param.weight.abs().max()})
             self.log_dict({f"debug/{p_name}_mean_grad": param.weight.grad.mean()})
+            self.log_dict(
+                {f"debug/{p_name}_absmax_grad": param.weight.grad.abs().max()}
+            )
 
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.logger.save_dir) / file_name  # type: ignore
@@ -552,7 +563,7 @@ class FLAMEPoint2Point(FLAME):
         if self.hparams["init_mode"] == "kinect":
             self.init_params_dphm(0.01, seed=2)
         else:
-            self.init_params_flame(0.02, seed=2)
+            self.init_params_flame(0.03, seed=2)
 
     def optimization_step(self, batch, batch_idx):
         # forward pass with the current frame and shape
@@ -570,13 +581,14 @@ class FLAMEPoint2Point(FLAME):
         loss = p2p[mask["mask"]].mean()
         self.log("train/point2point", loss, prog_bar=True)
         # log metrics
-        self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
-        # visualize the image that is optimized and save to disk
-        if (self.current_epoch) % self.hparams["save_interval"] == 0:
+        # self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
+        if (self.current_epoch % self.hparams["save_interval"]) == 0:
+            # self.debug_3d_points(batch=batch, model=model, render=render)
             self.debug_render(batch=batch, model=model, render=render)
-            self.debug_3d_points(batch=batch, model=model, render=render)
             self.debug_input_batch(batch=batch, model=model, render=render)
             self.debug_loss(batch=batch, render=render, mask=mask)
+            if self.hparams["init_mode"] == "flame":
+                self.debug_params(batch=batch)
 
         return loss
 
@@ -606,7 +618,6 @@ class FLAMEPoint2Plane(FLAME):
         render = self.render_step(model)
         mask = self.inlier_mask(batch=batch, render=render)
 
-        # point2plane
         point2plane = calculate_point2plane(
             q=render["point"],
             p=batch["point"].detach(),
@@ -614,29 +625,28 @@ class FLAMEPoint2Plane(FLAME):
         )  # (B, W, H)
         point2plane_loss = point2plane[mask["mask"]].mean()
         self.log("train/point2plane", point2plane_loss, prog_bar=True)
-        # point2point
-        point2point = calculate_point2point(
-            q=render["point"],
-            p=batch["point"].detach(),
-        )  # (B, W, H)
-        point2point_loss = 0.1 * point2point[mask["mask"]].mean()
-        self.log("train/point2point", point2point_loss, prog_bar=True)
-        # 2d landmark loss
-        lm_2d = landmark_2d_distance(
-            model["lm_2d_ndc"],
-            self.extract_landmarks(batch["lm_2d_ndc"]).detach(),
-        )  # (B, L)
-        lm_2d_loss = lm_2d.mean()
-        self.log("train/lm_2d_loss", lm_2d_loss, prog_bar=True)
+
+        # point2point = calculate_point2point(
+        #     q=render["point"],
+        #     p=batch["point"].detach(),
+        # )  # (B, W, H)
+        # point2point_loss = 0.1 * point2point[mask["mask"]].mean()
+        # self.log("train/point2point", point2point_loss, prog_bar=True)
+
+        # lm_2d = landmark_2d_distance(
+        #     model["lm_2d_ndc"],
+        #     self.extract_landmarks(batch["lm_2d_ndc"]).detach(),
+        # )  # (B, L)
+        # lm_2d_loss = lm_2d.mean()
 
         # final loss
-        loss = point2plane_loss + point2point_loss
+        loss = point2plane_loss
         self.log("train/loss", loss, prog_bar=True)
 
         # debug and logging
         self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
         if (self.current_epoch % self.hparams["save_interval"]) == 0:
-            self.debug_3d_points(batch=batch, model=model, render=render)
+            # self.debug_3d_points(batch=batch, model=model, render=render)
             self.debug_render(batch=batch, model=model, render=render)
             self.debug_input_batch(batch=batch, model=model, render=render)
             self.debug_loss(batch=batch, render=render, mask=mask)

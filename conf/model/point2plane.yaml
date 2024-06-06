@@ -2,7 +2,7 @@
 _target_: lib.model.flame.FLAMEPoint2Plane
 
 # model settings
-flame_dir: ${paths.root_dir}/checkpoints/flame2023
+flame_dir: ${paths.root_dir}/checkpoints/flame2023_no_jaw
 data_dir: ${data.data_dir}
 num_shape_params: 100
 num_expression_params: 50

@@ -1,7 +1,7 @@
 import torch
 
 
-def distance(vertices: torch.Tensor, points: torch.Tensor):
+def distance(vertices: torch.Tensor, points: torch.Tensor, max_points: int = 5000):
     """Calculates the distance between all vertiices and full point cloud.
 
     Args:
@@ -11,9 +11,13 @@ def distance(vertices: torch.Tensor, points: torch.Tensor):
     Returns:
         (torch.Tensor): The min distance of dim (B, V, P)
     """
-    sx = torch.sum(vertices**2, dim=-1).unsqueeze(-1)  # (B, V, 1)
-    sy = torch.sum(points**2, dim=-1).unsqueeze(-2)  # (B, 1, P)
-    sxy = torch.bmm(vertices, points.transpose(-2, -1))  # (B, V, P)
+    sx_idx = torch.randperm(vertices.shape[1])[:max_points].to(vertices.device)
+    sx = torch.sum(vertices[:, sx_idx] ** 2, dim=-1).unsqueeze(-1)  # (B, V, 1)
+    sy_idx = torch.randperm(points.shape[1])[:max_points].to(points.device)
+    sy = torch.sum(points[:, sy_idx] ** 2, dim=-1).unsqueeze(-2)  # (B, 1, P)
+    sxy = torch.bmm(
+        vertices[:, sx_idx], points[:, sy_idx].transpose(-2, -1)
+    )  # (B, V, P)
     dist_in = torch.nn.functional.relu(sx - 2 * sxy + sy)
     return torch.sqrt(dist_in)  # (B, V, P)
 

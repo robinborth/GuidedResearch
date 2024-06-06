@@ -121,7 +121,7 @@ class FinetuneScheduler(BaseFinetuning, Scheduler):
             return
         assert isinstance(pl_module, FLAME)
         for module, param in self.iter_modules(pl_module, current_epoch):
-            print("Unfreeze: ", param)
+            print(f"Unfreeze (step={current_epoch}): {param}")
             # TODO check the learning rate in the scheduler
             self.unfreeze_and_add_param_group(
                 modules=module,

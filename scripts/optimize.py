@@ -4,6 +4,7 @@ from typing import List
 import hydra
 import lightning as L
 import torch
+import wandb
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger, WandbLogger
 from omegaconf import DictConfig
@@ -58,6 +59,9 @@ def optimize(cfg: DictConfig) -> None:
 
     log.info("==> start optimizing ...")
     trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+
+    log.info("==> finish wandb run ...")
+    wandb.finish()
 
 
 if __name__ == "__main__":
