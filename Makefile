@@ -31,13 +31,13 @@ joint_point2plane:
 	data=kinect \
 	data.batch_size=20  \
 	data.start_frame_idx=19 \
-	trainer.max_epochs=2001 \
+	trainer.max_epochs=741 \
 	trainer.accelerator=gpu \
 	+trainer.accumulate_grad_batches=4 \
-	callbacks.coarse2fine_scheduler.milestones=[0,2000] \
+	callbacks.coarse2fine_scheduler.milestones=[0,740] \
 	callbacks.coarse2fine_scheduler.scales=[0.125,1.0] \
-	callbacks.finetune_scheduler.milestones=[0,100,150,350] \
-	callbacks.finetune_scheduler.params=["global_pose|transl","neck_pose|eye_pose","shape_params","expression_params"] \
+	callbacks.finetune_scheduler.milestones=[0,100,150] \
+	callbacks.finetune_scheduler.params=["global_pose|transl","neck_pose|eye_pose","shape_params|expression_params"] \
 
 point2plane_flame:
 	python scripts/optimize.py \
@@ -54,7 +54,7 @@ point2plane_flame:
 
 
 create_video:
-	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-06_16-17-17/render_normal" +video_path="temp/render_normal.mp4"
-	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-06_16-17-17/batch_color" +video_path="temp/batch_color.mp4"
-	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-06_16-17-17/error_point_to_plane" +video_path="temp/error_point_to_plane.mp4"
-	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-06_16-17-17/render_merged" +video_path="temp/render_merged.mp4"
+	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-07_12-49-31/render_normal" +video_path="temp/render_normal.mp4"
+	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-07_12-49-31/batch_color" +video_path="temp/batch_color.mp4"
+	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-07_12-49-31/error_point_to_plane" +video_path="temp/error_point_to_plane.mp4"
+	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-07_12-49-31/render_merged" +video_path="temp/render_merged.mp4"

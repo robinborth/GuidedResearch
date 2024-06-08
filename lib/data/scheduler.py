@@ -120,11 +120,19 @@ class FinetuneScheduler(BaseFinetuning, Scheduler):
         if self.skip(current_epoch) or current_epoch == 0:
             return
         assert isinstance(pl_module, FLAME)
-        for module, param in self.iter_modules(pl_module, current_epoch):
-            print(f"Unfreeze (step={current_epoch}): {param}")
-            # TODO check the learning rate in the scheduler
-            self.unfreeze_and_add_param_group(
-                modules=module,
-                optimizer=optimizer,
-                initial_denom_lr=1.0,
-            )
+        for module, p_name in self.iter_modules(pl_module, current_epoch):
+            if p_name in ["shape_params", "expression_params"]:
+                lr = 1e-01 if p_name == "shape_params" else 5e-01
+                print(f"Unfreeze (step={current_epoch}, lr={lr}): {p_name}")
+                self.unfreeze_and_add_param_group(
+                    modules=module,
+                    optimizer=optimizer,
+                    lr=lr,
+                )
+            else:
+                print(f"Unfreeze (step={current_epoch}): {p_name}")
+                self.unfreeze_and_add_param_group(
+                    modules=module,
+                    optimizer=optimizer,
+                    initial_denom_lr=1.0,
+                )

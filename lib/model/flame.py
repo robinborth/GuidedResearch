@@ -637,14 +637,14 @@ class FLAMEPoint2Plane(FLAME):
             n=render["normal"].detach(),
         )  # (B, W, H)
         point2plane_loss = point2plane[mask["mask"]].mean()
-        self.log("train/point2plane", point2plane_loss, prog_bar=True)
+        self.log("train/point2plane_loss", point2plane_loss, prog_bar=True)
 
         # point2point = calculate_point2point(
         #     q=render["point"],
         #     p=batch["point"].detach(),
         # )  # (B, W, H)
-        # point2point_loss = 0.1 * point2point[mask["mask"]].mean()
-        # self.log("train/point2point", point2point_loss, prog_bar=True)
+        # point2point_loss = point2point[mask["mask"]].mean()
+        # self.log("train/point2point_loss", point2point_loss, prog_bar=True)
 
         # lm_2d = landmark_2d_distance(
         #     model["lm_2d_ndc"],
@@ -652,9 +652,9 @@ class FLAMEPoint2Plane(FLAME):
         # )  # (B, L)
         # lm_2d_loss = lm_2d.mean()
 
-        # reg_loss_shape = torch.norm(self.shape_params(batch["shape_idx"]), dim=-1)
-        # reg_loss_shape = 1e-06 * reg_loss_shape.mean()
-        # self.log("train/reg_loss_shape", reg_loss_shape)
+        reg_loss_shape = torch.norm(self.shape_params(batch["shape_idx"]), dim=-1)
+        reg_loss_shape = 1e-07 * reg_loss_shape.mean()
+        self.log("train/reg_loss_shape", reg_loss_shape)
 
         # reg_loss_expression = torch.norm(
         #     self.expression_params(batch["frame_idx"]), dim=-1
@@ -662,11 +662,11 @@ class FLAMEPoint2Plane(FLAME):
         # reg_loss_expression = 1e-07 * reg_loss_expression.mean()
         # self.log("train/reg_loss_expression", reg_loss_expression)
 
-        # reg_loss = reg_loss_shape + reg_loss_expression
-        # self.log("train/reg_loss", reg_loss)
+        reg_loss = reg_loss_shape
+        self.log("train/reg_loss", reg_loss)
 
         # final loss
-        loss = point2plane_loss
+        loss = point2plane_loss + reg_loss
         self.log(
             "train/loss",
             loss,
