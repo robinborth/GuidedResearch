@@ -1,6 +1,6 @@
-# @package callbacks
+# @package scheduler
 
-coarse2fine_scheduler:
+coarse2fine:
   _target_: lib.data.scheduler.CoarseToFineScheduler
   milestones: [0, 150]
   scales: [0.1, 0.25]

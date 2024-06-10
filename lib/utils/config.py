@@ -10,7 +10,7 @@ from lib.utils.logger import create_logger
 log = create_logger("config")
 
 
-def instantiate_callbacks(callbacks_cfg: DictConfig) -> List[Callback]:
+def instantiate_callbacks(callbacks_cfg: DictConfig | dict) -> List[Callback]:
     callbacks: List[Callback] = []
 
     if callbacks_cfg is None:

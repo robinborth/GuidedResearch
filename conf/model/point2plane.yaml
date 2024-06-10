@@ -1,5 +1,5 @@
 # @package model
-_target_: lib.model.flame.FLAMEPoint2Plane
+_target_: lib.model.flame.FLAME
 
 # model settings
 flame_dir: ${paths.root_dir}/checkpoints/flame2023_no_jaw

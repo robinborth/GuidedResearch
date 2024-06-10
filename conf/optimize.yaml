@@ -5,12 +5,12 @@ defaults:
   - model: point2point # point2point, point2plane
   - trainer: default  # default, gpu
   - logger: csv # csv, wand
-  - callbacks:
-    - rich_progress_bar
+  # - callbacks:
+    # - rich_progress_bar
   - scheduler:  # this is internally handled like a callback
     - coarse2fine
     - finetune
-    - optimizer 
+    # - optimizer 
   - hydra: default
   - paths: default
   - debug: null

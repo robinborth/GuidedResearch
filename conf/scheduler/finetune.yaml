@@ -1,6 +1,6 @@
-# @package callbacks
+# @package scheduler
 
-finetune_scheduler:
+finetune:
   _target_: lib.data.scheduler.FinetuneScheduler
   milestones: [0]
   params: ["global_pose|transl"]

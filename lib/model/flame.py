@@ -72,8 +72,13 @@ class FLAME(L.LightningModule):
         self.transl = self.create_embeddings(torch.zeros(optimize_frames, 3))
         self.scale = self.create_embeddings(torch.ones(optimize_frames, 3))
 
-        # load the faces, mean vertices and pca bases
+        # load the faces
         self.faces = nn.Parameter(flame_model["f"], requires_grad=False)  # (9976, 3)
+        face_mask = load_flame_masks(flame_dir, return_tensors="pt")[vertices_mask]
+        masked_faces = self.mask_faces(flame_model["f"], face_mask)
+        self.masked_faces = torch.nn.Parameter(masked_faces, requires_grad=False)
+
+        # load the mean vertices and pca bases
         self.v_template = nn.Parameter(flame_model["v_template"])  # (5023, 3)
         self.shapedirs = nn.Parameter(flame_model["shapedirs"])  # (5023, 3, 400)
 
@@ -103,19 +108,25 @@ class FLAME(L.LightningModule):
 
         # optimize modes
         self.optimize_modes: list[str] = ["default"]
-        self.set_optimize_mode("default")
+        self._set_optimize_mode("default")
 
         # set optimization parameters
         self.optimization_parameters = [
+            "global_pose",
+            "transl",
+            # "scale",
+            "neck_pose",
+            "eye_pose",
+            # "jaw_pose",
             "shape_params",
             "expression_params",
-            "global_pose",
-            "neck_pose",
-            # "jaw_pose",
-            "eye_pose",
-            "transl",
-            "scale",
         ]
+
+        # init the params of the model
+        if self.hparams["init_mode"] == "kinect":
+            self.init_params_dphm(0.01, seed=2)
+        else:
+            self.init_params_flame(0.03, seed=2)
 
     ####################################################################################
     # Core
@@ -208,34 +219,40 @@ class FLAME(L.LightningModule):
 
         return vertices, landmarks  # (B, V, 3), (B, 105, 3)
 
-    def model_step(self, frame_idx: torch.Tensor | int, shape_idx: torch.Tensor | int):
-        if isinstance(frame_idx, int):
-            frame_idx = torch.tensor([frame_idx], device=self.device)
-        if isinstance(shape_idx, int):
-            shape_idx = torch.tensor([shape_idx], device=self.device)
+    def optimization_step(self, batch: dict):
+        # inference get the vertices and the landmarks
         vertices, landmarks = self.forward(
-            shape_params=self.shape_params(shape_idx),  # (B, S')
-            expression_params=self.expression_params(frame_idx),  # (B, E')
-            global_pose=self.global_pose(frame_idx),
-            neck_pose=self.neck_pose(frame_idx),
-            jaw_pose=self.jaw_pose(frame_idx),
-            eye_pose=self.eye_pose(frame_idx),
-            transl=self.transl(frame_idx),
-            scale=self.scale(frame_idx),
+            shape_params=self.shape_params(batch["shape_idx"]),  # (B, S')
+            expression_params=self.expression_params(batch["frame_idx"]),  # (B, E')
+            global_pose=self.global_pose(batch["frame_idx"]),
+            neck_pose=self.neck_pose(batch["frame_idx"]),
+            jaw_pose=self.jaw_pose(batch["frame_idx"]),
+            eye_pose=self.eye_pose(batch["frame_idx"]),
+            transl=self.transl(batch["frame_idx"]),
+            scale=self.scale(batch["frame_idx"]),
         )  # (B, V, 3)
+
+        # extract the 2D landmark locations
         lm_3d_homo = self.renderer.camera.convert_to_homo_coords(landmarks)
         lm_2d_ndc_homo = self.renderer.camera.ndc_transform(lm_3d_homo)
         lm_2d_ndc = lm_2d_ndc_homo[..., :2]
-        return {"vertices": vertices, "lm_3d_camera": landmarks, "lm_2d_ndc": lm_2d_ndc}
 
-    def render_step(self, model: dict[str, torch.Tensor]):
         # render the current flame model
-        faces = self.masked_faces(model["vertices"])  # (F', 3)
         render = self.renderer.render_full(
-            vertices=model["vertices"],  # (B, V, 3)
-            faces=faces,  # (F, 3)
+            vertices=vertices,  # (B, V, 3)
+            faces=self.masked_faces,  # (F, 3)
         )  # (B, H', W')
-        return render
+
+        # calculate the mask
+        mask = self.inlier_mask(batch=batch, render=render)
+
+        return {
+            "vertices": vertices,
+            "lm_3d_camera": landmarks,
+            "lm_2d_ndc": lm_2d_ndc,
+            **render,
+            **mask,
+        }
 
     def on_train_start(self):
         # please here the initilizations that need some state from outside the model
@@ -243,11 +260,11 @@ class FLAME(L.LightningModule):
         rasterizer = getattr(self.trainer.datamodule, "rasterizer", None)
         self.init_renderer(camera=camera, rasterizer=rasterizer)
 
-    def training_step(self, batch, batch_idx):
-        return self.optimization_step(batch, batch_idx)
+    def on_before_optimizer_step(self, optimizer):
+        self.debug_gradients(optimizer)
 
-    def optimization_step(self):
-        raise NotImplementedError()
+    def training_step(self, batch, batch_idx):
+        return self.optimization_step(batch)
 
     def configure_optimizers(self):
         # 6 DoF initialization
@@ -311,7 +328,7 @@ class FLAME(L.LightningModule):
             transl=[s[3], s[4], s[5] - 0.5],
         )
 
-    def set_optimize_mode(self, mode: str):
+    def _set_optimize_mode(self, mode: str):
         assert mode in self.optimize_modes
         self.optimize_mode = mode
 
@@ -320,21 +337,13 @@ class FLAME(L.LightningModule):
         num_embeddings, embedding_dim = tensor.shape
         return nn.Embedding(num_embeddings, embedding_dim, _weight=tensor)
 
-    def masked_faces(self, vertices: torch.Tensor):
-        """Calculates the triangular faces mask based on the masked vertices.
-
-        Args:
-            vertices (torch.Tensor): The vertices in camera coordinate system (B, V, 3)
-
-        Returns:
-            (torch.Tensor): A boolean mask of the faces that should be used for the
-                computation, the final dimension of the mask is (F, 3).
-        """
-        if self.vertices_mask is None:
-            return self.faces
-        vertices_mask = self.vertices_mask.expand(*self.faces.shape, -1).to(self.device)
-        face_mask = (self.faces.unsqueeze(-1) == vertices_mask).any(dim=-1).all(dim=-1)
-        return self.faces[face_mask]
+    def mask_faces(self, faces: torch.Tensor, vertices_mask: torch.Tensor):
+        """Calculates the triangular faces mask based on the masked vertices."""
+        if vertices_mask is None:
+            return faces
+        vertices_mask = vertices_mask.expand(*faces.shape, -1)
+        face_mask = (faces.unsqueeze(-1) == vertices_mask).any(dim=-1).all(dim=-1)
+        return faces[face_mask]
 
     def inlier_mask(
         self,
@@ -371,7 +380,7 @@ class FLAME(L.LightningModule):
         for idx in range(B):
             yield B, idx, batch["frame_idx"][idx].item()
 
-    def debug_loss(self, batch: dict, render: dict, mask: dict, max_loss=1e-02):
+    def debug_loss(self, batch: dict, model: dict, max_loss=1e-02):
         """The max is an error of 10cm"""
         # color entcoding for the loss map
         norm = plt.Normalize(0.0, vmax=max_loss)
@@ -382,11 +391,11 @@ class FLAME(L.LightningModule):
             # point to point error map
             file_name = f"error_point_to_point/{f_idx:05}/{self.current_epoch:05}.png"
             loss = torch.sqrt(
-                calculate_point2point(batch["point"], render["point"])
+                calculate_point2point(batch["point"], model["point"])
             )  # (B, W, H)
             error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
             error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
-            error_map[~render["mask"][b_idx], :] = 1.0
+            error_map[~model["mask"][b_idx], :] = 1.0
             error_map = (error_map * 255).to(torch.uint8)
             self.save_image(file_name, error_map)
 
@@ -394,58 +403,58 @@ class FLAME(L.LightningModule):
             file_name = f"error_point_to_plane/{f_idx:05}/{self.current_epoch:05}.png"
             loss = torch.sqrt(
                 calculate_point2plane(
-                    p=render["point"],
-                    q=batch["point"],
-                    n=render["normal"],
+                    p=model["point"],
+                    q=model["point"],
+                    n=model["normal"],
                 )
             )  # (B, W, H)
             error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
             error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
-            error_map[~render["mask"][b_idx], :] = 1.0
+            error_map[~model["mask"][b_idx], :] = 1.0
             error_map = (error_map * 255).to(torch.uint8)
             self.save_image(file_name, error_map)
 
             # error mask
             file_name = f"error_mask/{f_idx:05}/{self.current_epoch:05}.png"
-            self.save_image(file_name, mask["mask"][b_idx])
+            self.save_image(file_name, model["mask"][b_idx])
 
-    def debug_render(self, batch: dict, render: dict, model: dict):
+    def debug_render(self, batch: dict, model: dict):
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
             file_name = f"render_mask/{f_idx:05}/{self.current_epoch:05}.png"
-            self.save_image(file_name, render["mask"][b_idx])
+            self.save_image(file_name, model["mask"][b_idx])
 
             file_name = f"render_depth/{f_idx:05}/{self.current_epoch:05}.png"
-            self.save_image(file_name, render["depth_image"][b_idx])
+            self.save_image(file_name, model["depth_image"][b_idx])
 
             file_name = f"render_normal/{f_idx:05}/{self.current_epoch:05}.png"
-            self.save_image(file_name, render["normal_image"][b_idx])
+            self.save_image(file_name, model["normal_image"][b_idx])
 
             file_name = f"render_color/{f_idx:05}/{self.current_epoch:05}.png"
-            self.save_image(file_name, render["color"][b_idx])
+            self.save_image(file_name, model["color"][b_idx])
 
             file_name = f"render_merged_depth/{f_idx:05}/{self.current_epoch:05}.png"
             render_merged_depth = batch["color"].clone()
             color_mask = (
-                (render["point"][:, :, :, 2] < batch["point"][:, :, :, 2])
-                | (render["mask"] & ~batch["mask"])
-            ) & render["mask"]
-            render_merged_depth[color_mask] = render["color"][color_mask]
+                (model["point"][:, :, :, 2] < batch["point"][:, :, :, 2])
+                | (model["mask"] & ~batch["mask"])
+            ) & model["mask"]
+            render_merged_depth[color_mask] = model["color"][color_mask]
             self.save_image(file_name, render_merged_depth[b_idx])
 
             file_name = f"render_merged/{f_idx:05}/{self.current_epoch:05}.png"
             render_merged = batch["color"].clone()
-            render_merged[render["mask"]] = render["color"][render["mask"]]
+            render_merged[model["mask"]] = model["color"][model["mask"]]
             self.save_image(file_name, render_merged[b_idx])
 
             file_name = f"render_landmark/{f_idx:05}/{self.current_epoch:05}.png"
             lm_2d_screen = self.renderer.camera.xy_ndc_to_screen(model["lm_2d_ndc"])
             x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
             y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
-            color_image = render["color"][b_idx]
+            color_image = model["color"][b_idx]
             color_image[y_idx, x_idx, :] = 255
             self.save_image(file_name, color_image)
 
-    def debug_3d_points(self, batch: dict, render: dict, model: dict):
+    def debug_3d_points(self, batch: dict, model: dict):
         for B, b_idx, f_idx in self.iter_debug_idx(batch):
             # save the gt points
             file_name = f"point_batch/{f_idx:05}/{self.current_epoch:05}.npy"
@@ -453,7 +462,7 @@ class FLAME(L.LightningModule):
             self.save_points(file_name, points)
             # save the flame points
             file_name = f"point_render/{f_idx:05}/{self.current_epoch:05}.npy"
-            render_points = render["point"][b_idx][render["mask"][b_idx]].reshape(-1, 3)
+            render_points = model["point"][b_idx][model["mask"][b_idx]].reshape(-1, 3)
             self.save_points(file_name, render_points[b_idx])
             # save the lm_3d gt points
             file_name = f"point_batch_landmark/{f_idx:05}/{self.current_epoch:05}.npy"
@@ -462,7 +471,7 @@ class FLAME(L.LightningModule):
             file_name = f"point_render_landmark/{f_idx:05}/{self.current_epoch:05}.npy"
             self.save_points(file_name, model["lm_3d_camera"][b_idx])
 
-    def debug_input_batch(self, batch: dict, model: dict, render: dict):
+    def debug_input_batch(self, batch: dict, model: dict):
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
             file_name = f"batch_mask/{f_idx:05}/{self.current_epoch:05}.png"
             self.save_image(file_name, batch["mask"][b_idx])
@@ -489,7 +498,7 @@ class FLAME(L.LightningModule):
             color_image[y_idx, x_idx, :] = 255
             self.save_image(file_name, color_image)
 
-    def debug_metrics(self, batch: dict, model: dict, render: dict, mask: dict):
+    def debug_metrics(self, batch: dict, model: dict):
         # out of memory problems
         # chamfers = []
         # for _, b_idx, _ in self.iter_debug_idx(batch):
@@ -503,26 +512,16 @@ class FLAME(L.LightningModule):
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_3d_camera = self.extract_landmarks(batch["lm_3d_camera"])
         lm_3d_dist = landmark_3d_distance(model["lm_3d_camera"], lm_3d_camera)  # (B,)
-        self.log(
-            "train/lm_3d_loss",
-            lm_3d_dist.mean(),
-            prog_bar=True,
-            # on_step=True,
-            # on_epoch=True,
-        )
+        self.log("train/lm_3d_loss", lm_3d_dist.mean())
+
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_2d_ndc = self.extract_landmarks(batch["lm_2d_ndc"])
         lm_2d_dist = landmark_2d_distance(model["lm_2d_ndc"], lm_2d_ndc)  # (B,)
-        self.log(
-            "train/lm_2d_loss",
-            lm_2d_dist.mean(),
-            prog_bar=True,
-            # on_step=True,
-            # on_epoch=True,
-        )
+        self.log("train/lm_2d_loss", lm_2d_dist.mean())
         # debug the overlap of the mask
-        for key, value in mask.items():
-            self.log(f"debug/{key}", float(value.sum()))
+        for key, value in model.items():
+            if key.contains("mask"):
+                self.log(f"debug/{key}", float(value.sum()))
 
     def debug_params(self, batch: dict):
         for p_name in self.optimization_parameters:
@@ -570,43 +569,28 @@ class FLAME(L.LightningModule):
 ########################################################################################
 
 
-class FLAMEPoint2Point(FLAME):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if self.hparams["init_mode"] == "kinect":
-            self.init_params_dphm(0.01, seed=2)
-        else:
-            self.init_params_flame(0.03, seed=2)
+# class FLAMEPoint2Point(FLAME):
 
-    def optimization_step(self, batch, batch_idx):
-        # forward pass with the current frame and shape
-        model = self.model_step(
-            frame_idx=batch["frame_idx"],  # (B, )
-            shape_idx=batch["shape_idx"],  # (B, )
-        )
-        # render the current flame model
-        render = self.render_step(model)
-        # rejection based on outliers
-        mask = self.inlier_mask(batch=batch, render=render)
-        # distance in camera space per pixel & point to point loss
-        p2p = calculate_point2point(batch["point"], render["point"])  # (B, W, H)
-        # point to point loss
-        loss = p2p[mask["mask"]].mean()
-        self.log("train/point2point", loss, prog_bar=True)
-        # log metrics
-        # self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
-        if (self.current_epoch % self.hparams["save_interval"]) == 0:
-            # self.debug_3d_points(batch=batch, model=model, render=render)
-            self.debug_render(batch=batch, model=model, render=render)
-            self.debug_input_batch(batch=batch, model=model, render=render)
-            self.debug_loss(batch=batch, render=render, mask=mask)
-            if self.hparams["init_mode"] == "flame":
-                self.debug_params(batch=batch)
+#     def optimization_step(self, batch: dict):
+#         # forward pass with the current frame and shape
+#         model = self.model_step(batch)
 
-        return loss
+#         p2p = calculate_point2point(batch["point"], model["point"])  # (B, W, H)
+#         # point to point loss
+#         loss = p2p[model["mask"]].mean()
+#         self.log("train/point2point", loss, prog_bar=True)
 
-    def on_before_optimizer_step(self, optimizer):
-        self.debug_gradients(optimizer)
+#         # debug and logging
+#         self.debug_metrics(batch=batch, model=model)
+#         if (self.current_epoch % self.hparams["save_interval"]) == 0:
+#             # self.debug_3d_points(batch=batch, model=model)
+#             self.debug_render(batch=batch, model=model)
+#             self.debug_input_batch(batch=batch, model=model)
+#             self.debug_loss(batch=batch, model=model)
+#             if self.hparams["init_mode"] == "flame":
+#                 self.debug_params(batch=batch)
+
+#         return loss
 
 
 ########################################################################################
@@ -614,78 +598,56 @@ class FLAMEPoint2Point(FLAME):
 ########################################################################################
 
 
-class FLAMEPoint2Plane(FLAME):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if self.hparams["init_mode"] == "kinect":
-            self.init_params_dphm(0.01, seed=2)
-        else:
-            self.init_params_flame(0.03, seed=2)
+# class FLAMEPoint2Plane(FLAME):
+# def optimization_step(self, batch: dict):
+#     model = self.model_step(batch)
 
-    def optimization_step(self, batch, batch_idx):
-        # forward pass to get the data
-        model = self.model_step(
-            frame_idx=batch["frame_idx"],  # (B, )
-            shape_idx=batch["shape_idx"],  # (B, )
-        )
-        render = self.render_step(model)
-        mask = self.inlier_mask(batch=batch, render=render)
+#     point2plane = calculate_point2plane(
+#         q=model["point"],
+#         p=batch["point"].detach(),
+#         n=model["normal"].detach(),
+#     )  # (B, W, H)
+#     point2plane_loss = point2plane[model["mask"]].mean()
+#     self.log("train/point2plane_loss", point2plane_loss, prog_bar=True)
 
-        point2plane = calculate_point2plane(
-            q=render["point"],
-            p=batch["point"].detach(),
-            n=render["normal"].detach(),
-        )  # (B, W, H)
-        point2plane_loss = point2plane[mask["mask"]].mean()
-        self.log("train/point2plane_loss", point2plane_loss, prog_bar=True)
+#     # point2point = calculate_point2point(
+#     #     q=render["point"],
+#     #     p=batch["point"].detach(),
+#     # )  # (B, W, H)
+#     # point2point_loss = point2point[mask["mask"]].mean()
+#     # self.log("train/point2point_loss", point2point_loss, prog_bar=True)
 
-        # point2point = calculate_point2point(
-        #     q=render["point"],
-        #     p=batch["point"].detach(),
-        # )  # (B, W, H)
-        # point2point_loss = point2point[mask["mask"]].mean()
-        # self.log("train/point2point_loss", point2point_loss, prog_bar=True)
+#     # lm_2d = landmark_2d_distance(
+#     #     model["lm_2d_ndc"],
+#     #     self.extract_landmarks(batch["lm_2d_ndc"]).detach(),
+#     # )  # (B, L)
+#     # lm_2d_loss = lm_2d.mean()
 
-        # lm_2d = landmark_2d_distance(
-        #     model["lm_2d_ndc"],
-        #     self.extract_landmarks(batch["lm_2d_ndc"]).detach(),
-        # )  # (B, L)
-        # lm_2d_loss = lm_2d.mean()
+#     reg_loss_shape = torch.norm(self.shape_params(batch["shape_idx"]), dim=-1)
+#     reg_loss_shape = 1e-07 * reg_loss_shape.mean()
+#     self.log("train/reg_loss_shape", reg_loss_shape)
 
-        reg_loss_shape = torch.norm(self.shape_params(batch["shape_idx"]), dim=-1)
-        reg_loss_shape = 1e-07 * reg_loss_shape.mean()
-        self.log("train/reg_loss_shape", reg_loss_shape)
+#     # reg_loss_expression = torch.norm(
+#     #     self.expression_params(batch["frame_idx"]), dim=-1
+#     # )
+#     # reg_loss_expression = 1e-07 * reg_loss_expression.mean()
+#     # self.log("train/reg_loss_expression", reg_loss_expression)
 
-        # reg_loss_expression = torch.norm(
-        #     self.expression_params(batch["frame_idx"]), dim=-1
-        # )
-        # reg_loss_expression = 1e-07 * reg_loss_expression.mean()
-        # self.log("train/reg_loss_expression", reg_loss_expression)
+#     reg_loss = reg_loss_shape
+#     self.log("train/reg_loss", reg_loss)
 
-        reg_loss = reg_loss_shape
-        self.log("train/reg_loss", reg_loss)
+#     # final loss
+#     loss = point2plane_loss + reg_loss
+#     self.log("train/loss", loss)
 
-        # final loss
-        loss = point2plane_loss + reg_loss
-        self.log(
-            "train/loss",
-            loss,
-            prog_bar=True,
-            # on_step=True,
-            # on_epoch=True,
-        )
+#     # debug and logging
+#     self.debug_metrics(batch=batch, model=model)
+#     if (self.current_epoch % self.hparams["save_interval"]) == 0:
+#         # self.debug_3d_points(batch=batch, model=model)
+#         self.debug_render(batch=batch, model=model)
+#         self.debug_input_batch(batch=batch, model=model)
+#         self.debug_loss(batch=batch, model=model)
+#         if self.hparams["init_mode"] == "flame":
+#             self.debug_params(batch=batch)
 
-        # debug and logging
-        self.debug_metrics(batch=batch, model=model, render=render, mask=mask)
-        if (self.current_epoch % self.hparams["save_interval"]) == 0:
-            # self.debug_3d_points(batch=batch, model=model, render=render)
-            self.debug_render(batch=batch, model=model, render=render)
-            self.debug_input_batch(batch=batch, model=model, render=render)
-            self.debug_loss(batch=batch, render=render, mask=mask)
-            if self.hparams["init_mode"] == "flame":
-                self.debug_params(batch=batch)
-
-        return loss
-
-    def on_before_optimizer_step(self, optimizer):
-        self.debug_gradients(optimizer)
+#     return loss

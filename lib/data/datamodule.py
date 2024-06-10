@@ -42,7 +42,7 @@ class DPHMDataModule(L.LightningDataModule):
         )
         assert self.hparams["batch_size"] <= self.dataset.optimize_frames
 
-    def setup(self, stage: str):
+    def setup(self, stage: str = ""):
         self.K = load_intrinsics(
             data_dir=self.hparams["data_dir"],
             return_tensor="pt",

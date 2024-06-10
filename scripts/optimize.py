@@ -30,7 +30,8 @@ def optimize(cfg: DictConfig) -> None:
     model: LightningModule = hydra.utils.instantiate(cfg.model)
 
     log.info("==> initializing callbacks ...")
-    callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
+    callbacks_schedulers = {**cfg.get("callbacks", {}), **cfg.get("scheduler", {})}
+    callbacks: List[Callback] = instantiate_callbacks(callbacks_schedulers)
 
     log.info("==> initializing logger ...")
     warnings.filterwarnings("ignore")
@@ -58,7 +59,7 @@ def optimize(cfg: DictConfig) -> None:
         log_hyperparameters(object_dict)
 
     log.info("==> start optimizing ...")
-    trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+    trainer.fit(model=model, datamodule=datamodule)
 
     log.info("==> finish wandb run ...")
     wandb.finish()
