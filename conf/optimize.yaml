@@ -3,7 +3,7 @@
 defaults:
   - data: flame  # kinect, flame
   - model: point2point # point2point, point2plane
-  - trainer: default  # default, gpu
+  - trainer: icp  # default, gpu
   - logger: csv # csv, wand
   # - callbacks:
     # - rich_progress_bar

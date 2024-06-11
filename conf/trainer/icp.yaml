@@ -1,0 +1,3 @@
+max_iters: 25
+max_optims: 100
+save_interval: 10

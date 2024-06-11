@@ -195,7 +195,7 @@ class FlameLogger:
                 self.log(f"debug/param_{p_name}_l2", param_dist)
 
     def log_gradients(self, optimizer):
-        for p_name in self.optimization_parameters:
+        for p_name in self.model.optimization_parameters:
             param = getattr(self, p_name, None)
             if param is None or not param.weight.requires_grad:
                 continue

@@ -1,6 +1,7 @@
 import hydra
 import lightning as L
 import torch
+from hydra.utils import instantiate
 from lightning.pytorch.loggers import Logger, TensorBoardLogger, WandbLogger
 from omegaconf import DictConfig
 from tqdm import tqdm
@@ -21,6 +22,7 @@ def optimize(cfg: DictConfig) -> None:
     L.seed_everything(cfg.seed)
     torch.set_float32_matmul_precision("medium")  # using CUDA device RTX A400
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    assert device == "cuda"
 
     log.info(f"==> initializing datamodule <{cfg.data._target_}>")
     datamodule: DPHMDataModule = hydra.utils.instantiate(cfg.data, devie=device)
@@ -30,10 +32,6 @@ def optimize(cfg: DictConfig) -> None:
     model: FLAME = hydra.utils.instantiate(cfg.model)
     model.init_renderer(camera=datamodule.camera, rasterizer=datamodule.rasterizer)
     model = model.to(device)
-
-    log.info("==> initializing optimizer")
-    optimizer_cfg = model.configure_optimizers()
-    optimizer = optimizer_cfg["optimizer"]
 
     log.info("==> initializing scheduler ...")
     fts: FinetuneScheduler = hydra.utils.instantiate(cfg.scheduler.finetune)
@@ -47,12 +45,11 @@ def optimize(cfg: DictConfig) -> None:
         _logger.experiment
     logger = FlameLogger(logger=_logger, model=model)
 
-    fts.freeze_before_training(model)
-    for epoch in tqdm(range(cfg.trainer.max_epochs)):  # outer loop
+    for iter_step in tqdm(range(cfg.trainer.max_iters)):  # outer loop
         # settings
-        logger.current_epoch = epoch
-        c2fs.schedule_dataset(datamodule, epoch)
-        fts.finetune_function(model, epoch, optimizer)
+        logger.current_epoch = iter_step
+        c2fs.schedule_dataset(datamodule=datamodule, iter_step=iter_step)
+        optimizer = fts.configure_optimizers(model=model, iter_step=iter_step)
 
         # fetch single batch
         dataloader = datamodule.train_dataloader()
@@ -67,15 +64,15 @@ def optimize(cfg: DictConfig) -> None:
 
         # debug and logging
         logger.log_metrics(batch=batch, model=out)
-        if (epoch % model.hparams["save_interval"]) == 0:
+        if (iter_step % cfg.trainer.save_interval) == 0:
             # logger.debug_3d_points(batch=batch, model=out)
             logger.log_render(batch=batch, model=out)
             logger.log_input_batch(batch=batch, model=out)
             logger.log_loss(batch=batch, model=out)
-            if model.hparams["init_mode"] == "flame":
+            if model.init_mode == "flame":
                 model.debug_params(batch=batch)
 
-        for iter_step in range(100):
+        for optim_step in range(cfg.trainer.max_optims):
             optimizer.zero_grad()
             m_out = model.model_step(batch)
             p = model.renderer.mask_interpolate(
