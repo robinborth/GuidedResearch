@@ -1,29 +1,18 @@
-import warnings
-from dataclasses import dataclass
-from typing import List
-
 import hydra
 import lightning as L
 import torch
-import wandb
-from lightning import Callback, LightningModule
 from lightning.pytorch.loggers import Logger, TensorBoardLogger, WandbLogger
 from omegaconf import DictConfig
-from torch.profiler import ProfilerActivity, profile, record_function
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
-from lib.data.scheduler import CoarseToFineScheduler, DummyScheduler, FinetuneScheduler
+from lib.data.scheduler import CoarseToFineScheduler, FinetuneScheduler
 from lib.model.flame import FLAME
 from lib.model.logger import FlameLogger
 from lib.model.loss import calculate_point2plane
-from lib.utils.config import instantiate_callbacks, log_hyperparameters
-from lib.utils.logger import create_logger, disable_pydevd_warning
-from lib.utils.mesh import vertex_normals
+from lib.utils.logger import create_logger
 
 log = create_logger("optimize")
-warnings.filterwarnings("ignore")
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="optimize")
@@ -50,10 +39,6 @@ def optimize(cfg: DictConfig) -> None:
     fts: FinetuneScheduler = hydra.utils.instantiate(cfg.scheduler.finetune)
     c2fs: CoarseToFineScheduler = hydra.utils.instantiate(cfg.scheduler.coarse2fine)
 
-    # log.info("==> initializing callbacks ...")
-    # callbacks_schedulers = {**cfg.get("callbacks", {}), **cfg.get("scheduler", {})}
-    # callbacks: List[Callback] = instantiate_callbacks(callbacks_schedulers)
-
     log.info("==> initializing logger ...")
     _logger: Logger = hydra.utils.instantiate(cfg.logger)
     if isinstance(_logger, WandbLogger):
@@ -61,16 +46,6 @@ def optimize(cfg: DictConfig) -> None:
     if isinstance(_logger, TensorBoardLogger):
         _logger.experiment
     logger = FlameLogger(logger=_logger, model=model)
-
-    # log.info("==> initializing fabric ...")
-    # fabric = L.Fabric(
-    #     accelerator=cfg.trainer.accelerator,
-    #     callbacks=callbacks,
-    # )
-    # fabric.launch()
-
-    # log.info("==> setup model and optimizer ...")
-    # model, optimizer = fabric.setup(model, optimizer)
 
     fts.freeze_before_training(model)
     for epoch in tqdm(range(cfg.trainer.max_epochs)):  # outer loop
@@ -100,7 +75,7 @@ def optimize(cfg: DictConfig) -> None:
             if model.hparams["init_mode"] == "flame":
                 model.debug_params(batch=batch)
 
-        for iter_step in range(100):  # TODO parameterice that
+        for iter_step in range(100):
             optimizer.zero_grad()
             m_out = model.model_step(batch)
             p = model.renderer.mask_interpolate(

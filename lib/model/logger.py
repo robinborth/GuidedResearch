@@ -63,7 +63,7 @@ class FlameLogger:
             loss = torch.sqrt(
                 calculate_point2plane(
                     p=model["point"],
-                    q=model["point"],
+                    q=batch["point"],
                     n=model["normal"],
                 )
             )  # (B, W, H)
