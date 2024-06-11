@@ -54,7 +54,7 @@ class FlameLogger:
             )  # (B, W, H)
             error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
             error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
-            error_map[~model["mask"][b_idx], :] = 1.0
+            error_map[~model["r_mask"][b_idx], :] = 1.0
             error_map = (error_map * 255).to(torch.uint8)
             self.save_image(file_name, error_map)
 
@@ -69,7 +69,7 @@ class FlameLogger:
             )  # (B, W, H)
             error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
             error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
-            error_map[~model["mask"][b_idx], :] = 1.0
+            error_map[~model["r_mask"][b_idx], :] = 1.0
             error_map = (error_map * 255).to(torch.uint8)
             self.save_image(file_name, error_map)
 
@@ -80,7 +80,7 @@ class FlameLogger:
     def log_render(self, batch: dict, model: dict):
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
             file_name = f"render_mask/{f_idx:05}/{self.current_epoch:05}.png"
-            self.save_image(file_name, model["mask"][b_idx])
+            self.save_image(file_name, model["r_mask"][b_idx])
 
             file_name = f"render_depth/{f_idx:05}/{self.current_epoch:05}.png"
             self.save_image(file_name, model["depth_image"][b_idx])
@@ -95,14 +95,14 @@ class FlameLogger:
             render_merged_depth = batch["color"].clone()
             color_mask = (
                 (model["point"][:, :, :, 2] < batch["point"][:, :, :, 2])
-                | (model["mask"] & ~batch["mask"])
-            ) & model["mask"]
+                | (model["r_mask"] & ~batch["mask"])
+            ) & model["r_mask"]
             render_merged_depth[color_mask] = model["color"][color_mask]
             self.save_image(file_name, render_merged_depth[b_idx])
 
             file_name = f"render_merged/{f_idx:05}/{self.current_epoch:05}.png"
             render_merged = batch["color"].clone()
-            render_merged[model["mask"]] = model["color"][model["mask"]]
+            render_merged[model["r_mask"]] = model["color"][model["r_mask"]]
             self.save_image(file_name, render_merged[b_idx])
 
             file_name = f"render_landmark/{f_idx:05}/{self.current_epoch:05}.png"
@@ -121,7 +121,7 @@ class FlameLogger:
             self.save_points(file_name, points)
             # save the flame points
             file_name = f"point_render/{f_idx:05}/{self.current_epoch:05}.npy"
-            render_points = model["point"][b_idx][model["mask"][b_idx]].reshape(-1, 3)
+            render_points = model["point"][b_idx][model["r_mask"][b_idx]].reshape(-1, 3)
             self.save_points(file_name, render_points[b_idx])
             # save the lm_3d gt points
             file_name = f"point_batch_landmark/{f_idx:05}/{self.current_epoch:05}.npy"

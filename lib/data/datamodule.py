@@ -1,5 +1,8 @@
+from functools import partial
+
 import lightning as L
-from torch.utils.data import DataLoader, Dataset
+import torch
+from torch.utils.data import DataLoader, Dataset, default_collate
 
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
@@ -26,11 +29,13 @@ class DPHMDataModule(L.LightningDataModule):
         shuffle: bool = True,
         # dataset
         dataset: Dataset | None = None,
+        device: str = "cuda",
         **kwargs,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(logger=False)
         self.scale = scale
+        self.device = device
 
     def update_dataset(self, scale: float = 1.0):
         self.scale = scale
@@ -42,7 +47,7 @@ class DPHMDataModule(L.LightningDataModule):
         )
         assert self.hparams["batch_size"] <= self.dataset.optimize_frames
 
-    def setup(self, stage: str = ""):
+    def setup(self):
         self.K = load_intrinsics(
             data_dir=self.hparams["data_dir"],
             return_tensor="pt",
@@ -60,6 +65,17 @@ class DPHMDataModule(L.LightningDataModule):
             height=self.camera.height,
         )
 
+    @staticmethod
+    def collate_fn(self, batch: list):
+        _batch: dict = default_collate(batch)
+        b = {}
+        for key, value in _batch.items():
+            if isinstance(value, torch.Tensor):
+                b[key] = value.to(self.device)
+            else:
+                b[key] = value
+        return b
+
     def train_dataloader(self) -> DataLoader:
         # default settings if coarse to fine scheduler is not set, note that if one
         # want's to use multiple gpu's this should be moved to setup.
@@ -74,4 +90,5 @@ class DPHMDataModule(L.LightningDataModule):
             drop_last=self.hparams["drop_last"],
             persistent_workers=self.hparams["persistent_workers"],
             shuffle=self.hparams["shuffle"],
+            collate_fn=partial(self.collate_fn, self),
         )

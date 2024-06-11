@@ -110,6 +110,10 @@ class FLAME(L.LightningModule):
         self.optimize_modes: list[str] = ["default"]
         self._set_optimize_mode("default")
 
+        # mask
+        self.n_threshold: float = 0.9
+        self.d_threshold: float = 0.1
+
         # set optimization parameters
         self.optimization_parameters = [
             "global_pose",
@@ -220,6 +224,12 @@ class FLAME(L.LightningModule):
         return vertices, landmarks  # (B, V, 3), (B, 105, 3)
 
     def optimization_step(self, batch: dict):
+        model = self.model_step(batch)
+        render = self.render_step(model)
+        mask = self.mask_step(batch, render)
+        return {**model, **render, **mask}
+
+    def model_step(self, batch: dict):
         # inference get the vertices and the landmarks
         vertices, landmarks = self.forward(
             shape_params=self.shape_params(batch["shape_idx"]),  # (B, S')
@@ -237,22 +247,32 @@ class FLAME(L.LightningModule):
         lm_2d_ndc_homo = self.renderer.camera.ndc_transform(lm_3d_homo)
         lm_2d_ndc = lm_2d_ndc_homo[..., :2]
 
-        # render the current flame model
-        render = self.renderer.render_full(
-            vertices=vertices,  # (B, V, 3)
+        return {"vertices": vertices, "lm_3d_camera": landmarks, "lm_2d_ndc": lm_2d_ndc}
+
+    def render_step(self, model: dict[str, torch.Tensor]):
+        return self.renderer.render_full(
+            vertices=model["vertices"],  # (B, V, 3)
             faces=self.masked_faces,  # (F, 3)
         )  # (B, H', W')
 
-        # calculate the mask
-        mask = self.inlier_mask(batch=batch, render=render)
-
-        return {
-            "vertices": vertices,
-            "lm_3d_camera": landmarks,
-            "lm_2d_ndc": lm_2d_ndc,
-            **render,
-            **mask,
-        }
+    def mask_step(
+        self,
+        batch: dict[str, torch.Tensor],
+        render: dict[str, torch.Tensor],
+    ):
+        # per pixel distance in 3d, just the length
+        dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
+        # calculate the forground mask
+        f_mask = batch["mask"] & render["r_mask"]  # (B, W, H)
+        # the depth mask based on some epsilon of distance 10cm
+        d_mask = dist < self.d_threshold  # (B, W, H)
+        # dot product, e.g. coresponds to an angle
+        normal_dot = (batch["normal"] * render["normal"]).sum(-1)
+        n_mask = normal_dot > self.n_threshold  # (B, W, H)
+        # final loss mask of silhouette, depth and normal threshold
+        mask = d_mask & f_mask & n_mask
+        assert mask.sum()  # we have some overlap
+        return {"mask": mask, "f_mask": f_mask, "n_mask": n_mask, "d_mask": d_mask}
 
     def on_train_start(self):
         # please here the initilizations that need some state from outside the model
@@ -344,27 +364,6 @@ class FLAME(L.LightningModule):
         vertices_mask = vertices_mask.expand(*faces.shape, -1)
         face_mask = (faces.unsqueeze(-1) == vertices_mask).any(dim=-1).all(dim=-1)
         return faces[face_mask]
-
-    def inlier_mask(
-        self,
-        batch: dict[str, torch.Tensor],
-        render: dict[str, torch.Tensor],
-        n_threshold: float = 0.9,
-        d_threshold: float = 0.1,
-    ):
-        # per pixel distance in 3d, just the length
-        dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
-        # calculate the forground mask
-        f_mask = batch["mask"] & render["mask"]  # (B, W, H)
-        # the depth mask based on some epsilon of distance 10cm
-        d_mask = dist < d_threshold  # (B, W, H)
-        # dot product, e.g. coresponds to an angle
-        normal_dot = (batch["normal"] * render["normal"]).sum(-1)
-        n_mask = normal_dot > n_threshold  # (B, W, H)
-        # final loss mask of silhouette, depth and normal threshold
-        mask = d_mask & f_mask & n_mask
-        assert mask.sum()  # we have some overlap
-        return {"mask": mask, "f_mask": f_mask, "n_mask": n_mask, "d_mask": d_mask}
 
     def extract_landmarks(self, landmarks: torch.Tensor):
         if landmarks.shape[1] != 105:

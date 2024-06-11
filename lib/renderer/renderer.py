@@ -1,7 +1,6 @@
 import torch
-import torch.nn as nn
 
-from lib.rasterizer import Rasterizer
+from lib.rasterizer import Fragments, Rasterizer
 from lib.renderer.camera import Camera
 from lib.utils.mesh import vertex_normals
 
@@ -19,8 +18,9 @@ class Renderer:
     ):
         """The rendering settings.
 
-        The renderer is only initilized once, and updated for each rendering pass for the correct resolution camera.
-        This is because creating openGL context is only done once.
+        The renderer is only initilized once, and updated for each rendering pass for
+        the correct resolution camera. This is because creating openGL context is
+        only done once.
         """
         self.camera = Camera() if camera is None else camera
         if rasterizer is None:
@@ -42,11 +42,54 @@ class Renderer:
         self.light = self.light.to(device)
         return self
 
+    def rasterize(self, vertices: torch.Tensor, faces: torch.Tensor) -> Fragments:
+        homo_vertices = self.camera.convert_to_homo_coords(vertices)
+        homo_clip_vertices = self.camera.clip_transform(homo_vertices)  # (B, V, 4)
+        return self.rasterizer.rasterize(homo_clip_vertices, faces)
+
+    def interpolate(
+        self,
+        vertices_idx: torch.Tensor,
+        bary_coords: torch.Tensor,
+        attributes: torch.Tensor,
+    ):
+        # access the vertex attributes
+        B, H, W, _ = vertices_idx.shape  # (B, H, W, 3)
+        _, _, D = attributes.shape  # (B, V, D)
+        v_idx = vertices_idx.reshape(B, -1)  # (B, *)
+        b_idx = torch.arange(v_idx.size(0)).unsqueeze(1).to(v_idx)
+        vertex_attribute = attributes[b_idx, v_idx]  # (B, *, D)
+        vertex_attribute = vertex_attribute.reshape(B, H, W, 3, D)  # (B, H, W, 3, D)
+
+        bary_coords = bary_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
+        attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
+        return attributes
+
+    def mask_interpolate(
+        self,
+        vertices_idx: torch.Tensor,  # (B, H, W, 3)
+        bary_coords: torch.Tensor,  # (B, H, W, 3)
+        attributes: torch.Tensor,  # (B, V, D)
+        mask: torch.Tensor,  # (B, H, W, 3)
+    ):
+        # shapes dimensions
+        B, V, D = attributes.shape  # (B, V, D)
+        # access the vertex attributes
+        b_coords = bary_coords[mask].unsqueeze(-1)  # (C, 3, 1)
+        vertices_offset = V * torch.arange(B, device=vertices_idx.device)
+        v_idx = vertices_idx.clone()
+        v_idx += vertices_offset.view(B, 1, 1, 1)  # (B, H, W, 3)
+        v_idx = v_idx[mask]  # (C, 3)
+        vertex_attribute = attributes.reshape(-1, D)[v_idx]  # (C, 3, D)
+        attributes = (b_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
+        return attributes
+
     def render(
         self,
         vertices: torch.Tensor,
         faces: torch.Tensor,
         attributes: torch.Tensor,
+        fragments: Fragments | None = None,
     ):
         """Rendering of the attributes with mesh rasterization.
 
@@ -60,31 +103,20 @@ class Renderer:
                 that are barycentric interpolated, hence the dim is (H, W, D). Not that
                 we have a row-major matrix representation.
         """
-        homo_vertices = self.camera.convert_to_homo_coords(vertices)
-        homo_clip_vertices = self.camera.clip_transform(homo_vertices)  # (B, V, 4)
-        fragments = self.rasterizer.rasterize(homo_clip_vertices, faces)
-        vertices_idx = faces[fragments.pix_to_face]  # (B, H, W, 3)
-
-        # access the vertex attributes
-        B, H, W, _ = vertices_idx.shape  # (B, H, W, 3)
-        _, _, D = attributes.shape  # (B, V, D)
-        v_idx = vertices_idx.reshape(B, -1)  # (B, *)
-        b_idx = torch.arange(v_idx.size(0)).unsqueeze(1).to(v_idx)
-        vertex_attribute = attributes[b_idx, v_idx]  # (B, *, D)
-        vertex_attribute = vertex_attribute.reshape(B, H, W, 3, D)  # (B, H, W, 3, D)
-
-        bary_coords = fragments.bary_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
-        attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
-
-        # forground mask
-        mask = fragments.pix_to_face != -1
-
-        return attributes, mask
+        if fragments is None:
+            fragments = self.rasterize(vertices, faces)
+        attributes = self.interpolate(
+            vertices_idx=fragments.vertices_idx,
+            bary_coords=fragments.bary_coords,
+            attributes=attributes,
+        )
+        return attributes, fragments.mask
 
     def render_point(
         self,
         vertices: torch.Tensor,
         faces: torch.Tensor,
+        fragments: Fragments | None = None,
     ):
         """Render the camera points map which camera z coordinate.
 
@@ -96,19 +128,15 @@ class Renderer:
             (torch.Tensor): Points in camera coordinate system where the depth is
                 ranging from [0, inf] with dim (B, H, W, 3).
         """
-        point, mask = self.render(vertices, faces, vertices)  # (B, H, W, 1), (B, H, W)
+        point, mask = self.render(vertices, faces, vertices, fragments)  # (B, H, W, 1)
         point[~mask, :] = 0
         return point, mask  # (B, H, W, 3),  (B, H, W)
-
-    @classmethod
-    def point_to_depth(self, point):
-        # we need to flip the z-axis because depth is positive
-        return -point[:, :, :, 2]  # (H, W, 3)
 
     def render_depth(
         self,
         vertices: torch.Tensor,
         faces: torch.Tensor,
+        fragments: Fragments | None = None,
     ):
         """Render an depth map which camera z coordinate.
 
@@ -119,20 +147,27 @@ class Renderer:
         Returns:
             (torch.Tensor): Depth ranging from [0, inf] with dim (B, H, W).
         """
-        point, mask = self.render_point(vertices, faces)
+        point, mask = self.render_point(vertices, faces, fragments)
         depth = self.point_to_depth(point)
         return depth, mask
 
-    @classmethod
-    def depth_to_depth_image(self, depth):
-        return (depth.clip(0, 1) * 255).to(torch.uint8)
-
-    def render_depth_image(self, point):
-        depth, mask = self.point_to_depth(point)
+    def render_depth_image(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        fragments: Fragments | None = None,
+    ):
+        point, mask = self.render_point(vertices, faces, fragments)
+        depth = self.point_to_depth(point)
         depth_image = self.depth_to_depth_image(depth)
         return depth_image, mask
 
-    def render_normal(self, vertices: torch.Tensor, faces: torch.Tensor):
+    def render_normal(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        fragments: Fragments | None = None,
+    ):
         """Render an depth map which camera z coordinate.
 
         Args:
@@ -147,19 +182,74 @@ class Renderer:
             vertices=vertices,
             faces=faces,
             attributes=normals,
+            fragments=fragments,
         )  # (B, H', W', 3)
         return normal, mask
+
+    def render_normal_image(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        fragments: Fragments | None = None,
+    ):
+        """Render normals in RGB space."""
+        normal, mask = self.render_normal(vertices, faces, fragments)
+        normal_image = self.normal_to_normal_image(normal, mask)
+        return normal_image
+
+    def render_color_image(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        fragments: Fragments | None = None,
+    ):
+        """Render the shaded image in RGB space."""
+        normal, mask = self.render_normal(vertices, faces, fragments)
+        color = self.normal_to_color_image(normal, mask)
+        return color
+
+    def render_full(self, vertices: torch.Tensor, faces: torch.Tensor):
+        """Render all images."""
+        # rasterize one time
+        fragments = self.rasterize(vertices, faces)
+        # depth based
+        point, _ = self.render_point(vertices, faces, fragments)
+        depth = self.point_to_depth(point)
+        depth_image = self.depth_to_depth_image(depth)
+        # normal based
+        normal, mask = self.render_normal(vertices, faces, fragments)
+        normal_image = self.normal_to_normal_image(normal, mask)
+        color_image = self.normal_to_color_image(normal, mask)
+        return {
+            "r_mask": mask,
+            "vertices_idx": fragments.vertices_idx,
+            "bary_coords": fragments.bary_coords,
+            "pix_to_face": fragments.pix_to_face,
+            "point": point,
+            "depth": depth,
+            "normal": normal,
+            "depth_image": depth_image,
+            "normal_image": normal_image,
+            "color": color_image,
+        }
+
+    ####################################################################################
+    # Transformation Utils
+    ####################################################################################
+
+    @classmethod
+    def point_to_depth(self, point):
+        # we need to flip the z-axis because depth is positive
+        return -point[:, :, :, 2]  # (H, W, 3)
+
+    @classmethod
+    def depth_to_depth_image(self, depth):
+        return (depth.clip(0, 1) * 255).to(torch.uint8)
 
     @classmethod
     def normal_to_normal_image(self, normal, mask):
         normal_image = (((normal + 1) / 2) * 255).to(torch.uint8)
         normal_image[~mask] = 0
-        return normal_image
-
-    def render_normal_image(self, vertices: torch.Tensor, faces: torch.Tensor):
-        """Render normals in RGB space."""
-        normal, mask = self.render_normal(vertices, faces)
-        normal_image = self.normal_to_normal_image(normal, mask)
         return normal_image
 
     def normal_to_color_image(self, normal, mask):
@@ -175,29 +265,3 @@ class Renderer:
         color[~mask] = 0
 
         return color
-
-    def render_color_image(self, vertices: torch.Tensor, faces: torch.Tensor):
-        """Render the shaded image in RGB space."""
-        normal, mask = self.render_normal(vertices, faces)
-        color = self.normal_to_color_image(normal, mask)
-        return color
-
-    def render_full(self, vertices: torch.Tensor, faces: torch.Tensor):
-        """Render all images."""
-        # depth based
-        point, _ = self.render_point(vertices, faces)
-        depth = self.point_to_depth(point)
-        depth_image = self.depth_to_depth_image(depth)
-        # normal based
-        normal, mask = self.render_normal(vertices, faces)
-        normal_image = self.normal_to_normal_image(normal, mask)
-        color_image = self.normal_to_color_image(normal, mask)
-        return {
-            "mask": mask,
-            "point": point,
-            "depth": depth,
-            "normal": normal,
-            "depth_image": depth_image,
-            "normal_image": normal_image,
-            "color": color_image,
-        }

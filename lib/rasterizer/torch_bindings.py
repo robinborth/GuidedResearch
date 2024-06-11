@@ -31,6 +31,8 @@ plugin = importlib.import_module(plugin_name)
 class Fragments:
     pix_to_face: torch.Tensor
     bary_coords: torch.Tensor
+    vertices_idx: torch.Tensor
+    mask: torch.Tensor
 
 
 class Rasterizer:
@@ -63,6 +65,7 @@ class Rasterizer:
         assert vertices.device == indices.device
 
         # cast the dtypes to the ones that are needed as input
+        faces = indices.clone()
         vertices = vertices.to(torch.float32)
         indices = indices.to(torch.uint32)
 
@@ -83,5 +86,12 @@ class Rasterizer:
         # flip the memory order of image data from bottom-up to top-down
         pix_to_face = torch.flip(pix_to_face.squeeze(-1), [1])
         bary_coords = torch.flip(bary_coords.squeeze(-2), [1])
+        vertices_idx = faces[pix_to_face]  # (B, H, W, 3)
+        mask = pix_to_face != -1
 
-        return Fragments(pix_to_face=pix_to_face, bary_coords=bary_coords)
+        return Fragments(
+            pix_to_face=pix_to_face,
+            bary_coords=bary_coords,
+            vertices_idx=vertices_idx,
+            mask=mask,
+        )
