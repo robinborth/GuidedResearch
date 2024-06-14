@@ -1,3 +1,4 @@
+import timeit
 from typing import Any
 
 import torch
@@ -34,12 +35,15 @@ class CoarseToFineScheduler(Scheduler):
     def __init__(
         self,
         milestones: list[int] = [0],
-        scales: list[float] = [1.0],
+        scales: list[int] = [1],
     ) -> None:
         self.milestones = milestones
         self.check_milestones(milestones)
         self.scales = scales
         self.check_attribute(scales)
+        for scale in self.scales:
+            assert isinstance(scale, int)
+            assert scale >= 1
 
     def schedule_dataset(self, datamodule: DPHMDataModule, iter_step: int):
         if self.skip(iter_step):
@@ -83,8 +87,9 @@ class FinetuneScheduler(Scheduler):
         params = self.get_attribute(self.params, iter_step=iter_step)
         lrs = self.get_attribute(self.lr, iter_step=iter_step)
         for param, lr in zip(params, lrs):
-            print(f"Unfreeze (step={iter_step}, lr={lr}): {param}")
-            self.state[param] = {"param": param, "lr": lr}
+            if param not in self.state:
+                print(f"Unfreeze (step={iter_step}, lr={lr}): {param}")
+                self.state[param] = {"param": param, "lr": lr}
 
     def param_groups(self, model: FLAME, iter_step: int = 0):
         self.update_state(iter_step)
@@ -99,12 +104,3 @@ class FinetuneScheduler(Scheduler):
     ) -> torch.optim.Optimizer:
         params = self.param_groups(model=model, iter_step=iter_step)
         return torch.optim.Adam(params=params)
-
-
-class DummyScheduler(Scheduler):
-    def __getattr__(self, name):
-        # This is a no-operation function
-        def no_op(*args, **kwargs):
-            pass
-
-        return no_op

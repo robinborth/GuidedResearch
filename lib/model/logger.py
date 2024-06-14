@@ -4,9 +4,10 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from lightning.pytorch.loggers import Logger
 from matplotlib import cm
+from omegaconf import DictConfig, OmegaConf
 from PIL import Image
+from torch.utils.tensorboard import SummaryWriter
 
 from lib.model.flame import FLAME
 from lib.model.loss import (
@@ -19,16 +20,23 @@ from lib.renderer.renderer import Renderer
 
 
 class FlameLogger:
-    def __init__(self, logger: Logger, model: FLAME):
-        self.logger = logger
+    def __init__(self, model: FLAME, save_dir: str):
+        self.logger = SummaryWriter(log_dir=save_dir)
         self.model = model
 
-        self.save_dir = self.logger.save_dir
-        self.current_epoch = 0
+        self.save_dir = save_dir
         self.max_loss = 1e-02
+        self.iter_step = 0
+        self.optim_step = 0
 
     def log(self, name: str, value: Any, step: None | int = None):
-        self.logger.log_metrics({name: value}, step=step)
+        self.logger.add_scalar(name, value, self.iter_step)
+
+    def flush(self):
+        self.logger.flush()
+
+    def close(self):
+        self.logger.close()
 
     @property
     def camera(self):
@@ -48,7 +56,7 @@ class FlameLogger:
 
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
             # point to point error map
-            file_name = f"error_point_to_point/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"error_point_to_point/{f_idx:05}/{self.iter_step:05}.png"
             loss = torch.sqrt(
                 calculate_point2point(batch["point"], model["point"])
             )  # (B, W, H)
@@ -59,7 +67,7 @@ class FlameLogger:
             self.save_image(file_name, error_map)
 
             # point to plane error map
-            file_name = f"error_point_to_plane/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"error_point_to_plane/{f_idx:05}/{self.iter_step:05}.png"
             loss = torch.sqrt(
                 calculate_point2plane(
                     p=model["point"],
@@ -74,24 +82,24 @@ class FlameLogger:
             self.save_image(file_name, error_map)
 
             # error mask
-            file_name = f"error_mask/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"error_mask/{f_idx:05}/{self.iter_step:05}.png"
             self.save_image(file_name, model["mask"][b_idx])
 
     def log_render(self, batch: dict, model: dict):
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
-            file_name = f"render_mask/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"render_mask/{f_idx:05}/{self.iter_step:05}.png"
             self.save_image(file_name, model["r_mask"][b_idx])
 
-            file_name = f"render_depth/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"render_depth/{f_idx:05}/{self.iter_step:05}.png"
             self.save_image(file_name, model["depth_image"][b_idx])
 
-            file_name = f"render_normal/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"render_normal/{f_idx:05}/{self.iter_step:05}.png"
             self.save_image(file_name, model["normal_image"][b_idx])
 
-            file_name = f"render_color/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"render_color/{f_idx:05}/{self.iter_step:05}.png"
             self.save_image(file_name, model["color"][b_idx])
 
-            file_name = f"render_merged_depth/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"render_merged_depth/{f_idx:05}/{self.iter_step:05}.png"
             render_merged_depth = batch["color"].clone()
             color_mask = (
                 (model["point"][:, :, :, 2] < batch["point"][:, :, :, 2])
@@ -100,12 +108,12 @@ class FlameLogger:
             render_merged_depth[color_mask] = model["color"][color_mask]
             self.save_image(file_name, render_merged_depth[b_idx])
 
-            file_name = f"render_merged/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"render_merged/{f_idx:05}/{self.iter_step:05}.png"
             render_merged = batch["color"].clone()
             render_merged[model["r_mask"]] = model["color"][model["r_mask"]]
             self.save_image(file_name, render_merged[b_idx])
 
-            file_name = f"render_landmark/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"render_landmark/{f_idx:05}/{self.iter_step:05}.png"
             lm_2d_screen = self.camera.xy_ndc_to_screen(model["lm_2d_ndc"])
             x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
             y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
@@ -116,40 +124,40 @@ class FlameLogger:
     def log_3d_points(self, batch: dict, model: dict):
         for B, b_idx, f_idx in self.iter_debug_idx(batch):
             # save the gt points
-            file_name = f"point_batch/{f_idx:05}/{self.current_epoch:05}.npy"
+            file_name = f"point_batch/{f_idx:05}/{self.iter_step:05}.npy"
             points = batch["point"][b_idx][batch["mask"][b_idx]].reshape(-1, 3)
             self.save_points(file_name, points)
             # save the flame points
-            file_name = f"point_render/{f_idx:05}/{self.current_epoch:05}.npy"
+            file_name = f"point_render/{f_idx:05}/{self.iter_step:05}.npy"
             render_points = model["point"][b_idx][model["r_mask"][b_idx]].reshape(-1, 3)
             self.save_points(file_name, render_points[b_idx])
             # save the lm_3d gt points
-            file_name = f"point_batch_landmark/{f_idx:05}/{self.current_epoch:05}.npy"
+            file_name = f"point_batch_landmark/{f_idx:05}/{self.iter_step:05}.npy"
             self.save_points(file_name, batch["lm_3d_camera"][b_idx])
             # save the lm_3d flame points
-            file_name = f"point_render_landmark/{f_idx:05}/{self.current_epoch:05}.npy"
+            file_name = f"point_render_landmark/{f_idx:05}/{self.iter_step:05}.npy"
             self.save_points(file_name, model["lm_3d_camera"][b_idx])
 
     def log_input_batch(self, batch: dict, model: dict):
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
-            file_name = f"batch_mask/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"batch_mask/{f_idx:05}/{self.iter_step:05}.png"
             self.save_image(file_name, batch["mask"][b_idx])
 
-            file_name = f"batch_depth/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"batch_depth/{f_idx:05}/{self.iter_step:05}.png"
             depth = Renderer.point_to_depth(batch["point"])
             depth_image = Renderer.depth_to_depth_image(depth)
             self.save_image(file_name, depth_image[b_idx])
 
-            file_name = f"batch_normal/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"batch_normal/{f_idx:05}/{self.iter_step:05}.png"
             normal_image = Renderer.normal_to_normal_image(
                 batch["normal"], batch["mask"]
             )
             self.save_image(file_name, normal_image[b_idx])
 
-            file_name = f"batch_color/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"batch_color/{f_idx:05}/{self.iter_step:05}.png"
             self.save_image(file_name, batch["color"][b_idx])
 
-            file_name = f"batch_landmark/{f_idx:05}/{self.current_epoch:05}.png"
+            file_name = f"batch_landmark/{f_idx:05}/{self.iter_step:05}.png"
             lm_2d_screen = self.camera.xy_ndc_to_screen(batch["lm_2d_ndc"])
             x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
             y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
@@ -196,7 +204,7 @@ class FlameLogger:
 
     def log_gradients(self, optimizer):
         for p_name in self.model.optimization_parameters:
-            param = getattr(self, p_name, None)
+            param = getattr(self.model, p_name, None)
             if param is None or not param.weight.requires_grad:
                 continue
             for i in range(param.weight.shape[-1]):
@@ -220,3 +228,29 @@ class FlameLogger:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
             np.save(f, points.detach().cpu().numpy())
+
+    def _flat_list_str(self, items):
+        lstr = []
+        for i in items:
+            if isinstance(i, list):
+                lstr.append(self._flat_list_str(i))
+            else:
+                lstr.append(str(i))
+        return f"[{', '.join(lstr)}]"
+
+    def _flat_hyparams(self, hparams: dict):
+        params = {}
+        for key, item in hparams.items():
+            if isinstance(item, dict):
+                for k, i in self._flat_hyparams(item).items():
+                    params[f"{key}/{k}"] = i
+            elif isinstance(item, list):
+                params[key] = self._flat_list_str(item)
+            else:
+                params[key] = item
+        return params
+
+    def log_hyperparameters(self, cfg: DictConfig) -> None:
+        hparams: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
+        flat_hparams = self._flat_hyparams(hparams)
+        self.logger.add_hparams(flat_hparams, {})

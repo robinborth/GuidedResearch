@@ -1,8 +1,6 @@
 import hydra
 import lightning as L
 import torch
-from hydra.utils import instantiate
-from lightning.pytorch.loggers import Logger, TensorBoardLogger, WandbLogger
 from omegaconf import DictConfig
 from tqdm import tqdm
 
@@ -38,18 +36,25 @@ def optimize(cfg: DictConfig) -> None:
     c2fs: CoarseToFineScheduler = hydra.utils.instantiate(cfg.scheduler.coarse2fine)
 
     log.info("==> initializing logger ...")
-    _logger: Logger = hydra.utils.instantiate(cfg.logger)
-    if isinstance(_logger, WandbLogger):
-        _logger.watch(model)
-    if isinstance(_logger, TensorBoardLogger):
-        _logger.experiment
-    logger = FlameLogger(logger=_logger, model=model)
+    logger: FlameLogger = hydra.utils.instantiate(cfg.logger, model=model)
+
+    log.info("==> logging hyperparameters ...")
+    logger.log_hyperparameters(cfg)
+
+    # prof = torch.profiler.profile(
+    #     schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
+    #     on_trace_ready=torch.profiler.tensorboard_trace_handler(cfg.logger.save_dir),
+    #     record_shapes=True,
+    #     with_stack=True,
+    # )
+    # prof.start()
 
     for iter_step in tqdm(range(cfg.trainer.max_iters)):  # outer loop
         # settings
-        logger.current_epoch = iter_step
+        logger.iter_step = iter_step
         c2fs.schedule_dataset(datamodule=datamodule, iter_step=iter_step)
         optimizer = fts.configure_optimizers(model=model, iter_step=iter_step)
+        optimizer.zero_grad()
 
         # fetch single batch
         dataloader = datamodule.train_dataloader()
@@ -73,6 +78,7 @@ def optimize(cfg: DictConfig) -> None:
                 model.debug_params(batch=batch)
 
         for optim_step in range(cfg.trainer.max_optims):
+            logger.optim_step = optim_step
             optimizer.zero_grad()
             m_out = model.model_step(batch)
             p = model.renderer.mask_interpolate(
@@ -82,12 +88,17 @@ def optimize(cfg: DictConfig) -> None:
                 mask=mask,
             )  # (C, 3)
             point2plane = calculate_point2plane(q, p, n)  # (C,)
-            loss = point2plane.mean()
-            logger.log("train/loss", loss)
+            loss = point2plane.mean() * 1000
+            logger.log("train/loss", loss, step=iter_step)
             loss.backward()
+            logger.log_gradients(optimizer)
             optimizer.step()
 
-    log.info("==> finished joint optimizing ...")
+        # flush logger in order to save the results to disk
+        logger.flush()
+
+    log.info("==> close logger ...")
+    logger.close()
 
 
 if __name__ == "__main__":

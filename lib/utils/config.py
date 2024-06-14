@@ -36,35 +36,3 @@ def load_config(config_name: str, overrides: list = []) -> DictConfig:
     """
     with initialize(config_path="../../conf", version_base=None):
         return compose(config_name=config_name, overrides=overrides)
-
-
-def log_hyperparameters(object_dict) -> None:
-    hparams = {}
-
-    cfg: dict = OmegaConf.to_container(object_dict["cfg"])  # type: ignore
-    model = object_dict["model"]
-    trainer = object_dict["trainer"]
-
-    hparams["model"] = cfg["model"]
-
-    # save number of model parameters
-    hparams["model/params/total"] = sum(p.numel() for p in model.parameters())
-    hparams["model/params/trainable"] = sum(
-        p.numel() for p in model.parameters() if p.requires_grad
-    )
-    hparams["model/params/non_trainable"] = sum(
-        p.numel() for p in model.parameters() if not p.requires_grad
-    )
-
-    hparams["data"] = cfg["data"]
-    hparams["trainer"] = cfg["trainer"]
-
-    hparams["callbacks"] = cfg.get("callbacks")
-
-    hparams["task_name"] = cfg.get("task_name")
-    hparams["tags"] = cfg.get("tags")
-    hparams["ckpt_path"] = cfg.get("ckpt_path")
-    hparams["seed"] = cfg.get("seed")
-
-    # send hparams to all loggers
-    trainer.logger.log_hyperparams(hparams)

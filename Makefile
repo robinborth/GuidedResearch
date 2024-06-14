@@ -1,6 +1,6 @@
 point2plane:
 	python scripts/icp_optimize.py \
-	logger=wandb \
+	logger=tensorboard \
 	tags=["point2plane"] \
 	model=point2plane \
 	model.init_mode=kinect \
@@ -9,11 +9,11 @@ point2plane:
 	data=kinect \
 	data.batch_size=10  \
 	data.start_frame_idx=19 \
-	trainer.max_iters=25 \
-	trainer.max_optims=100 \
+	trainer.max_iters=15 \
+	trainer.max_optims=50 \
 	trainer.save_interval=1 \
-	scheduler.coarse2fine.milestones=[0,20] \
-	scheduler.coarse2fine.scales=[0.125,1.0] \
+	scheduler.coarse2fine.milestones=[0,14] \
+	scheduler.coarse2fine.scales=[8,1] \
 	scheduler.finetune.milestones=[0,6,10] \
 	scheduler.finetune.params=[["global_pose","transl"],["neck_pose","eye_pose"],["shape_params","expression_params"]] \
 	scheduler.finetune.lr=[[1e-02,1e-02],[1e-02,1e-02],[1e-02,1e-02]]
@@ -33,7 +33,7 @@ profile:
 	trainer.max_epochs=25 \
 	trainer.accelerator=gpu \
 	scheduler.coarse2fine.milestones=[0] \
-	scheduler.coarse2fine.scales=[1.0] \
+	scheduler.coarse2fine.scales=[1] \
 	scheduler.finetune.milestones=[0] \
 	scheduler.finetune.params=["global_pose|transl|neck_pose|eye_pose|shape_params|expression_params"] \
 

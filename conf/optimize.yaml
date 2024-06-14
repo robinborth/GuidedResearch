@@ -4,7 +4,7 @@ defaults:
   - data: flame  # kinect, flame
   - model: point2point # point2point, point2plane
   - trainer: icp  # default, gpu
-  - logger: csv # csv, wand
+  - logger: tensorboard # csv, wand, tensorboard
   # - callbacks:
     # - rich_progress_bar
   - scheduler:  # this is internally handled like a callback

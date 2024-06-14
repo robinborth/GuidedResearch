@@ -15,7 +15,7 @@ class DPHMDataModule(L.LightningDataModule):
         # dataset settings
         data_dir: str = "/data",
         # rasterizer settings
-        scale: float = 1.0,
+        scale: int = 1,
         width: int = 1920,
         height: int = 1080,
         near: float = 0.01,
@@ -37,7 +37,7 @@ class DPHMDataModule(L.LightningDataModule):
         self.scale = scale
         self.device = device
 
-    def update_dataset(self, scale: float = 1.0):
+    def update_dataset(self, scale: int = 1):
         self.scale = scale
         self.camera.update(scale=self.scale)
         self.rasterizer.update(width=self.camera.width, height=self.camera.height)
@@ -54,7 +54,7 @@ class DPHMDataModule(L.LightningDataModule):
         )
         self.camera = Camera(
             K=self.K,
-            scale=self.hparams["scale"],
+            scale=self.scale,  # this does not matter we update it in update dataset
             width=self.hparams["width"],
             height=self.hparams["height"],
             near=self.hparams["near"],
@@ -67,6 +67,7 @@ class DPHMDataModule(L.LightningDataModule):
 
     @staticmethod
     def collate_fn(self, batch: list):
+        # move to the device for the dataloader
         _batch: dict = default_collate(batch)
         b = {}
         for key, value in _batch.items():
@@ -77,11 +78,6 @@ class DPHMDataModule(L.LightningDataModule):
         return b
 
     def train_dataloader(self) -> DataLoader:
-        # default settings if coarse to fine scheduler is not set, note that if one
-        # want's to use multiple gpu's this should be moved to setup.
-        if not hasattr(self, "dataset"):
-            self.update_dataset(self.scale)
-
         return DataLoader(
             dataset=self.dataset,
             batch_size=self.hparams["batch_size"],

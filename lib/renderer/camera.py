@@ -32,7 +32,7 @@ class Camera:
         self,
         width: int = 1920,
         height: int = 1080,
-        scale: float = 1.0,
+        scale: int = 1,
         fov_y: float = 45.0,
         near: float = 0.01,
         far: float = 100.0,
@@ -42,8 +42,8 @@ class Camera:
         self.original_width = width
         self.original_height = height
         self.scale = scale
-        self.width = int(self.original_width * self.scale)
-        self.height = int(self.original_height * self.scale)
+        self.width = int(self.original_width / self.scale)
+        self.height = int(self.original_height / self.scale)
         self.near = near
         self.far = far
         self.fov_y = fov_y
@@ -51,10 +51,10 @@ class Camera:
         self.device = device
         self.set_perspective_projection()
 
-    def update(self, scale: float = 1.0):
+    def update(self, scale: int = 1):
         self.scale = scale
-        self.width = int(self.original_width * self.scale)
-        self.height = int(self.original_height * self.scale)
+        self.width = int(self.original_width / self.scale)
+        self.height = int(self.original_height / self.scale)
         self.set_perspective_projection()
 
     def set_perspective_projection(self):
@@ -119,7 +119,7 @@ class Camera:
         K: torch.Tensor,
         width: int,
         height: int,
-        scale: float = 1.0,
+        scale: int = 1,
         near: float = 0.01,
         far: float = 100.0,
     ):
@@ -147,10 +147,10 @@ class Camera:
         """
         w = width
         h = height
-        fx = K[0, 0] * scale
-        fy = K[1, 1] * scale
-        cx = K[0, 2] * scale
-        cy = K[1, 2] * scale
+        fx = K[0, 0] / scale
+        fy = K[1, 1] / scale
+        cx = K[0, 2] / scale
+        cy = K[1, 2] / scale
 
         proj = torch.zeros([4, 4], device=self.device)
         proj[0, 0] = fx * 2 / w
