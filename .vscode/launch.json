@@ -13,9 +13,9 @@
             "name": "Debug: ICP Optimizer",
             "type": "debugpy",
             "request": "launch",
-            "program": "scripts/icp_optimize.py",
+            "program": "scripts/optimize.py",
             "args": [
-                "logger=tensorboard",
+                "logger=wandb",
                 "tags=['point2plane']",
                 "model=point2plane",
                 "model.init_mode=kinect",

@@ -4,10 +4,11 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import wandb
 from matplotlib import cm
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
-from torch.utils.tensorboard import SummaryWriter
+from torch import profiler
 
 from lib.model.flame import FLAME
 from lib.model.loss import (
@@ -20,23 +21,56 @@ from lib.renderer.renderer import Renderer
 
 
 class FlameLogger:
-    def __init__(self, model: FLAME, save_dir: str):
-        self.logger = SummaryWriter(log_dir=save_dir)
-        self.model = model
-
+    def __init__(
+        self,
+        save_dir: str,
+        project: str,
+        entity: str,
+        group: str,
+        tags: str,
+        max_loss: float = 1e-02,
+    ):
+        # settings
         self.save_dir = save_dir
-        self.max_loss = 1e-02
+        self.project = project
+        self.entity = entity
+        self.group = group
+        self.tags = tags
+        self.max_loss = max_loss
+        # state
         self.iter_step = 0
         self.optim_step = 0
+        self.global_step = 0
 
-    def log(self, name: str, value: Any, step: None | int = None):
-        self.logger.add_scalar(name, value, self.iter_step)
+    def init_logger(self, model: FLAME, cfg: DictConfig):
+        config: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
+        self.logger = wandb.init(
+            dir=self.save_dir,
+            project=self.project,
+            entity=self.entity,
+            group=self.group,
+            tags=self.tags,
+            config=config,
+        )
+        self.model = model
 
-    def flush(self):
-        self.logger.flush()
+    def log(self, name: str, value: Any, step: None | int = None, commit: bool = True):
+        # self.logger.log({name: value}, step=self.global_step, commit=commit)
+        self.logger.log({name: value}, commit=commit)
 
-    def close(self):
-        self.logger.close()
+    def log_dict(self, value: dict, step: None | int = None, commit: bool = True):
+        self.logger.log(value, commit=commit)
+
+    def create_profiler(self):
+        # TODO need to handle step and stop
+        prof = profiler.profile(
+            activities=[profiler.ProfilerActivity.CPU, profiler.ProfilerActivity.CUDA],
+            schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True,
+        )
+        prof.start()
 
     @property
     def camera(self):
@@ -179,17 +213,17 @@ class FlameLogger:
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_3d_camera = self.model.extract_landmarks(batch["lm_3d_camera"])
         lm_3d_dist = landmark_3d_distance(model["lm_3d_camera"], lm_3d_camera)  # (B,)
-        self.log("train/lm_3d_loss", lm_3d_dist.mean())
+        self.log("loss/landmark_3d", lm_3d_dist.mean())
 
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_2d_ndc = self.model.extract_landmarks(batch["lm_2d_ndc"])
         lm_2d_dist = landmark_2d_distance(model["lm_2d_ndc"], lm_2d_ndc)  # (B,)
-        self.log("train/lm_2d_loss", lm_2d_dist.mean())
+        self.log("loss/landmark_2d", lm_2d_dist.mean())
 
         # debug the overlap of the mask
         for key, value in model.items():
             if "mask" in key:
-                self.log(f"debug/{key}", float(value.sum()))
+                self.log(f"mask/{key}", float(value.sum()))
 
     def log_params(self, batch: dict):
         for p_name in self.model.optimization_parameters:
@@ -203,20 +237,42 @@ class FlameLogger:
                 self.log(f"debug/param_{p_name}_l2", param_dist)
 
     def log_gradients(self, optimizer):
+        log = {}
+        step = f"{self.iter_step:03}"
         for p_name in self.model.optimization_parameters:
             param = getattr(self.model, p_name, None)
             if param is None or not param.weight.requires_grad:
                 continue
-            for i in range(param.weight.shape[-1]):
-                p = param.weight[:, i].mean()
-                self.log(f"debug/{p_name}_{i}", p)
-            for i in range(param.weight.grad.shape[-1]):
-                p = param.weight.grad[:, i].mean()
-                self.log(f"debug/{p_name}_{i}_grad", p)
-            self.log(f"debug/{p_name}_mean", param.weight.mean())
-            self.log(f"debug/{p_name}_absmax", param.weight.abs().max())
-            self.log(f"debug/{p_name}_mean_grad", param.weight.grad.mean())
-            self.log(f"debug/{p_name}_absmax_grad", param.weight.grad.abs().max())
+            weight = param.weight
+            grad = param.weight.grad
+
+            for i in range(weight.shape[-1]):
+                value = weight[:, i].mean()
+                # log[f"weight/{step}/{p_name}_{i}"] = value
+                log[f"weight/{p_name}_{i}"] = value
+
+            for i in range(grad.shape[-1]):
+                value = grad[:, i].mean()
+                # log[f"grad/{step}/{p_name}_{i}"] = value
+                log[f"grad/{p_name}_{i}"] = value
+
+            value = weight.mean()
+            log[f"weight/{step}/{p_name}_mean"] = value
+            log[f"weight/{p_name}_mean"] = value
+
+            value = weight.abs().max()
+            log[f"weight/{step}/{p_name}_absmax"] = value
+            log[f"weight/{p_name}_absmax"] = value
+
+            value = grad.mean()
+            log[f"grad/{step}/{p_name}_mean"] = value
+            log[f"grad/{p_name}_mean"] = value
+
+            value = grad.abs().max()
+            log[f"grad/{step}/{p_name}_absmax"] = value
+            log[f"grad/{p_name}_absmax"] = value
+
+        self.log_dict(log)
 
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.save_dir) / file_name  # type: ignore
@@ -249,8 +305,3 @@ class FlameLogger:
             else:
                 params[key] = item
         return params
-
-    def log_hyperparameters(self, cfg: DictConfig) -> None:
-        hparams: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
-        flat_hparams = self._flat_hyparams(hparams)
-        self.logger.add_hparams(flat_hparams, {})
