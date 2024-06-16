@@ -18,6 +18,7 @@ from lib.model.loss import (
     landmark_3d_distance,
 )
 from lib.renderer.renderer import Renderer
+from lib.utils.logger import create_video
 
 
 class FlameLogger:
@@ -249,12 +250,12 @@ class FlameLogger:
             for i in range(weight.shape[-1]):
                 value = weight[:, i].mean()
                 # log[f"weight/{step}/{p_name}_{i}"] = value
-                log[f"weight/{p_name}_{i}"] = value
+                log[f"weight/{p_name}_{i}_mean"] = value
 
             for i in range(grad.shape[-1]):
                 value = grad[:, i].mean()
                 # log[f"grad/{step}/{p_name}_{i}"] = value
-                log[f"grad/{p_name}_{i}"] = value
+                log[f"grad/{p_name}_{i}_mean"] = value
 
             value = weight.mean()
             log[f"weight/{step}/{p_name}_mean"] = value
@@ -305,3 +306,30 @@ class FlameLogger:
             else:
                 params[key] = item
         return params
+
+    def log_full_screen(self, datamodule, model):
+        # change the state
+        prev_scale = datamodule.scale
+        self.iter_step += 1
+
+        # new batch full screen
+        datamodule.update_dataset(scale=1)
+        dataloader = datamodule.train_dataloader()
+        batch = next(iter(dataloader))
+
+        with torch.no_grad():
+            out = model.correspondence_step(batch)
+
+        self.log_render(batch=batch, model=out)
+        self.log_input_batch(batch=batch, model=out)
+        self.log_loss(batch=batch, model=out)
+
+        # reset scale
+        datamodule.update_dataset(scale=prev_scale)
+
+    def log_video(self, name: str, framerate: int = 30):
+        _video_dir = Path(self.save_dir) / name
+        assert _video_dir.exists()
+        video_dir = str(_video_dir.resolve())
+        video_path = str((Path(self.save_dir) / "video" / f"{name}.mp4").resolve())
+        create_video(video_dir=video_dir, video_path=video_path, framerate=framerate)

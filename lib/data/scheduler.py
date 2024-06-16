@@ -1,10 +1,10 @@
-import timeit
 from typing import Any
 
 import torch
 
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
+from lib.optimizer.gauss_newton import GaussNewton
 
 
 class Scheduler:
@@ -74,6 +74,7 @@ class FinetuneScheduler(Scheduler):
         self.lr = lr
         self.check_attribute(lr)
         self.state: dict[str, Any] = {}
+        self.prev_optimizer: None | torch.optim.Optimizer = None
 
     def freeze(self, module: FLAME):
         for param in module.parameters():
@@ -83,24 +84,32 @@ class FinetuneScheduler(Scheduler):
         for param in module.parameters():
             param.requires_grad = True
 
-    def update_state(self, iter_step: int = 0):
+    def param_groups(self, model: FLAME, iter_step: int = 0):
         params = self.get_attribute(self.params, iter_step=iter_step)
         lrs = self.get_attribute(self.lr, iter_step=iter_step)
         for param, lr in zip(params, lrs):
             if param not in self.state:
                 print(f"Unfreeze (step={iter_step}, lr={lr}): {param}")
-                self.state[param] = {"param": param, "lr": lr}
+                module = getattr(model, param)
+                self.unfreeze(module)
+                self.state[param] = {"params": module.parameters(), "lr": lr}
+        return list(self.state.values())
 
-    def param_groups(self, model: FLAME, iter_step: int = 0):
-        self.update_state(iter_step)
-        groups = []
-        for s in self.state.values():
-            parameters = getattr(model, s["param"]).parameters()
-            groups.append({"params": parameters, "lr": s["lr"]})
-        return groups
-
-    def configure_optimizers(
-        self, model: FLAME, iter_step: int
+    def configure_adam(
+        self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
     ) -> torch.optim.Optimizer:
         params = self.param_groups(model=model, iter_step=iter_step)
-        return torch.optim.Adam(params=params)
+        optimizer = torch.optim.Adam(params=params)
+        if copy_state and self.prev_optimizer is not None:
+            optimizer.state = self.prev_optimizer.state
+        self.prev_optimizer = optimizer
+        return optimizer
+
+    def configure_gauss_newton(
+        self, model: FLAME, batch: dict, iter_step: int, **kwargs
+    ) -> torch.optim.Optimizer:
+        params = self.param_groups(model=model, iter_step=iter_step)
+        return GaussNewton(params=params, batch=batch)
+
+    def requires_jacobian(self, optimizer):
+        return isinstance(optimizer, GaussNewton)

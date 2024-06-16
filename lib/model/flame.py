@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 from lib.model.lbs import lbs
+from lib.model.loss import calculate_point2plane
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
@@ -52,7 +53,6 @@ class FLAME(nn.Module):
 
         # translation and scale pose
         self.transl = self.create_embeddings(torch.zeros(optimize_frames, 3))
-        self.scale = self.create_embeddings(torch.ones(optimize_frames, 3))
 
         # load the faces
         self.faces = nn.Parameter(flame_model["f"], requires_grad=False)  # (9976, 3)
@@ -96,7 +96,6 @@ class FLAME(nn.Module):
         self.optimization_parameters = [
             "global_pose",
             "transl",
-            # "scale",
             "neck_pose",
             "eye_pose",
             # "jaw_pose",
@@ -124,7 +123,6 @@ class FLAME(nn.Module):
         jaw_pose=None,
         eye_pose=None,
         transl=None,
-        scale=None,
         default_frame_idx: int = 0,
         default_shape_idx: int = 0,
     ):
@@ -143,7 +141,6 @@ class FLAME(nn.Module):
             jaw_pose (torch.tensor): number of jaw pose parameters (B, 3)
             eye_pose (torch.tensor): number of eye pose parameters (B, 6)
             transl(torch.tensor): number of translation parameters (B, 3)
-            scale (torch.tensor): number of scale parameters (B, 3)
 
         Return:
             (torch.Tensor): The mesh vertices of dim (B, V, 3)
@@ -165,8 +162,6 @@ class FLAME(nn.Module):
             eye_pose = self.eye_pose(frame_idx)
         if transl is None:
             transl = self.transl(frame_idx)
-        if scale is None:
-            scale = self.scale(frame_idx)
 
         # create the betas merged with shape and expression
         B = shape_params.shape[0]
@@ -193,16 +188,10 @@ class FLAME(nn.Module):
 
         # apply the translation and the scaling
         vertices += transl[:, None, :]  # (B, V, 3)
-        vertices *= scale[:, None, :]  # (B, V, 3)
 
-        # landmarks
-        lm_vertices = vertices[:, self.lm_faces]  # (B, F, 3, D)
-        lm_bary_coods = self.lm_bary_coords.expand(B, -1, -1).unsqueeze(-1)
-        landmarks = (lm_bary_coods * lm_vertices).sum(-2)  # (B, 105, D)
+        return vertices  # (B, V, 3)
 
-        return vertices, landmarks  # (B, V, 3), (B, 105, 3)
-
-    def optimization_step(self, batch: dict):
+    def correspondence_step(self, batch: dict):
         model = self.model_step(batch)
         render = self.render_step(model)
         mask = self.mask_step(batch, render)
@@ -210,7 +199,7 @@ class FLAME(nn.Module):
 
     def model_step(self, batch: dict):
         # inference get the vertices and the landmarks
-        vertices, landmarks = self.forward(
+        vertices = self.forward(
             shape_params=self.shape_params(batch["shape_idx"]),  # (B, S')
             expression_params=self.expression_params(batch["frame_idx"]),  # (B, E')
             global_pose=self.global_pose(batch["frame_idx"]),
@@ -218,8 +207,13 @@ class FLAME(nn.Module):
             jaw_pose=self.jaw_pose(batch["frame_idx"]),
             eye_pose=self.eye_pose(batch["frame_idx"]),
             transl=self.transl(batch["frame_idx"]),
-            scale=self.scale(batch["frame_idx"]),
         )  # (B, V, 3)
+
+        # landmarks
+        B = batch["shape_idx"].shape[0]
+        lm_vertices = vertices[:, self.lm_faces]  # (B, F, 3, D)
+        lm_bary_coods = self.lm_bary_coords.expand(B, -1, -1).unsqueeze(-1)
+        landmarks = (lm_bary_coods * lm_vertices).sum(-2)  # (B, 105, D)
 
         # extract the 2D landmark locations
         lm_3d_homo = self.renderer.camera.convert_to_homo_coords(landmarks)
@@ -253,20 +247,139 @@ class FLAME(nn.Module):
         assert mask.sum()  # we have some overlap
         return {"mask": mask, "f_mask": f_mask, "n_mask": n_mask, "d_mask": d_mask}
 
-    # def configure_optimizers(self, current_epoch: int):
-    #     # 6 DoF initialization
-    #     optimizer_params = {
-    #         "params": filter(lambda p: p.requires_grad, self.parameters()),
-    #         "lr": self.hparams["lr"],
-    #     }
-    #     optimizer = torch.optim.Adam(**optimizer_params)
-    #     if self.hparams["scheduler"] is not None:
-    #         scheduler = self.hparams["scheduler"](optimizer=optimizer)
-    #         return {
-    #             "optimizer": optimizer,
-    #             "lr_scheduler": {"scheduler": scheduler, "monitor": "train/loss"},
-    #         }
-    #     return {"optimizer": optimizer}
+    def loss_step(self, batch: dict, correspondences: dict):
+        mask = correspondences["mask"]
+        vertices = self.model_step(batch)["vertices"]
+        p = self.renderer.mask_interpolate(
+            vertices_idx=correspondences["vertices_idx"],
+            bary_coords=correspondences["bary_coords"],
+            attributes=vertices,
+            mask=mask,
+        )  # (C, 3)
+        q = batch["point"][mask]  # (C, 3)
+        n = correspondences["normal"][mask]  # (C, 3)
+        point2plane = calculate_point2plane(q=q, p=p, n=n)  # (C,)
+        return point2plane.mean()
+
+    def jacobian(self, batch: dict, correspondences: dict):
+        """Build the jacobian matrix.
+
+        The jacobian matrix is block-dense, only shape is shared between batches.
+        The final dimension is (m x n) where m is the number of total residuals and
+        n is the number of unknowns.
+
+        residual 0  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual 1  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual ...: shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual r1 : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual 0  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual 1  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual ...: shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual r2 : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        ...
+        residual 0  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual 1  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual ...: shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+        residual rm : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
+
+        Further note that pose is the following concatenation:
+        pose: global_pose, transl, neck_pose, eye_pose, jaw_pose
+
+        Args:
+            batch (dict): The input batch.
+            correspondences (dict): The correspondences.
+
+        Returns:
+            torch.Tensor: The jacobian matrix.
+        """
+        B = batch["shape_idx"].shape[0]
+        # tuple parameters
+        shape_params = self.shape_params(batch["shape_idx"])  # (B, S')
+        expression_params = self.expression_params(batch["frame_idx"])  # (B, E')
+        global_pose = self.global_pose(batch["frame_idx"])
+        neck_pose = self.neck_pose(batch["frame_idx"])
+        jaw_pose = self.jaw_pose(batch["frame_idx"])
+        eye_pose = self.eye_pose(batch["frame_idx"])
+        transl = self.transl(batch["frame_idx"])
+
+        jacobians = []
+        for idx in range(B):
+            # state
+            mask = correspondences["mask"][idx]
+            q = batch["point"][idx][mask]  # (R, 3)
+            n = correspondences["normal"][idx][mask]  # (R, 3)
+            vertices_idx = correspondences["vertices_idx"][idx]
+            bary_coords = correspondences["bary_coords"][idx]
+            # input
+            x = (
+                shape_params[idx],
+                expression_params[idx],
+                global_pose[idx],
+                transl[idx],
+                neck_pose[idx],
+                eye_pose[idx],
+                jaw_pose[idx],
+            )
+
+            def closure(
+                shape_params,
+                expression_params,
+                global_pose,
+                transl,
+                neck_pose,
+                eye_pose,
+                jaw_pose,
+            ):
+                vertices = self.forward(
+                    shape_params=shape_params[None],  # (B, S')
+                    expression_params=expression_params[None],  # (B, E')
+                    global_pose=global_pose[None],
+                    neck_pose=neck_pose[None],
+                    jaw_pose=jaw_pose[None],
+                    eye_pose=eye_pose[None],
+                    transl=transl[None],
+                )  # (B, V, 3)
+                p = self.renderer.mask_interpolate(
+                    vertices_idx=vertices_idx[None],
+                    bary_coords=bary_coords[None],
+                    attributes=vertices,
+                    mask=mask[None],
+                )  # (R, 3)  (residuals for the current batch)
+                point2plane = calculate_point2plane(q=q, p=p, n=n)  # (R,)
+                return point2plane
+
+            jacobian = torch.autograd.functional.jacobian(
+                func=closure,
+                inputs=x,
+                create_graph=False,  # this is currently note differentiable
+                strategy="forward-mode",
+                vectorize=True,
+            )
+            jacobians.append(jacobian)
+
+        dims = [j.shape[-1] for j in jacobians[0]]
+        shared_dims = sum(dims[:1])
+        unique_dims = sum(dims[1:]) * len(jacobians)
+        N = shared_dims + unique_dims  # number of unknowns
+        M = sum([j[0].shape[0] for j in jacobians])  # number of residuals
+        J = torch.zeros((M, N), device=self.device)
+
+        r_offset = 0  # residual offset
+        for j_idx, j in enumerate(jacobians):
+            # shared params
+            shared_params = torch.concatenate(j[:1], dim=-1)  # shape_params
+            sM, sN = shared_params.shape
+            J[r_offset : r_offset + sM, 0:sN] = shared_params
+            # unique params
+            unique_params = torch.concatenate(j[1:], dim=-1)  # exp_params, pose_params
+            uM, uN = unique_params.shape
+            _uN = sN + uN * j_idx  # the actual starting position
+            assert uM == sM  # check that the residuals is the same
+            J[r_offset : r_offset + uM, _uN : _uN + uN] = unique_params
+            # add the residual offset
+            r_offset += sM
+
+        return J
 
     ####################################################################################
     # Model Utils
@@ -336,3 +449,7 @@ class FLAME(nn.Module):
     @property
     def device(self):
         return self.shape_params.weight.device
+
+    ####################################################################################
+    # Loss Functions
+    ####################################################################################
