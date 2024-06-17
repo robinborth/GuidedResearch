@@ -65,6 +65,9 @@ def optimize(cfg: DictConfig) -> None:
 
         # inner optimization loop
         for optim_step in range(cfg.trainer.max_optims):
+            if optimizer.converged:  # type: ignore
+                break
+
             # state
             logger.optim_step = optim_step
             logger.global_step = iter_step * cfg.trainer.max_optims + optim_step + 1
@@ -89,6 +92,8 @@ def optimize(cfg: DictConfig) -> None:
             logger.log_loss(batch=batch, model=correspondences)
             if model.init_mode == "flame":
                 model.debug_params(batch=batch)
+        if optimizer.converged:  # type: ignore
+            log.info(f"Converged in {iter_step=} after {optim_step=} ...")
 
     # final full screen image
     log.info("==> log final result ...")

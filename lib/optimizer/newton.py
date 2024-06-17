@@ -18,6 +18,7 @@ class LevenbergMarquardt(Optimizer):
         self.damping_factor = damping_factor  # init the gamma
         self.factor = factor
         self.max_damping_steps = max_damping_steps
+        self.converged = False
 
     def step(self):
         # init the problem
@@ -46,7 +47,7 @@ class LevenbergMarquardt(Optimizer):
                     improvement = True
                     break
             if not improvement:
-                raise ValueError(f"The {self.max_damping_steps=} was too small.")
+                self.converged = True
             self.damping_factor = df_k
             self.update_params(dx_k)
         # decrease damping factor -> more gauss newton -> bigger updates

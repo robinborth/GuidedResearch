@@ -108,6 +108,7 @@ class FinetuneScheduler(Scheduler):
         if copy_state and self.prev_optimizer is not None:
             optimizer.state = self.prev_optimizer.state
         self.prev_optimizer = optimizer
+        setattr(optimizer, "converged", False)
         return optimizer
 
     def configure_levenberg_marquardt(
