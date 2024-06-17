@@ -4,7 +4,8 @@ import torch
 
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
-from lib.optimizer.gauss_newton import GaussNewton
+from lib.optimizer.jacobian import FlameJacobian
+from lib.optimizer.newton import LevenbergMarquardt
 
 
 class Scheduler:
@@ -92,24 +93,40 @@ class FinetuneScheduler(Scheduler):
                 print(f"Unfreeze (step={iter_step}, lr={lr}): {param}")
                 module = getattr(model, param)
                 self.unfreeze(module)
-                self.state[param] = {"params": module.parameters(), "lr": lr}
+                self.state[param] = {
+                    "params": module.parameters(),
+                    "lr": lr,
+                    "p_name": param,
+                }
         return list(self.state.values())
 
     def configure_adam(
         self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
     ) -> torch.optim.Optimizer:
-        params = self.param_groups(model=model, iter_step=iter_step)
-        optimizer = torch.optim.Adam(params=params)
+        param_groups = self.param_groups(model=model, iter_step=iter_step)
+        optimizer = torch.optim.Adam(params=param_groups)
         if copy_state and self.prev_optimizer is not None:
             optimizer.state = self.prev_optimizer.state
         self.prev_optimizer = optimizer
         return optimizer
 
-    def configure_gauss_newton(
-        self, model: FLAME, batch: dict, iter_step: int, **kwargs
+    def configure_levenberg_marquardt(
+        self,
+        model: FLAME,
+        batch: dict,
+        correspondences: dict,
+        iter_step: int,
+        **kwargs,
     ) -> torch.optim.Optimizer:
-        params = self.param_groups(model=model, iter_step=iter_step)
-        return GaussNewton(params=params, batch=batch)
+        param_groups = self.param_groups(model=model, iter_step=iter_step)
+        params = [group["p_name"] for group in param_groups]
+        jacobian = FlameJacobian(
+            model=model,
+            batch=batch,
+            correspondences=correspondences,
+            params=params,
+        )
+        return LevenbergMarquardt(jacobian=jacobian, params=param_groups)
 
     def requires_jacobian(self, optimizer):
-        return isinstance(optimizer, GaussNewton)
+        return isinstance(optimizer, LevenbergMarquardt)

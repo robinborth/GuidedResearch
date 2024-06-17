@@ -1,4 +1,3 @@
-import lightning as L
 import numpy as np
 import torch
 import torch.nn as nn
@@ -97,7 +96,7 @@ class FLAME(nn.Module):
             "global_pose",
             "transl",
             "neck_pose",
-            "eye_pose",
+            # "eye_pose",
             # "jaw_pose",
             "shape_params",
             "expression_params",
@@ -199,15 +198,7 @@ class FLAME(nn.Module):
 
     def model_step(self, batch: dict):
         # inference get the vertices and the landmarks
-        vertices = self.forward(
-            shape_params=self.shape_params(batch["shape_idx"]),  # (B, S')
-            expression_params=self.expression_params(batch["frame_idx"]),  # (B, E')
-            global_pose=self.global_pose(batch["frame_idx"]),
-            neck_pose=self.neck_pose(batch["frame_idx"]),
-            jaw_pose=self.jaw_pose(batch["frame_idx"]),
-            eye_pose=self.eye_pose(batch["frame_idx"]),
-            transl=self.transl(batch["frame_idx"]),
-        )  # (B, V, 3)
+        vertices = self.forward(**self.flame_input_dict(batch))  # (B, V, 3)
 
         # landmarks
         B = batch["shape_idx"].shape[0]
@@ -260,126 +251,6 @@ class FLAME(nn.Module):
         n = correspondences["normal"][mask]  # (C, 3)
         point2plane = calculate_point2plane(q=q, p=p, n=n)  # (C,)
         return point2plane.mean()
-
-    def jacobian(self, batch: dict, correspondences: dict):
-        """Build the jacobian matrix.
-
-        The jacobian matrix is block-dense, only shape is shared between batches.
-        The final dimension is (m x n) where m is the number of total residuals and
-        n is the number of unknowns.
-
-        residual 0  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual 1  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual ...: shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual r1 : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual 0  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual 1  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual ...: shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual r2 : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        ...
-        residual 0  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual 1  : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual ...: shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-        residual rm : shape, exp_0, pose_0, exp_1, pose_1, ..., exp_n, pose_n
-
-        Further note that pose is the following concatenation:
-        pose: global_pose, transl, neck_pose, eye_pose, jaw_pose
-
-        Args:
-            batch (dict): The input batch.
-            correspondences (dict): The correspondences.
-
-        Returns:
-            torch.Tensor: The jacobian matrix.
-        """
-        B = batch["shape_idx"].shape[0]
-        # tuple parameters
-        shape_params = self.shape_params(batch["shape_idx"])  # (B, S')
-        expression_params = self.expression_params(batch["frame_idx"])  # (B, E')
-        global_pose = self.global_pose(batch["frame_idx"])
-        neck_pose = self.neck_pose(batch["frame_idx"])
-        jaw_pose = self.jaw_pose(batch["frame_idx"])
-        eye_pose = self.eye_pose(batch["frame_idx"])
-        transl = self.transl(batch["frame_idx"])
-
-        jacobians = []
-        for idx in range(B):
-            # state
-            mask = correspondences["mask"][idx]
-            q = batch["point"][idx][mask]  # (R, 3)
-            n = correspondences["normal"][idx][mask]  # (R, 3)
-            vertices_idx = correspondences["vertices_idx"][idx]
-            bary_coords = correspondences["bary_coords"][idx]
-            # input
-            x = (
-                shape_params[idx],
-                expression_params[idx],
-                global_pose[idx],
-                transl[idx],
-                neck_pose[idx],
-                eye_pose[idx],
-                jaw_pose[idx],
-            )
-
-            def closure(
-                shape_params,
-                expression_params,
-                global_pose,
-                transl,
-                neck_pose,
-                eye_pose,
-                jaw_pose,
-            ):
-                vertices = self.forward(
-                    shape_params=shape_params[None],  # (B, S')
-                    expression_params=expression_params[None],  # (B, E')
-                    global_pose=global_pose[None],
-                    neck_pose=neck_pose[None],
-                    jaw_pose=jaw_pose[None],
-                    eye_pose=eye_pose[None],
-                    transl=transl[None],
-                )  # (B, V, 3)
-                p = self.renderer.mask_interpolate(
-                    vertices_idx=vertices_idx[None],
-                    bary_coords=bary_coords[None],
-                    attributes=vertices,
-                    mask=mask[None],
-                )  # (R, 3)  (residuals for the current batch)
-                point2plane = calculate_point2plane(q=q, p=p, n=n)  # (R,)
-                return point2plane
-
-            jacobian = torch.autograd.functional.jacobian(
-                func=closure,
-                inputs=x,
-                create_graph=False,  # this is currently note differentiable
-                strategy="forward-mode",
-                vectorize=True,
-            )
-            jacobians.append(jacobian)
-
-        dims = [j.shape[-1] for j in jacobians[0]]
-        shared_dims = sum(dims[:1])
-        unique_dims = sum(dims[1:]) * len(jacobians)
-        N = shared_dims + unique_dims  # number of unknowns
-        M = sum([j[0].shape[0] for j in jacobians])  # number of residuals
-        J = torch.zeros((M, N), device=self.device)
-
-        r_offset = 0  # residual offset
-        for j_idx, j in enumerate(jacobians):
-            # shared params
-            shared_params = torch.concatenate(j[:1], dim=-1)  # shape_params
-            sM, sN = shared_params.shape
-            J[r_offset : r_offset + sM, 0:sN] = shared_params
-            # unique params
-            unique_params = torch.concatenate(j[1:], dim=-1)  # exp_params, pose_params
-            uM, uN = unique_params.shape
-            _uN = sN + uN * j_idx  # the actual starting position
-            assert uM == sM  # check that the residuals is the same
-            J[r_offset : r_offset + uM, _uN : _uN + uN] = unique_params
-            # add the residual offset
-            r_offset += sM
-
-        return J
 
     ####################################################################################
     # Model Utils
@@ -450,6 +321,13 @@ class FLAME(nn.Module):
     def device(self):
         return self.shape_params.weight.device
 
-    ####################################################################################
-    # Loss Functions
-    ####################################################################################
+    def flame_input_dict(self, batch: dict):
+        return dict(
+            shape_params=self.shape_params(batch["shape_idx"]),  # (B, S')
+            expression_params=self.expression_params(batch["frame_idx"]),  # (B, E')
+            global_pose=self.global_pose(batch["frame_idx"]),
+            neck_pose=self.neck_pose(batch["frame_idx"]),
+            jaw_pose=self.jaw_pose(batch["frame_idx"]),
+            eye_pose=self.eye_pose(batch["frame_idx"]),
+            transl=self.transl(batch["frame_idx"]),
+        )

@@ -15,8 +15,8 @@ point2plane:
 	scheduler.coarse2fine.milestones=[0] \
 	scheduler.coarse2fine.scales=[8] \
 	scheduler.finetune.milestones=[0,3,5] \
-	scheduler.finetune.params=[["global_pose","transl"],["neck_pose","eye_pose"],["shape_params","expression_params"]] \
-	scheduler.finetune.lr=[[1e-02,1e-02],[1e-02,1e-02],[1e-02,1e-02]]
+	scheduler.finetune.params=[["global_pose","transl"],["neck_pose"],["shape_params","expression_params"]] \
+	scheduler.finetune.lr=[[1e-02,1e-02],[1e-02],[1e-02,1e-02]]
 
 profile:
 	python scripts/optimize.py \
@@ -35,7 +35,7 @@ profile:
 	scheduler.coarse2fine.milestones=[0] \
 	scheduler.coarse2fine.scales=[1] \
 	scheduler.finetune.milestones=[0] \
-	scheduler.finetune.params=["global_pose|transl|neck_pose|eye_pose|shape_params|expression_params"] \
+	scheduler.finetune.params=["global_pose|transl|neck_pose|shape_params|expression_params"] \
 
 create_video:
 	python scripts/create_video.py +framerate=20 +video_dir="/home/borth/GuidedResearch/logs/optimize/runs/2024-06-07_12-49-31/render_normal" +video_path="temp/render_normal.mp4"

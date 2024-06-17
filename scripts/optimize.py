@@ -10,8 +10,6 @@ from lib.data.datamodule import DPHMDataModule
 from lib.data.scheduler import CoarseToFineScheduler, FinetuneScheduler
 from lib.model.flame import FLAME
 from lib.model.logger import FlameLogger
-from lib.model.loss import calculate_point2plane
-from lib.optimizer.gauss_newton import GaussNewton
 
 log = logging.getLogger()
 
@@ -24,6 +22,10 @@ def optimize(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     assert device == "cuda"
 
+    log.info("==> initializing scheduler ...")
+    fts: FinetuneScheduler = hydra.utils.instantiate(cfg.scheduler.finetune)
+    c2fs: CoarseToFineScheduler = hydra.utils.instantiate(cfg.scheduler.coarse2fine)
+
     log.info(f"==> initializing datamodule <{cfg.data._target_}>")
     datamodule: DPHMDataModule = hydra.utils.instantiate(cfg.data, devie=device)
     datamodule.setup()  # this now contains the intrinsics, camera and rasterizer
@@ -32,17 +34,14 @@ def optimize(cfg: DictConfig) -> None:
     model: FLAME = hydra.utils.instantiate(cfg.model)
     model.init_renderer(camera=datamodule.camera, rasterizer=datamodule.rasterizer)
     model = model.to(device)
-
-    log.info("==> initializing scheduler ...")
-    fts: FinetuneScheduler = hydra.utils.instantiate(cfg.scheduler.finetune)
-    c2fs: CoarseToFineScheduler = hydra.utils.instantiate(cfg.scheduler.coarse2fine)
+    fts.freeze(model)
 
     log.info("==> initializing logger ...")
     logger: FlameLogger = hydra.utils.instantiate(cfg.logger)
     logger.init_logger(model=model, cfg=cfg)
 
-    fts.freeze(model)
-    for iter_step in tqdm(range(cfg.trainer.max_iters)):  # outer loop
+    # outer optimization loop
+    for iter_step in tqdm(range(cfg.trainer.max_iters)):
         # prepare iteration
         logger.iter_step = iter_step
 
@@ -51,38 +50,35 @@ def optimize(cfg: DictConfig) -> None:
         dataloader = datamodule.train_dataloader()
         batch = next(iter(dataloader))
 
-        # create optimizer
-        optimizer = fts.configure_adam(
-            model=model,
-            batch=batch,
-            iter_step=iter_step,
-            copy_state=True,
-        )
-        optimizer.zero_grad()
-
         # find correspondences
         with torch.no_grad():
             correspondences = model.correspondence_step(batch)
 
-            def jacobian_closure():
-                return model.jacobian(batch=batch, correspondences=correspondences)
+        # setup optimizer
+        optimizer = fts.configure_levenberg_marquardt(
+            model=model,
+            batch=batch,
+            correspondences=correspondences,
+            iter_step=iter_step,
+            copy_state=True,
+        )
 
-        # optimization
+        # inner optimization loop
         for optim_step in range(cfg.trainer.max_optims):
+            # state
             logger.optim_step = optim_step
             logger.global_step = iter_step * cfg.trainer.max_optims + optim_step + 1
 
+            # optimize step
             optimizer.zero_grad()
-            loss = model.loss_step(batch=batch, correspondences=correspondences)
+            loss = model.loss_step(batch, correspondences)
             loss.backward()
+            optimizer.step()
+
+            # logging
             logger.log("loss/point2plane", loss)
             logger.log(f"loss/{iter_step:03}/point2plane", loss)
             logger.log_gradients(optimizer)
-
-            if fts.requires_jacobian(optimizer):
-                optimizer.step(closure=jacobian_closure)
-            else:
-                optimizer.step()
 
         # debug and logging
         logger.log_metrics(batch=batch, model=correspondences)
