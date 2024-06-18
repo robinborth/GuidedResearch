@@ -11,6 +11,8 @@ point2plane:
 	data.start_frame_idx=19 \
 	trainer.max_iters=25 \
 	trainer.max_optims=100 \
+	trainer.optimizer=lm \
+	trainer.copy_optimizer_state=True \
 	trainer.save_interval=1 \
 	scheduler.coarse2fine.milestones=[0] \
 	scheduler.coarse2fine.scales=[8] \

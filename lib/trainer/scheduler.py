@@ -75,7 +75,7 @@ class OptimizerScheduler(Scheduler):
         self.lr = lr
         self.check_attribute(lr)
         self.state: dict[str, Any] = {}
-        self.prev_optimizer: None | torch.optim.Optimizer = None
+        self.prev_optimizer: Any = None
 
     def freeze(self, module: FLAME):
         for param in module.parameters():
@@ -123,10 +123,13 @@ class OptimizerScheduler(Scheduler):
         return optimizer
 
     def configure_levenberg_marquardt(
-        self, model: FLAME, iter_step: int, **kwargs
+        self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
     ) -> BaseOptimizer:
         param_groups = self.param_groups(model=model, iter_step=iter_step)
         optimizer = LevenbergMarquardt(params=param_groups)
+        if copy_state and self.prev_optimizer is not None:
+            optimizer.damping_factor = self.prev_optimizer.damping_factor
+        self.prev_optimizer = optimizer
         return optimizer
 
     def requires_jacobian(self, optimizer):
