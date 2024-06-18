@@ -4,9 +4,9 @@ import lightning as L
 import torch
 from torch.utils.data import DataLoader, Dataset, default_collate
 
+from lib.data.loader import load_intrinsics
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
-from lib.utils.loader import load_intrinsics
 
 
 class DPHMDataModule(L.LightningDataModule):

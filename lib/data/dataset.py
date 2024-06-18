@@ -4,16 +4,16 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
-from lib.model.flame import FLAME
-from lib.rasterizer import Rasterizer
-from lib.renderer.camera import Camera
-from lib.utils.loader import (
+from lib.data.loader import (
     load_color,
     load_depth,
     load_mediapipe_landmark_2d,
     load_mediapipe_landmark_3d,
     load_normal,
 )
+from lib.model.flame import FLAME
+from lib.rasterizer import Rasterizer
+from lib.renderer.camera import Camera
 
 
 class DPHMDataset(Dataset):

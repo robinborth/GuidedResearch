@@ -2,16 +2,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from lib.data.loader import load_flame, load_flame_masks, load_static_landmark_embedding
 from lib.model.lbs import lbs
 from lib.model.loss import calculate_point2plane
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
-from lib.utils.loader import (
-    load_flame,
-    load_flame_masks,
-    load_static_landmark_embedding,
-)
 
 
 class FLAME(nn.Module):
@@ -292,6 +288,21 @@ class FLAME(nn.Module):
         # this does NOT have the structure in Face2Face
         J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)
         return J
+
+    ####################################################################################
+    # Closures
+    ####################################################################################
+
+    def loss_closure(self, batch: dict, correspondences: dict):
+        return lambda: self.loss_step(batch, correspondences)
+
+    def jacobian_closure(self, batch: dict, correspondences: dict, optimizer):
+        return lambda: self.jacobian_step(
+            batch=batch,
+            correspondences=correspondences,
+            params=optimizer._params,
+            p_names=optimizer._p_names,
+        )
 
     ####################################################################################
     # Model Utils

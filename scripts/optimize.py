@@ -7,9 +7,9 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
-from lib.data.scheduler import CoarseToFineScheduler, OptimizerScheduler
 from lib.model.flame import FLAME
-from lib.model.logger import FlameLogger
+from lib.trainer.logger import FlameLogger
+from lib.trainer.scheduler import CoarseToFineScheduler, OptimizerScheduler
 
 log = logging.getLogger()
 
@@ -55,46 +55,39 @@ def optimize(cfg: DictConfig) -> None:
             correspondences = model.correspondence_step(batch)
 
         # setup optimizer
-        optimizer = os.configure_levenberg_marquardt(
+        optimizer = os.configure_optimizer(
+            optimizer=cfg.trainer.optimizer,
+            copy_state=cfg.trainer.copy_optimizer_state,
             model=model,
-            # batch=batch,
-            # correspondences=correspondences,
             iter_step=iter_step,
-            # copy_state=False,
         )
-
-        def loss_closure():
-            return model.loss_step(batch, correspondences)
-
-        def jacobian_closure():
-            return model.jacobian_step(
-                batch=batch,
-                correspondences=correspondences,
-                params=optimizer._params,
-                p_names=optimizer._p_names,
-            )
 
         # inner optimization loop
         for optim_step in range(cfg.trainer.max_optims):
-            if optimizer.converged:  # type: ignore
-                break
-
             # state
             logger.optim_step = optim_step
             logger.global_step = iter_step * cfg.trainer.max_optims + optim_step + 1
 
             # optimize step
-            # optimizer.zero_grad()
-            # loss = model.loss_step(batch, correspondences)
-            # loss.backward()
-
-            # todo change this that it fits
-            loss = optimizer.newton_step(loss_closure, jacobian_closure)
+            if os.requires_jacobian(optimizer):
+                loss = optimizer.newton_step(
+                    model.loss_closure(batch, correspondences),
+                    model.jacobian_closure(batch, correspondences, optimizer),
+                )
+            else:
+                optimizer.zero_grad()
+                loss = model.loss_step(batch, correspondences)
+                loss.backward()
+                optimizer.step()
 
             # logging
             logger.log("loss/point2plane", loss)
             logger.log(f"loss/{iter_step:03}/point2plane", loss)
             logger.log_gradients(optimizer)
+
+            # check for convergence
+            if optimizer.converged:
+                break
 
         # debug and logging
         logger.log_metrics(batch=batch, model=correspondences)
@@ -106,7 +99,7 @@ def optimize(cfg: DictConfig) -> None:
             if model.init_mode == "flame":
                 model.debug_params(batch=batch)
         if optimizer.converged:  # type: ignore
-            log.info(f"Converged in {iter_step=} after {optim_step=} ...")
+            log.info(f"converged in {iter_step=} after {optim_step=} ...")
 
     # final full screen image
     log.info("==> log final result ...")

@@ -1,3 +1,10 @@
+# @package trainer
+
+# loop settings
 max_iters: 25
 max_optims: 100
+# optimizer settings
+optimizer: lm
+copy_optimizer_state: False
+# logging settings
 save_interval: 10

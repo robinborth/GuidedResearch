@@ -5,7 +5,6 @@ import torch
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
 from lib.optimizer.base import BaseOptimizer
-from lib.optimizer.jacobian import FlameJacobian
 from lib.optimizer.newton import LevenbergMarquardt
 
 
@@ -103,6 +102,14 @@ class OptimizerScheduler(Scheduler):
                 }
         return list(self.state.values())
 
+    def configure_optimizer(self, optimizer: str, **kwargs):
+        if optimizer == "adam":
+            return self.configure_adam(**kwargs)
+        elif optimizer == "lm":
+            return self.configure_levenberg_marquardt(**kwargs)
+        optimizers = ["adam", "lm"]
+        raise ValueError(f"Please select an optimizer from the list: {optimizers}")
+
     def configure_adam(
         self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
     ) -> BaseOptimizer:
@@ -116,26 +123,10 @@ class OptimizerScheduler(Scheduler):
         return optimizer
 
     def configure_levenberg_marquardt(
-        self,
-        model: FLAME,
-        # batch: dict,
-        # correspondences: dict,
-        iter_step: int,
-        # copy_state: bool = False,
-        **kwargs,
+        self, model: FLAME, iter_step: int, **kwargs
     ) -> BaseOptimizer:
         param_groups = self.param_groups(model=model, iter_step=iter_step)
-        # p_names = [group["p_name"] for group in param_groups]
-        # jacobian = FlameJacobian(
-        #     model=model,
-        #     batch=batch,
-        #     correspondences=correspondences,
-        #     params=p_names,
-        # )
         optimizer = LevenbergMarquardt(params=param_groups)
-        # if copy_state and self.prev_optimizer is not None:
-        #     optimizer.state = self.prev_optimizer.state
-        # self.prev_optimizer = optimizer
         return optimizer
 
     def requires_jacobian(self, optimizer):

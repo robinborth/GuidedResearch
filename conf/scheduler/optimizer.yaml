@@ -1,7 +1,7 @@
 # @package scheduler
 
 optimizer:
-  _target_: lib.data.scheduler.OptimizerScheduler
+  _target_: lib.trainer.scheduler.OptimizerScheduler
   milestones: [0]
   params: [["global_pose","transl"]]
   lr: [[1e-02,1e-02]]
