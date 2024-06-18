@@ -117,6 +117,7 @@ class FinetuneScheduler(Scheduler):
         batch: dict,
         correspondences: dict,
         iter_step: int,
+        copy_state: bool = False,
         **kwargs,
     ) -> torch.optim.Optimizer:
         param_groups = self.param_groups(model=model, iter_step=iter_step)
@@ -127,7 +128,12 @@ class FinetuneScheduler(Scheduler):
             correspondences=correspondences,
             params=params,
         )
-        return LevenbergMarquardt(jacobian=jacobian, params=param_groups)
+        optimizer = LevenbergMarquardt(jacobian=jacobian, params=param_groups)
+        if copy_state and self.prev_optimizer is not None:
+            prev_damping_factor = self.prev_optimizer.damping_factor  # type: ignore
+            optimizer.damping_factor = prev_damping_factor
+        self.prev_optimizer = optimizer
+        return optimizer
 
     def requires_jacobian(self, optimizer):
         return isinstance(optimizer, LevenbergMarquardt)

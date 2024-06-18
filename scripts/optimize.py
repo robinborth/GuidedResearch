@@ -60,7 +60,7 @@ def optimize(cfg: DictConfig) -> None:
             batch=batch,
             correspondences=correspondences,
             iter_step=iter_step,
-            copy_state=True,
+            copy_state=False,
         )
 
         # inner optimization loop

@@ -5,16 +5,16 @@ point2plane:
 	model=flame \
 	model.init_mode=kinect \
 	model.vertices_mask=full \
-	model.optimize_frames=20 \
+	model.optimize_frames=30 \
 	data=kinect \
-	data.batch_size=20  \
+	data.batch_size=30  \
 	data.start_frame_idx=19 \
-	trainer.max_iters=20 \
+	trainer.max_iters=25 \
 	trainer.max_optims=100 \
 	trainer.save_interval=1 \
 	scheduler.coarse2fine.milestones=[0] \
 	scheduler.coarse2fine.scales=[8] \
-	scheduler.finetune.milestones=[0,3,5] \
+	scheduler.finetune.milestones=[0,5,8] \
 	scheduler.finetune.params=[["global_pose","transl"],["neck_pose"],["shape_params","expression_params"]] \
 	scheduler.finetune.lr=[[1e-02,1e-02],[1e-02],[1e-02,1e-02]]
 
