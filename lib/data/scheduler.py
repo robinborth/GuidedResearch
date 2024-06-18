@@ -4,6 +4,7 @@ import torch
 
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
+from lib.optimizer.base import BaseOptimizer
 from lib.optimizer.jacobian import FlameJacobian
 from lib.optimizer.newton import LevenbergMarquardt
 
@@ -53,7 +54,7 @@ class CoarseToFineScheduler(Scheduler):
         datamodule.update_dataset(scale)
 
 
-class FinetuneScheduler(Scheduler):
+class OptimizerScheduler(Scheduler):
     """The finetune scheduler manages which flame params are unfreezed.
 
     This scheduler manages which parameters are frozen in the optimization. One can
@@ -93,6 +94,8 @@ class FinetuneScheduler(Scheduler):
                 print(f"Unfreeze (step={iter_step}, lr={lr}): {param}")
                 module = getattr(model, param)
                 self.unfreeze(module)
+                # TODO ensure that we only have parameters in the optimization
+                # that we want to update, we need to freeze
                 self.state[param] = {
                     "params": module.parameters(),
                     "lr": lr,
@@ -102,9 +105,10 @@ class FinetuneScheduler(Scheduler):
 
     def configure_adam(
         self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
-    ) -> torch.optim.Optimizer:
+    ) -> BaseOptimizer:
         param_groups = self.param_groups(model=model, iter_step=iter_step)
-        optimizer = torch.optim.Adam(params=param_groups)
+        # TODO write a wrapper over adam
+        optimizer: BaseOptimizer = torch.optim.Adam(params=param_groups)  # type: ignore
         if copy_state and self.prev_optimizer is not None:
             optimizer.state = self.prev_optimizer.state
         self.prev_optimizer = optimizer
@@ -114,25 +118,24 @@ class FinetuneScheduler(Scheduler):
     def configure_levenberg_marquardt(
         self,
         model: FLAME,
-        batch: dict,
-        correspondences: dict,
+        # batch: dict,
+        # correspondences: dict,
         iter_step: int,
-        copy_state: bool = False,
+        # copy_state: bool = False,
         **kwargs,
-    ) -> torch.optim.Optimizer:
+    ) -> BaseOptimizer:
         param_groups = self.param_groups(model=model, iter_step=iter_step)
-        params = [group["p_name"] for group in param_groups]
-        jacobian = FlameJacobian(
-            model=model,
-            batch=batch,
-            correspondences=correspondences,
-            params=params,
-        )
-        optimizer = LevenbergMarquardt(jacobian=jacobian, params=param_groups)
-        if copy_state and self.prev_optimizer is not None:
-            prev_damping_factor = self.prev_optimizer.damping_factor  # type: ignore
-            optimizer.damping_factor = prev_damping_factor
-        self.prev_optimizer = optimizer
+        # p_names = [group["p_name"] for group in param_groups]
+        # jacobian = FlameJacobian(
+        #     model=model,
+        #     batch=batch,
+        #     correspondences=correspondences,
+        #     params=p_names,
+        # )
+        optimizer = LevenbergMarquardt(params=param_groups)
+        # if copy_state and self.prev_optimizer is not None:
+        #     optimizer.state = self.prev_optimizer.state
+        # self.prev_optimizer = optimizer
         return optimizer
 
     def requires_jacobian(self, optimizer):

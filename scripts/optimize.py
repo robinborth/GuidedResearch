@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
-from lib.data.scheduler import CoarseToFineScheduler, FinetuneScheduler
+from lib.data.scheduler import CoarseToFineScheduler, OptimizerScheduler
 from lib.model.flame import FLAME
 from lib.model.logger import FlameLogger
 
@@ -23,7 +23,7 @@ def optimize(cfg: DictConfig) -> None:
     assert device == "cuda"
 
     log.info("==> initializing scheduler ...")
-    fts: FinetuneScheduler = hydra.utils.instantiate(cfg.scheduler.finetune)
+    os: OptimizerScheduler = hydra.utils.instantiate(cfg.scheduler.optimizer)
     c2fs: CoarseToFineScheduler = hydra.utils.instantiate(cfg.scheduler.coarse2fine)
 
     log.info(f"==> initializing datamodule <{cfg.data._target_}>")
@@ -34,7 +34,7 @@ def optimize(cfg: DictConfig) -> None:
     model: FLAME = hydra.utils.instantiate(cfg.model)
     model.init_renderer(camera=datamodule.camera, rasterizer=datamodule.rasterizer)
     model = model.to(device)
-    fts.freeze(model)
+    os.freeze(model)
 
     log.info("==> initializing logger ...")
     logger: FlameLogger = hydra.utils.instantiate(cfg.logger)
@@ -55,13 +55,24 @@ def optimize(cfg: DictConfig) -> None:
             correspondences = model.correspondence_step(batch)
 
         # setup optimizer
-        optimizer = fts.configure_levenberg_marquardt(
+        optimizer = os.configure_levenberg_marquardt(
             model=model,
-            batch=batch,
-            correspondences=correspondences,
+            # batch=batch,
+            # correspondences=correspondences,
             iter_step=iter_step,
-            copy_state=False,
+            # copy_state=False,
         )
+
+        def loss_closure():
+            return model.loss_step(batch, correspondences)
+
+        def jacobian_closure():
+            return model.jacobian_step(
+                batch=batch,
+                correspondences=correspondences,
+                params=optimizer._params,
+                p_names=optimizer._p_names,
+            )
 
         # inner optimization loop
         for optim_step in range(cfg.trainer.max_optims):
@@ -73,10 +84,12 @@ def optimize(cfg: DictConfig) -> None:
             logger.global_step = iter_step * cfg.trainer.max_optims + optim_step + 1
 
             # optimize step
-            optimizer.zero_grad()
-            loss = model.loss_step(batch, correspondences)
-            loss.backward()
-            optimizer.step()
+            # optimizer.zero_grad()
+            # loss = model.loss_step(batch, correspondences)
+            # loss.backward()
+
+            # todo change this that it fits
+            loss = optimizer.newton_step(loss_closure, jacobian_closure)
 
             # logging
             logger.log("loss/point2plane", loss)

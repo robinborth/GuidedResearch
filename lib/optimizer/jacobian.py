@@ -4,6 +4,8 @@ from lib.model.flame import FLAME
 from lib.model.loss import calculate_point2plane
 
 
+# TODO relax the jacobian computation and remove the hard-coding part.
+# CHECK THE jacobian
 class FlameJacobian:
     def __init__(
         self,
@@ -197,29 +199,29 @@ class FlameJacobian:
         # simple shared offset
         return oS[-2], oS[-1]
 
-    def loss(self, fx: torch.Tensor):
-        """Calculates the loss of the model based on the params"""
-        batch = self.batch
-        correspondences = self.correspondences
+    # def loss(self, fx: torch.Tensor):
+    #     """Calculates the loss of the model based on the params"""
+    #     batch = self.batch
+    #     correspondences = self.correspondences
 
-        # update the flame flame input
-        flame_params = self.model.flame_input_dict(batch)
-        for p_name in self.params:
-            param: list[torch.Tensor] = []
-            for b_idx in range(self.B):
-                i, j = self.offset(p_name, b_idx)
-                param.append(fx[i:j])
-            flame_params[p_name] = torch.stack(param, dim=0)
+    #     # update the flame flame input
+    #     flame_params = self.model.flame_input_dict(batch)
+    #     for p_name in self.params:
+    #         param: list[torch.Tensor] = []
+    #         for b_idx in range(self.B):
+    #             i, j = self.offset(p_name, b_idx)
+    #             param.append(fx[i:j])
+    #         flame_params[p_name] = torch.stack(param, dim=0)
 
-        mask = correspondences["mask"]
-        vertices = self.model.forward(**flame_params)
-        p = self.model.renderer.mask_interpolate(
-            vertices_idx=correspondences["vertices_idx"],
-            bary_coords=correspondences["bary_coords"],
-            attributes=vertices,
-            mask=mask,
-        )  # (C, 3)
-        q = batch["point"][mask]  # (C, 3)
-        n = correspondences["normal"][mask]  # (C, 3)
-        point2plane = calculate_point2plane(q=q, p=p, n=n)  # (C,)
-        return point2plane.mean()
+    #     mask = correspondences["mask"]
+    #     vertices = self.model.forward(**flame_params)
+    #     p = self.model.renderer.mask_interpolate(
+    #         vertices_idx=correspondences["vertices_idx"],
+    #         bary_coords=correspondences["bary_coords"],
+    #         attributes=vertices,
+    #         mask=mask,
+    #     )  # (C, 3)
+    #     q = batch["point"][mask]  # (C, 3)
+    #     n = correspondences["normal"][mask]  # (C, 3)
+    #     point2plane = calculate_point2plane(q=q, p=p, n=n)  # (C,)
+    #     return point2plane.mean()

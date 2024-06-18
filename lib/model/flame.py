@@ -252,6 +252,47 @@ class FLAME(nn.Module):
         point2plane = calculate_point2plane(q=q, p=p, n=n)  # (C,)
         return point2plane.mean()
 
+    def jacobian_step(
+        self,
+        batch: dict,
+        correspondences: dict,
+        params: list[torch.Tensor],
+        p_names: list[str],
+    ):
+        def closure(*args):
+            # prepare the params
+            B = batch["shape_idx"].shape[0]
+            flame_input = self.flame_input_dict(batch)
+            flame_params = {}
+            for p_name, param in flame_input.items():
+                flame_params[p_name] = param.expand(B, -1)
+            for p_name, param in zip(p_names, args):
+                flame_params[p_name] = param.expand(B, -1)
+            # inference step
+            mask = correspondences["mask"]
+            vertices = self.forward(**flame_params)  # (B, V, 3)
+            p = self.renderer.mask_interpolate(
+                vertices_idx=correspondences["vertices_idx"],
+                bary_coords=correspondences["bary_coords"],
+                attributes=vertices,
+                mask=mask,
+            )  # (R, 3)  (residuals for the current batch)
+            q = batch["point"][mask]  # (R, 3)
+            n = correspondences["normal"][mask]  # (R, 3)
+            point2plane = calculate_point2plane(q=q, p=p, n=n)  # (R,)
+            return point2plane
+
+        jacobians = torch.autograd.functional.jacobian(
+            func=closure,
+            inputs=tuple(params),
+            create_graph=False,  # this is currently note differentiable
+            strategy="forward-mode",
+            vectorize=True,
+        )
+        # this does NOT have the structure in Face2Face
+        J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)
+        return J
+
     ####################################################################################
     # Model Utils
     ####################################################################################
