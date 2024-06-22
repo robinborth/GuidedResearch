@@ -140,3 +140,10 @@ class BaseOptimizer(Optimizer):
             return ternary_search(evaluate_closure=evaluate_closure)
 
         raise ValueError(f"The current {self.line_search_fn=} is not supported.")
+
+    def get_state(self):
+        raise NotImplementedError
+
+    def set_state(self, state: dict):
+        for key, value in state.items():
+            setattr(self, key, value)

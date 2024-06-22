@@ -22,6 +22,9 @@ class LevenbergMarquardt(BaseOptimizer):
         self.factor = factor
         self.max_damping_steps = max_damping_steps
 
+    def get_state(self):
+        return {"damping_factor": self.damping_factor}
+
     def applyJTJ(self, jacobian_closure: Callable[[], torch.Tensor]):
         J = jacobian_closure()  # (M, N)
         assert J.shape[1] == self._numel

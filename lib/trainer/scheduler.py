@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import torch
@@ -7,6 +8,8 @@ from lib.model.flame import FLAME
 from lib.optimizer.base import BaseOptimizer
 from lib.optimizer.gd import GradientDecentLinesearch
 from lib.optimizer.newton import LevenbergMarquardt
+
+log = logging.getLogger()
 
 
 class Scheduler:
@@ -66,17 +69,63 @@ class OptimizerScheduler(Scheduler):
         self,
         milestones: list[int] = [0],
         params: list[list[str]] = [["global_pose", "transl"]],
-        lr: list[list[float]] = [[1e-02, 1e-02]],
+        optimizer: str = "levenberg_marquardt",
+        optimizer_params: dict[str, Any] = {},
+        copy_optimizer_state: bool = False,
     ) -> None:
         super().__init__()
         self.milestones = milestones
         self.check_milestones(milestones)
+
         self.params = params
         self.check_attribute(params)
-        self.lr = lr
-        self.check_attribute(lr)
+
         self.state: dict[str, Any] = {}
         self.prev_optimizer: Any = None
+
+        # available optimizers
+        self.pytorch_optimizers: dict[str, Any] = {
+            "adam": torch.optim.Adam,
+            "gradient_decent": torch.optim.SGD,
+            "gradient_decent_momentum": torch.optim.SGD,
+        }
+        self.custom_optimizers: dict[str, Any] = {
+            "levenberg_marquardt": LevenbergMarquardt,
+            "ternary_linesearch": GradientDecentLinesearch,
+        }
+        self.full_optimizers = {**self.pytorch_optimizers, **self.custom_optimizers}
+
+        # check that the optimizer is correct
+        if optimizer not in self.full_optimizers:
+            optim_list = list(self.full_optimizers.keys())
+            raise ValueError(f"Please select an optimizer from the list: {optim_list}")
+        self.optimizer = optimizer
+
+        # check for the configurations
+        if self.optimizer == "adam":
+            assert "lr" in optimizer_params
+        if self.optimizer == "gradient_decent":
+            assert "lr" in optimizer_params
+            assert not copy_optimizer_state
+        if self.optimizer == "gradient_decent_momentum":
+            assert "lr" in optimizer_params
+            assert "momentum" in optimizer_params
+        if self.optimizer == "levenberg_marquardt":
+            pass
+        if self.optimizer == "ternary_linesearch":
+            assert "line_search_fn" in optimizer_params
+            assert optimizer_params["line_search_fn"] == "ternary_linesearch"
+            assert not copy_optimizer_state
+        self.optimizer_params = optimizer_params
+        self.copy_optimizer_state = copy_optimizer_state
+
+    @property
+    def requires_jacobian(self):
+        return self.optimizer in ["levenberg_marquardt"]
+
+    @property
+    def requires_loss(self):
+        return self.optimizer in ["ternary_linesearch"]
 
     def freeze(self, module: FLAME):
         for param in module.parameters():
@@ -88,100 +137,54 @@ class OptimizerScheduler(Scheduler):
 
     def param_groups(self, model: FLAME, iter_step: int = 0):
         params = self.get_attribute(self.params, iter_step=iter_step)
-        lrs = self.get_attribute(self.lr, iter_step=iter_step)
-        for param, lr in zip(params, lrs):
+        for param in params:
             if param not in self.state:
-                print(f"Unfreeze (step={iter_step}, lr={lr}): {param}")
+                log.info(f"Unfreeze (step={iter_step}): {param}")
                 module = getattr(model, param)
                 self.unfreeze(module)
-                # TODO ensure that we only have parameters in the optimization
-                # that we want to update, we need to freeze
                 self.state[param] = {
                     "params": module.parameters(),
-                    "lr": lr,
                     "p_name": param,
                 }
         return list(self.state.values())
 
-    def requires_jacobian(self, optimizer):
-        return isinstance(optimizer, LevenbergMarquardt)
-
-    def requires_loss(self, optimizer):
-        return isinstance(optimizer, GradientDecentLinesearch)
-
-    def configure_optimizer(self, optimizer: str, **kwargs):
-        if optimizer == "adam":
-            return self.configure_adam(**kwargs)
-        elif optimizer == "gradient_decent":
-            return self.configure_gradient_decent(**kwargs)
-        elif optimizer == "gradient_decent_momentum":
-            return self.configure_gradient_decent_momentum(**kwargs)
-        elif optimizer == "levenberg_marquardt":
-            return self.configure_levenberg_marquardt(**kwargs)
-        elif optimizer == "ternary_linesearch":
-            return self.configure_ternary_linesearch(**kwargs)
-        optimizers = [
-            "adam",
-            "levenberg_marquardt",
-            "ternary_linesearch",
-            "gradient_decent",
-            "gradient_decent_momentum",
-        ]
-        raise ValueError(f"Please select an optimizer from the list: {optimizers}")
-
-    def configure_adam(
-        self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
-    ) -> BaseOptimizer:
+    def get_optimizer(self, model: FLAME, iter_step: int) -> BaseOptimizer:
         param_groups = self.param_groups(model=model, iter_step=iter_step)
-        optimizer: BaseOptimizer = torch.optim.Adam(params=param_groups)  # type: ignore
-        if copy_state and self.prev_optimizer is not None:
-            optimizer.state = self.prev_optimizer.state
-        self.prev_optimizer = optimizer
-        setattr(optimizer, "converged", False)
-        return optimizer
-
-    def configure_gradient_decent_momentum(
-        self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
-    ) -> BaseOptimizer:
-        param_groups = self.param_groups(model=model, iter_step=iter_step)
-        optimizer: BaseOptimizer = torch.optim.SGD(
+        _optimizer = self.full_optimizers[self.optimizer]
+        optimizer: BaseOptimizer = _optimizer(
             params=param_groups,
-            momentum=0.9,
+            **self.optimizer_params,
         )  # type: ignore
-        if copy_state and self.prev_optimizer is not None:
-            optimizer.state = self.prev_optimizer.state
-        self.prev_optimizer = optimizer
-        setattr(optimizer, "converged", False)
         return optimizer
 
-    def configure_gradient_decent(
-        self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
+    def configure_optimizer(self, model: FLAME, iter_step: int):
+        if self.optimizer in self.pytorch_optimizers:
+            return self.configure_pytorch_optimizer(model=model, iter_step=iter_step)
+        if self.optimizer == "levenberg_marquardt":
+            return self.configure_levenberg_marquardt(model=model, iter_step=iter_step)
+        if self.optimizer == "ternary_linesearch":
+            return self.configure_ternary_linesearch(model=model, iter_step=iter_step)
+
+    def configure_pytorch_optimizer(
+        self, model: FLAME, iter_step: int
     ) -> BaseOptimizer:
-        param_groups = self.param_groups(model=model, iter_step=iter_step)
-        optimizer: BaseOptimizer = torch.optim.SGD(params=param_groups)  # type: ignore
-        if copy_state and self.prev_optimizer is not None:
+        optimizer = self.get_optimizer(model=model, iter_step=iter_step)
+        if self.copy_optimizer_state and self.prev_optimizer is not None:
             optimizer.state = self.prev_optimizer.state
         self.prev_optimizer = optimizer
         setattr(optimizer, "converged", False)
         return optimizer
 
     def configure_levenberg_marquardt(
-        self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
+        self, model: FLAME, iter_step: int
     ) -> BaseOptimizer:
-        param_groups = self.param_groups(model=model, iter_step=iter_step)
-        optimizer = LevenbergMarquardt(params=param_groups)
-        if copy_state and self.prev_optimizer is not None:
-            optimizer.damping_factor = self.prev_optimizer.damping_factor
+        optimizer = self.get_optimizer(model=model, iter_step=iter_step)
+        if self.copy_optimizer_state and self.prev_optimizer is not None:
+            optimizer.set_state(self.prev_optimizer.get_state())
         self.prev_optimizer = optimizer
         return optimizer
 
     def configure_ternary_linesearch(
-        self, model: FLAME, iter_step: int, **kwargs
+        self, model: FLAME, iter_step: int
     ) -> BaseOptimizer:
-        param_groups = self.param_groups(model=model, iter_step=iter_step)
-        optimizer = GradientDecentLinesearch(
-            params=param_groups,
-            line_search_fn="ternary_search",
-        )
-        self.prev_optimizer = optimizer
-        return optimizer
+        return self.get_optimizer(model=model, iter_step=iter_step)

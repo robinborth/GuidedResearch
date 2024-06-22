@@ -5,13 +5,12 @@ levenberg_marquardt:
 	model.optimize_frames=10 \
 	trainer.max_iters=20 \
 	trainer.max_optims=50 \
-	trainer.optimizer=levenberg_marquardt \
-	trainer.copy_optimizer_state=False \
 	scheduler.coarse2fine.milestones=[0] \
 	scheduler.coarse2fine.scales=[8] \
 	scheduler.optimizer.milestones=[0,5,7] \
 	scheduler.optimizer.params=[["global_pose","transl"],["neck_pose"],["shape_params","expression_params"]] \
-	scheduler.optimizer.lr=[[0,0],[0],[0,0]]
+	scheduler.optimizer.optimizer=levenberg_marquardt \
+	scheduler.optimizer.copy_optimizer_state=False \
 
 adam:
 	python scripts/optimize.py \

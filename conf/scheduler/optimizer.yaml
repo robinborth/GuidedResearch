@@ -3,5 +3,6 @@
 optimizer:
   _target_: lib.trainer.scheduler.OptimizerScheduler
   milestones: [0]
-  params: [["global_pose","transl"]]
-  lr: [[1e-02,1e-02]]
+  params: [[global_pose,transl]]
+  optimizer: levenberg_marquardt
+  copy_optimizer_state: False

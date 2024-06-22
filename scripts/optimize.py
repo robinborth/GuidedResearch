@@ -56,12 +56,7 @@ def optimize(cfg: DictConfig) -> None:
             correspondences = model.correspondence_step(batch)
 
         # setup optimizer
-        optimizer = os.configure_optimizer(
-            optimizer=cfg.trainer.optimizer,
-            copy_state=cfg.trainer.copy_optimizer_state,
-            model=model,
-            iter_step=iter_step,
-        )
+        optimizer = os.configure_optimizer(model=model, iter_step=iter_step)
 
         # inner optimization loop
         loss_tracker: list[float] = []
@@ -72,12 +67,12 @@ def optimize(cfg: DictConfig) -> None:
             logger.global_step = iter_step * cfg.trainer.max_optims + optim_step + 1
 
             # optimize step
-            if os.requires_jacobian(optimizer):
+            if os.requires_jacobian:
                 loss = optimizer.newton_step(
                     model.loss_closure(batch, correspondences),
                     model.jacobian_closure(batch, correspondences, optimizer),
                 )
-            elif os.requires_loss(optimizer):
+            elif os.requires_loss:
                 loss = optimizer.step(model.loss_closure(batch, correspondences))
             else:
                 optimizer.zero_grad()
@@ -110,8 +105,6 @@ def optimize(cfg: DictConfig) -> None:
             logger.log_loss(batch=batch, model=correspondences)
             if model.init_mode == "flame":
                 model.debug_params(batch=batch)
-        # if optimizer.converged:  # type: ignore
-        #     log.info(f"converged in {iter_step=} after {optim_step=} ...")
 
     # final full screen image
     log.info("==> log final result ...")
