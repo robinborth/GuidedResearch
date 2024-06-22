@@ -176,6 +176,7 @@ class DPHMPointDataset(DPHMDataset):
         self.load_lm_2d_ndc()
         self.load_lm_3d_camera()
         self.load_color()
+        self.frame_idxs = list(self.iter_frame_idx())
 
     def __getitem__(self, idx: int):
         # (H', W', 3) this is scaled
@@ -185,9 +186,10 @@ class DPHMPointDataset(DPHMDataset):
         color = self.color[idx]
         lm_2d_ndc = self.lm_2d_ndc[idx]
         lm_3d_camera = self.lm_3d_camera[idx]
+        frame_idx = self.frame_idxs[idx]
         return {
             "shape_idx": 0,
-            "frame_idx": idx,
+            "frame_idx": frame_idx,
             "mask": mask,
             "point": point,
             "normal": normal,

@@ -15,6 +15,7 @@ class FLAME(nn.Module):
         self,
         # model settings
         flame_dir: str = "/flame",
+        batch_size: int = 1,
         num_shape_params: int = 100,
         num_expression_params: int = 50,
         optimize_frames: int = 1,
@@ -24,6 +25,7 @@ class FLAME(nn.Module):
         **kwargs,
     ):
         super().__init__()
+        self.batch_size = batch_size
 
         # load the face model
         flame_model = load_flame(flame_dir=flame_dir, return_tensors="pt")
@@ -159,7 +161,7 @@ class FLAME(nn.Module):
             transl = self.transl(frame_idx)
 
         # create the betas merged with shape and expression
-        B = shape_params.shape[0]
+        B = self.batch_size
         zero_shape = self.zero_shape.expand(B, -1)  # (B, 300 - S')
         shape = torch.cat([shape_params, zero_shape], dim=-1)  # (B, 300)
         zero_expression = self.zero_expression.expand(B, -1)  # (B, 100 - E')
@@ -197,7 +199,7 @@ class FLAME(nn.Module):
         vertices = self.forward(**self.flame_input_dict(batch))  # (B, V, 3)
 
         # landmarks
-        B = batch["shape_idx"].shape[0]
+        B = self.batch_size
         lm_vertices = vertices[:, self.lm_faces]  # (B, F, 3, D)
         lm_bary_coods = self.lm_bary_coords.expand(B, -1, -1).unsqueeze(-1)
         landmarks = (lm_bary_coods * lm_vertices).sum(-2)  # (B, 105, D)
@@ -257,7 +259,7 @@ class FLAME(nn.Module):
     ):
         def closure(*args):
             # prepare the params
-            B = batch["shape_idx"].shape[0]
+            B = self.batch_size
             flame_input = self.flame_input_dict(batch)
             flame_params = {}
             for p_name, param in flame_input.items():

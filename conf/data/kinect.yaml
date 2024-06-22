@@ -4,10 +4,17 @@ _target_: lib.data.datamodule.DPHMDataModule
 # dataset settings
 dataset_name: dphm_christoph_mouthmove
 data_dir: ${paths.data_dir}/${data.dataset_name}
-start_frame_idx: 19
-scale: 1
+
+# optimize settings
+max_frames: 127
+start_frame_idx: 0   # 19
+optimize_frames: 1
+
+# camera settings
 width: 1920
 height: 1080
+near: 0.01
+far: 100
 
 # training settings
 batch_size: 1
@@ -22,7 +29,6 @@ dataset:
   _target_: lib.data.dataset.DPHMPointDataset
   _partial_: True
   data_dir: ${data.data_dir}
-  optimize_frames: ${model.optimize_frames}
+  optimize_frames: ${data.optimize_frames}
   start_frame_idx: ${data.start_frame_idx}
-  # this is done dynamically in coars to fine strategy
   camera: ???

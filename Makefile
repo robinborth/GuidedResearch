@@ -1,14 +1,13 @@
 levenberg_marquardt:
 	python scripts/optimize.py \
 	tags=["levenberg_marquardt"] \
-	data.batch_size=10 \
-	model.optimize_frames=10 \
+	data.batch_size=1 \
 	trainer.max_iters=20 \
 	trainer.max_optims=50 \
 	scheduler.coarse2fine.milestones=[0] \
 	scheduler.coarse2fine.scales=[8] \
 	scheduler.optimizer.milestones=[0,5,7] \
-	scheduler.optimizer.params=[["global_pose","transl"],["neck_pose"],["shape_params","expression_params"]] \
+	scheduler.optimizer.params=[[global_pose,transl],[neck_pose],[shape_params,expression_params]] \
 	scheduler.optimizer.optimizer=levenberg_marquardt \
 	scheduler.optimizer.copy_optimizer_state=False \
 

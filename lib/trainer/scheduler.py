@@ -8,6 +8,8 @@ from lib.model.flame import FLAME
 from lib.optimizer.base import BaseOptimizer
 from lib.optimizer.gd import GradientDecentLinesearch
 from lib.optimizer.newton import LevenbergMarquardt
+from lib.rasterizer import Rasterizer
+from lib.renderer.camera import Camera
 
 log = logging.getLogger()
 
@@ -39,6 +41,8 @@ class CoarseToFineScheduler(Scheduler):
 
     def __init__(
         self,
+        camera: Camera,
+        rasterizer: Rasterizer,
         milestones: list[int] = [0],
         scales: list[int] = [1],
     ) -> None:
@@ -49,12 +53,16 @@ class CoarseToFineScheduler(Scheduler):
         for scale in self.scales:
             assert isinstance(scale, int)
             assert scale >= 1
+        self.camera = camera
+        self.rasterizer = rasterizer
 
-    def schedule_dataset(self, datamodule: DPHMDataModule, iter_step: int):
+    def schedule(self, datamodule: DPHMDataModule, iter_step: int):
         if self.skip(iter_step):
             return
         scale = self.get_attribute(self.scales, iter_step)
-        datamodule.update_dataset(scale)
+        self.camera.update(scale=scale)
+        self.rasterizer.update(width=self.camera.width, height=self.camera.height)
+        datamodule.update_dataset(camera=self.camera, rasterizer=self.rasterizer)
 
 
 class OptimizerScheduler(Scheduler):
@@ -119,6 +127,8 @@ class OptimizerScheduler(Scheduler):
         self.optimizer_params = optimizer_params
         self.copy_optimizer_state = copy_optimizer_state
 
+        self.shared_params = ["shape_params"]
+
     @property
     def requires_jacobian(self):
         return self.optimizer in ["levenberg_marquardt"]
@@ -135,21 +145,31 @@ class OptimizerScheduler(Scheduler):
         for param in module.parameters():
             param.requires_grad = True
 
-    def param_groups(self, model: FLAME, iter_step: int = 0):
-        params = self.get_attribute(self.params, iter_step=iter_step)
-        for param in params:
-            if param not in self.state:
-                log.info(f"Unfreeze (step={iter_step}): {param}")
-                module = getattr(model, param)
+    def param_groups(self, model: FLAME, batch: dict, iter_step: int = 0):
+        p_names = self.get_attribute(self.params, iter_step=iter_step)
+        for p_name in p_names:
+            if p_name not in self.state:
+                log.info(f"Unfreeze (step={iter_step}): {p_name}")
+                module = getattr(model, p_name)
                 self.unfreeze(module)
-                self.state[param] = {
-                    "params": module.parameters(),
-                    "p_name": param,
+
+                if p_name in self.shared_params:
+                    shape_idx = batch["shape_idx"][:1]
+                    params = module(shape_idx)
+                else:
+                    frame_idx = batch["frame_idx"]
+                    params = module(frame_idx)
+                params.detach_()
+                params.requires_grad_()
+
+                self.state[p_name] = {
+                    "params": params,
+                    "p_name": p_name,
                 }
         return list(self.state.values())
 
-    def get_optimizer(self, model: FLAME, iter_step: int) -> BaseOptimizer:
-        param_groups = self.param_groups(model=model, iter_step=iter_step)
+    def get_optimizer(self, model: FLAME, batch: dict, iter_step: int) -> BaseOptimizer:
+        param_groups = self.param_groups(model=model, batch=batch, iter_step=iter_step)
         _optimizer = self.full_optimizers[self.optimizer]
         optimizer: BaseOptimizer = _optimizer(
             params=param_groups,
@@ -157,18 +177,18 @@ class OptimizerScheduler(Scheduler):
         )  # type: ignore
         return optimizer
 
-    def configure_optimizer(self, model: FLAME, iter_step: int):
+    def configure_optimizer(self, model: FLAME, batch: dict, iter_step: int):
         if self.optimizer in self.pytorch_optimizers:
-            return self.configure_pytorch_optimizer(model=model, iter_step=iter_step)
+            return self.configure_pytorch_optimizer(model, batch, iter_step)
         if self.optimizer == "levenberg_marquardt":
-            return self.configure_levenberg_marquardt(model=model, iter_step=iter_step)
+            return self.configure_levenberg_marquardt(model, batch, iter_step)
         if self.optimizer == "ternary_linesearch":
-            return self.configure_ternary_linesearch(model=model, iter_step=iter_step)
+            return self.configure_ternary_linesearch(model, batch, iter_step)
 
     def configure_pytorch_optimizer(
-        self, model: FLAME, iter_step: int
+        self, model: FLAME, batch: dict, iter_step: int
     ) -> BaseOptimizer:
-        optimizer = self.get_optimizer(model=model, iter_step=iter_step)
+        optimizer = self.get_optimizer(model, batch, iter_step)
         if self.copy_optimizer_state and self.prev_optimizer is not None:
             optimizer.state = self.prev_optimizer.state
         self.prev_optimizer = optimizer
@@ -176,15 +196,15 @@ class OptimizerScheduler(Scheduler):
         return optimizer
 
     def configure_levenberg_marquardt(
-        self, model: FLAME, iter_step: int
+        self, model: FLAME, batch: dict, iter_step: int
     ) -> BaseOptimizer:
-        optimizer = self.get_optimizer(model=model, iter_step=iter_step)
+        optimizer = self.get_optimizer(model, batch, iter_step)
         if self.copy_optimizer_state and self.prev_optimizer is not None:
             optimizer.set_state(self.prev_optimizer.get_state())
         self.prev_optimizer = optimizer
         return optimizer
 
     def configure_ternary_linesearch(
-        self, model: FLAME, iter_step: int
+        self, model: FLAME, batch: dict, iter_step: int
     ) -> BaseOptimizer:
-        return self.get_optimizer(model=model, iter_step=iter_step)
+        return self.get_optimizer(model, batch, iter_step)

@@ -1,12 +1,16 @@
-_target_: lightning.pytorch.trainer.Trainer
-default_root_dir: ${paths.output_dir}
-min_epochs: 1 
-max_epochs: 100
-accelerator: gpu
-devices: 1
-check_val_every_n_epoch: 1
-log_every_n_steps: 1
-deterministic: False
-enable_checkpointing: False
-reload_dataloaders_every_n_epochs: 1
-# detect_anomaly: True
+# @package trainer
+
+_target_: lib.trainer.trainer.Trainer
+model: ???
+logger: ???
+# loop settings
+max_iters: 25
+max_optims: 100
+# logging settings
+save_interval: 1
+prefix: ""
+# convergence tests
+check_convergence: False
+convergence_threshold: 1e-10
+min_tracker_steps: 2
+max_tracker_steps: 5

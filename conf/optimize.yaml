@@ -1,16 +1,13 @@
 # @package _global_
 
 defaults:
-  - data: kinect # kinect, flame
+  - data: kinect
   - model: flame 
-  - trainer: icp  # default, gpu
-  - logger: wandb # csv, wandb, tensorboard
-  # - callbacks:
-    # - rich_progress_bar
-  - scheduler:  # this is internally handled like a callback
+  - trainer: default
+  - logger: wandb
+  - scheduler:
     - coarse2fine
     - optimizer 
-    # - optimizer 
   - hydra: default
   - paths: default
   - debug: null

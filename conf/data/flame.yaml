@@ -5,9 +5,12 @@ _target_: lib.data.datamodule.DPHMDataModule
 dataset_name: dphm_christoph_mouthmove
 data_dir: ${paths.data_dir}/${data.dataset_name}
 start_frame_idx: 0 
-scale: 1
+
+# camera setting
 width: 1920
 height: 1080
+near: 0.01
+far: 100
 
 # training settings
 batch_size: 1
