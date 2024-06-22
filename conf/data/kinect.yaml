@@ -4,7 +4,7 @@ _target_: lib.data.datamodule.DPHMDataModule
 # dataset settings
 dataset_name: dphm_christoph_mouthmove
 data_dir: ${paths.data_dir}/${data.dataset_name}
-start_frame_idx: 0 
+start_frame_idx: 19
 scale: 1
 width: 1920
 height: 1080

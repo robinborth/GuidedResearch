@@ -5,6 +5,7 @@ import torch
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
 from lib.optimizer.base import BaseOptimizer
+from lib.optimizer.gd import GradientDecentLinesearch
 from lib.optimizer.newton import LevenbergMarquardt
 
 
@@ -102,20 +103,62 @@ class OptimizerScheduler(Scheduler):
                 }
         return list(self.state.values())
 
+    def requires_jacobian(self, optimizer):
+        return isinstance(optimizer, LevenbergMarquardt)
+
+    def requires_loss(self, optimizer):
+        return isinstance(optimizer, GradientDecentLinesearch)
+
     def configure_optimizer(self, optimizer: str, **kwargs):
         if optimizer == "adam":
             return self.configure_adam(**kwargs)
-        elif optimizer == "lm":
+        elif optimizer == "gradient_decent":
+            return self.configure_gradient_decent(**kwargs)
+        elif optimizer == "gradient_decent_momentum":
+            return self.configure_gradient_decent_momentum(**kwargs)
+        elif optimizer == "levenberg_marquardt":
             return self.configure_levenberg_marquardt(**kwargs)
-        optimizers = ["adam", "lm"]
+        elif optimizer == "ternary_linesearch":
+            return self.configure_ternary_linesearch(**kwargs)
+        optimizers = [
+            "adam",
+            "levenberg_marquardt",
+            "ternary_linesearch",
+            "gradient_decent",
+            "gradient_decent_momentum",
+        ]
         raise ValueError(f"Please select an optimizer from the list: {optimizers}")
 
     def configure_adam(
         self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
     ) -> BaseOptimizer:
         param_groups = self.param_groups(model=model, iter_step=iter_step)
-        # TODO write a wrapper over adam
         optimizer: BaseOptimizer = torch.optim.Adam(params=param_groups)  # type: ignore
+        if copy_state and self.prev_optimizer is not None:
+            optimizer.state = self.prev_optimizer.state
+        self.prev_optimizer = optimizer
+        setattr(optimizer, "converged", False)
+        return optimizer
+
+    def configure_gradient_decent_momentum(
+        self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
+    ) -> BaseOptimizer:
+        param_groups = self.param_groups(model=model, iter_step=iter_step)
+        optimizer: BaseOptimizer = torch.optim.SGD(
+            params=param_groups,
+            momentum=0.9,
+        )  # type: ignore
+        if copy_state and self.prev_optimizer is not None:
+            optimizer.state = self.prev_optimizer.state
+        self.prev_optimizer = optimizer
+        setattr(optimizer, "converged", False)
+        return optimizer
+
+    def configure_gradient_decent(
+        self, model: FLAME, iter_step: int, copy_state: bool = False, **kwargs
+    ) -> BaseOptimizer:
+        param_groups = self.param_groups(model=model, iter_step=iter_step)
+        optimizer: BaseOptimizer = torch.optim.SGD(params=param_groups)  # type: ignore
         if copy_state and self.prev_optimizer is not None:
             optimizer.state = self.prev_optimizer.state
         self.prev_optimizer = optimizer
@@ -132,5 +175,13 @@ class OptimizerScheduler(Scheduler):
         self.prev_optimizer = optimizer
         return optimizer
 
-    def requires_jacobian(self, optimizer):
-        return isinstance(optimizer, LevenbergMarquardt)
+    def configure_ternary_linesearch(
+        self, model: FLAME, iter_step: int, **kwargs
+    ) -> BaseOptimizer:
+        param_groups = self.param_groups(model=model, iter_step=iter_step)
+        optimizer = GradientDecentLinesearch(
+            params=param_groups,
+            line_search_fn="ternary_search",
+        )
+        self.prev_optimizer = optimizer
+        return optimizer

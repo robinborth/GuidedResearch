@@ -27,6 +27,7 @@
                 "trainer.max_iters=15",
                 "trainer.max_optims=100",
                 "trainer.save_interval=1",
+                "trainer.optimizer=levenberg_marquardt",
                 "scheduler.coarse2fine.milestones=[0]",
                 "scheduler.coarse2fine.scales=[8]",
                 "scheduler.optimizer.milestones=[0,3,5]",

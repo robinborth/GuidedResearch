@@ -5,27 +5,17 @@ from typing import Callable, Tuple
 import torch
 from torch.optim import Optimizer
 
+from lib.optimizer.linesearch import ternary_search
+
 
 class BaseOptimizer(Optimizer):
     def __init__(
         self,
         params,
         lr: float = 1.0,
-        # max_iter=20,
-        # tolerance_grad=1e-7,
-        # tolerance_change=1e-9,
-        line_search_fn=None,
-        defaults: dict = {},
+        line_search_fn: str | None = None,
     ):
-        _defaults = dict(
-            lr=lr,
-            # max_iter=max_iter,
-            # tolerance_grad=tolerance_grad,
-            # tolerance_change=tolerance_change,
-            line_search_fn=line_search_fn,
-            **defaults,
-        )
-        super().__init__(params, defaults=_defaults)
+        super().__init__(params, defaults={})
 
         # we only have one param group per optimization, where in params we have
         # multiple parameters which we optimize
@@ -45,6 +35,10 @@ class BaseOptimizer(Optimizer):
 
         self._numel_cache = None
         self.converged = False
+
+        # line search options
+        self.lr = lr  # default lr
+        self.line_search_fn = line_search_fn
 
     @property
     def _numel(self):
@@ -104,9 +98,45 @@ class BaseOptimizer(Optimizer):
         self._set_param(x_init)
         return float(loss)
 
+    def _evaluate_closure(
+        self,
+        loss_closure: Callable[[], torch.Tensor],
+        x_init: list[torch.Tensor],
+        direction: torch.Tensor,
+    ):
+        return lambda step_size: self._evaluate(
+            loss_closure=loss_closure,
+            x_init=x_init,
+            step_size=step_size,
+            direction=direction,
+        )
+
     def newton_step(
         self,
         loss_closure: Callable[[], torch.Tensor],
         jacobian_closure: Callable[[], torch.Tensor],
     ) -> float:
         raise NotImplementedError
+
+    @property
+    def perform_linesearch(self):
+        return self.line_search_fn is not None
+
+    def linesearch(
+        self,
+        loss_closure: Callable[[], torch.Tensor],
+        x_init: list[torch.Tensor],
+        direction: torch.Tensor,
+    ) -> float:
+        if self.line_search_fn is None:
+            raise ValueError("Currently no line search selected.")
+
+        evaluate_closure = self._evaluate_closure(
+            loss_closure=loss_closure,
+            x_init=x_init,
+            direction=direction,
+        )
+        if self.line_search_fn == "ternary_search":
+            return ternary_search(evaluate_closure=evaluate_closure)
+
+        raise ValueError(f"The current {self.line_search_fn=} is not supported.")

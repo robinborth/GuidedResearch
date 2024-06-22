@@ -42,6 +42,7 @@ def optimize(cfg: DictConfig) -> None:
 
     # outer optimization loop
     for iter_step in tqdm(range(cfg.trainer.max_iters)):
+        log.info(f"iter_step: {iter_step}")
         # prepare iteration
         logger.iter_step = iter_step
 
@@ -63,8 +64,10 @@ def optimize(cfg: DictConfig) -> None:
         )
 
         # inner optimization loop
+        loss_tracker: list[float] = []
         for optim_step in range(cfg.trainer.max_optims):
             # state
+            log.info(f"optim_step: {optim_step}")
             logger.optim_step = optim_step
             logger.global_step = iter_step * cfg.trainer.max_optims + optim_step + 1
 
@@ -74,6 +77,8 @@ def optimize(cfg: DictConfig) -> None:
                     model.loss_closure(batch, correspondences),
                     model.jacobian_closure(batch, correspondences, optimizer),
                 )
+            elif os.requires_loss(optimizer):
+                loss = optimizer.step(model.loss_closure(batch, correspondences))
             else:
                 optimizer.zero_grad()
                 loss = model.loss_step(batch, correspondences)
@@ -86,8 +91,15 @@ def optimize(cfg: DictConfig) -> None:
             logger.log_gradients(optimizer)
 
             # check for convergence
-            if optimizer.converged:
-                break
+            if cfg.trainer.check_convergence:
+                loss_tracker.append(loss)
+                if len(loss_tracker) >= cfg.trainer.min_tracker_steps:
+                    tracks = loss_tracker[-cfg.trainer.max_tracker_steps :]
+                    criterion = torch.tensor(tracks).std()
+                    logger.log("convergence/std", criterion)
+                    logger.log(f"convergence/{iter_step:03}/std", criterion)
+                    if criterion < cfg.trainer.convergence_threshold:
+                        break
 
         # debug and logging
         logger.log_metrics(batch=batch, model=correspondences)
@@ -98,8 +110,8 @@ def optimize(cfg: DictConfig) -> None:
             logger.log_loss(batch=batch, model=correspondences)
             if model.init_mode == "flame":
                 model.debug_params(batch=batch)
-        if optimizer.converged:  # type: ignore
-            log.info(f"converged in {iter_step=} after {optim_step=} ...")
+        # if optimizer.converged:  # type: ignore
+        #     log.info(f"converged in {iter_step=} after {optim_step=} ...")
 
     # final full screen image
     log.info("==> log final result ...")

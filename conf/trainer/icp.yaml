@@ -4,7 +4,12 @@
 max_iters: 25
 max_optims: 100
 # optimizer settings
-optimizer: lm
+optimizer: levenberg_marquardt
 copy_optimizer_state: False
 # logging settings
-save_interval: 10
+save_interval: 1
+# convergence tests
+check_convergence: False
+convergence_threshold: 1e-10
+min_tracker_steps: 2
+max_tracker_steps: 5
