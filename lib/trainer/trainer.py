@@ -27,6 +27,7 @@ class Trainer:
         convergence_threshold: float = 1e-10,
         min_tracker_steps: int = 2,
         max_tracker_steps: int = 5,
+        **kwargs,
     ):
         # set the state
         self.model = model

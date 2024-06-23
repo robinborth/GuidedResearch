@@ -227,7 +227,7 @@ class FlameLogger:
                 self.log(f"mask/{key}", float(value.sum()))
 
     def log_params(self, batch: dict):
-        for p_name in self.model.optimization_parameters:
+        for p_name in self.model.full_p_names:
             param = getattr(self, p_name, None)
             if p_name in batch and param is not None:
                 if p_name in ["shape_params"]:
@@ -306,7 +306,6 @@ class FlameLogger:
         return params
 
     def capture_screen(self, datamodule, model):
-        self.iter_step += 1
         batch = datamodule.fetch()
         with torch.no_grad():
             out = model.correspondence_step(batch)

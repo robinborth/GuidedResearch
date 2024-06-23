@@ -9,6 +9,7 @@ max_optims: 100
 # logging settings
 save_interval: 1
 prefix: ""
+video_iter_step: 99999
 # convergence tests
 check_convergence: False
 convergence_threshold: 1e-10

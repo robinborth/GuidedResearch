@@ -143,8 +143,6 @@ class OptimizerScheduler(Scheduler):
         self.optimizer_params = optimizer_params
         self.copy_optimizer_state = copy_optimizer_state
 
-        self.shared_params = ["shape_params"]
-
     @property
     def requires_jacobian(self):
         return self.optimizer in ["levenberg_marquardt"]
@@ -155,11 +153,8 @@ class OptimizerScheduler(Scheduler):
 
     def freeze(self, module: FLAME):
         for param in module.parameters():
-            param.requires_grad = False
-
-    def unfreeze(self, module: FLAME):
-        for param in module.parameters():
-            param.requires_grad = True
+            param.detach_()
+            param.requires_grad_(False)
 
     def param_groups(self, model: FLAME, batch: dict, iter_step: int = 0):
         p_names = self.get_attribute(self.params, iter_step=iter_step)
@@ -168,7 +163,7 @@ class OptimizerScheduler(Scheduler):
                 log.info(f"Unfreeze (step={iter_step}): {p_name}")
                 module = getattr(model, p_name)
 
-                if p_name in self.shared_params:
+                if p_name in model.shape_p_names:
                     shape_idx = batch["shape_idx"][:1]
                     params = module(shape_idx)
                 else:
@@ -240,7 +235,7 @@ class OptimizerScheduler(Scheduler):
         for p_name, group in self.state.items():
             params = group["params"][0]
             module = getattr(model, p_name)
-            if p_name in self.shared_params:
+            if p_name in model.shape_p_names:
                 shape_idx = batch["shape_idx"][:1]
                 module.weight[shape_idx] = params
             else:

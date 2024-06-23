@@ -55,6 +55,10 @@ def optimize(cfg: DictConfig) -> None:
 
     log.info("==> optimize frames ...")
     for frame_idx in tqdm(range(cfg.data.max_frames)):
+        if frame_idx != 0:
+            model.init_frame(frame_idx)
+            cfg.scheduler.optimizer.milestones = [0]
+            cfg.scheduler.optimizer.params = [model.frame_p_names]
         optimizer_scheduler = hydra.utils.instantiate(cfg.scheduler.optimizer)
         coarse_to_fine_scheduler = hydra.utils.instantiate(
             cfg.scheduler.coarse2fine,
@@ -68,17 +72,19 @@ def optimize(cfg: DictConfig) -> None:
             optimizer_scheduler=optimizer_scheduler,
             coarse_to_fine_scheduler=coarse_to_fine_scheduler,
         )
-        break
 
     # final full screen image
     log.info("==> log final result ...")
-    coarse_to_fine_scheduler.full_screen(datamodule)
-    logger.capture_screen(datamodule=datamodule, model=model)
+    logger.iter_step = cfg.trainer.video_iter_step
+    for frame_idx in tqdm(range(cfg.data.max_frames)):
+        cfg.data.start_frame_idx = frame_idx
+        datamodule = hydra.utils.instantiate(cfg.data, devie=device)
+        coarse_to_fine_scheduler.full_screen(datamodule)
+        logger.capture_screen(datamodule=datamodule, model=model)
     logger.log_video("render_normal", framerate=20)
     logger.log_video("render_merged", framerate=20)
     logger.log_video("error_point_to_plane", framerate=20)
     logger.log_video("batch_color", framerate=20)
-    coarse_to_fine_scheduler.prev_screen(datamodule)
 
 
 if __name__ == "__main__":

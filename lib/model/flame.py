@@ -90,15 +90,15 @@ class FLAME(nn.Module):
         self.d_threshold: float = 0.1
 
         # set optimization parameters
-        self.optimization_parameters = [
+        self.shape_p_names = ["shape_params"]
+        self.frame_p_names = [
             "global_pose",
             "transl",
             "neck_pose",
             # "eye_pose",
-            # "jaw_pose",
-            "shape_params",
             "expression_params",
         ]
+        self.full_p_names = self.shape_p_names + self.frame_p_names
 
         # init the params of the model
         self.init_mode = init_mode
@@ -371,6 +371,12 @@ class FLAME(nn.Module):
             global_pose=[s[0], s[1], s[2]],
             transl=[s[3], s[4], s[5] - 0.5],
         )
+
+    def init_frame(self, frame_idx: int):
+        assert frame_idx > 0
+        for p_name in self.frame_p_names:
+            module = getattr(self, p_name)
+            module.weight[frame_idx] = module.weight[frame_idx - 1]
 
     def create_embeddings(self, tensor: torch.Tensor):
         """Creates an embedding table for multi-view multi shape optimization."""
