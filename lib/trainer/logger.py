@@ -305,25 +305,14 @@ class FlameLogger:
                 params[key] = item
         return params
 
-    def log_full_screen(self, datamodule, model):
-        # change the state
-        prev_scale = datamodule.scale
+    def capture_screen(self, datamodule, model):
         self.iter_step += 1
-
-        # new batch full screen
-        datamodule.update_dataset(scale=1)
-        dataloader = datamodule.train_dataloader()
-        batch = next(iter(dataloader))
-
+        batch = datamodule.fetch()
         with torch.no_grad():
             out = model.correspondence_step(batch)
-
         self.log_render(batch=batch, model=out)
         self.log_input_batch(batch=batch, model=out)
         self.log_loss(batch=batch, model=out)
-
-        # reset scale
-        datamodule.update_dataset(scale=prev_scale)
 
     def log_video(self, name: str, framerate: int = 30):
         _video_dir = Path(self.save_dir) / name

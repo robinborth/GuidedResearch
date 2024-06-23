@@ -99,6 +99,7 @@ class Trainer:
                     loss = loss_closure()
                     loss.backward()
                     optimizer.step()
+                optimizer_scheduler.update_model(model, batch)
 
                 # logging
                 logger.log("loss/point2plane", loss)

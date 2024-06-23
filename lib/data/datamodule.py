@@ -30,6 +30,7 @@ class DPHMDataModule(L.LightningDataModule):
         self.device = device
 
     def update_dataset(self, camera: Camera, rasterizer: Rasterizer):
+        self.scale = camera.scale
         self.dataset = self.hparams["dataset"](camera=camera, rasterizer=rasterizer)
         assert self.hparams["batch_size"] <= self.dataset.optimize_frames
 

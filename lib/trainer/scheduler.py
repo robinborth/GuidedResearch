@@ -55,12 +55,27 @@ class CoarseToFineScheduler(Scheduler):
             assert scale >= 1
         self.camera = camera
         self.rasterizer = rasterizer
+        self.prev_scale = 1
 
     def schedule(self, datamodule: DPHMDataModule, iter_step: int):
         if self.skip(iter_step):
             return
         scale = self.get_attribute(self.scales, iter_step)
+        self.prev_scale = scale
         self.camera.update(scale=scale)
+        self.rasterizer.update(width=self.camera.width, height=self.camera.height)
+        datamodule.update_dataset(camera=self.camera, rasterizer=self.rasterizer)
+
+    # NOTE you can also do a context manager here
+    def full_screen(self, datamodule: DPHMDataModule):
+        scale = 1
+        self.prev_scale = scale
+        self.camera.update(scale=scale)
+        self.rasterizer.update(width=self.camera.width, height=self.camera.height)
+        datamodule.update_dataset(camera=self.camera, rasterizer=self.rasterizer)
+
+    def prev_screen(self, datamodule: DPHMDataModule):
+        self.camera.update(scale=self.prev_scale)
         self.rasterizer.update(width=self.camera.width, height=self.camera.height)
         datamodule.update_dataset(camera=self.camera, rasterizer=self.rasterizer)
 
@@ -152,7 +167,6 @@ class OptimizerScheduler(Scheduler):
             if p_name not in self.state:
                 log.info(f"Unfreeze (step={iter_step}): {p_name}")
                 module = getattr(model, p_name)
-                self.unfreeze(module)
 
                 if p_name in self.shared_params:
                     shape_idx = batch["shape_idx"][:1]
@@ -221,3 +235,14 @@ class OptimizerScheduler(Scheduler):
         self, model: FLAME, batch: dict, iter_step: int
     ) -> BaseOptimizer:
         return self.get_optimizer(model, batch, iter_step)
+
+    def update_model(self, model: FLAME, batch: dict):
+        for p_name, group in self.state.items():
+            params = group["params"][0]
+            module = getattr(model, p_name)
+            if p_name in self.shared_params:
+                shape_idx = batch["shape_idx"][:1]
+                module.weight[shape_idx] = params
+            else:
+                frame_idx = batch["frame_idx"]
+                module.weight[frame_idx] = params

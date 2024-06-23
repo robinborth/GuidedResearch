@@ -68,14 +68,17 @@ def optimize(cfg: DictConfig) -> None:
             optimizer_scheduler=optimizer_scheduler,
             coarse_to_fine_scheduler=coarse_to_fine_scheduler,
         )
+        break
 
     # final full screen image
     log.info("==> log final result ...")
-    logger.log_full_screen(datamodule=datamodule, model=model)
+    coarse_to_fine_scheduler.full_screen(datamodule)
+    logger.capture_screen(datamodule=datamodule, model=model)
     logger.log_video("render_normal", framerate=20)
     logger.log_video("render_merged", framerate=20)
     logger.log_video("error_point_to_plane", framerate=20)
     logger.log_video("batch_color", framerate=20)
+    coarse_to_fine_scheduler.prev_screen(datamodule)
 
 
 if __name__ == "__main__":
