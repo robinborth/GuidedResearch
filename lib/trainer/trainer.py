@@ -73,8 +73,14 @@ class Trainer:
 
             # setup optimizer
             optimizer = optimizer_scheduler.configure_optimizer(
-                model=model, batch=batch, iter_step=iter_step
+                model=model,
+                batch=batch,
+                iter_step=iter_step,
             )
+
+            # closures
+            loss_closure = model.loss_closure(batch, correspondences, optimizer)
+            jacobian_closure = model.jacobian_closure(batch, correspondences, optimizer)
 
             # inner optimization loop
             loss_tracker = []
@@ -85,15 +91,12 @@ class Trainer:
 
                 # optimize step
                 if optimizer_scheduler.requires_jacobian:
-                    loss = optimizer.newton_step(
-                        model.loss_closure(batch, correspondences),
-                        model.jacobian_closure(batch, correspondences, optimizer),
-                    )
+                    loss = optimizer.newton_step(loss_closure, jacobian_closure)
                 elif optimizer_scheduler.requires_loss:
-                    loss = optimizer.step(model.loss_closure(batch, correspondences))
+                    loss = optimizer.step(loss_closure)
                 else:
                     optimizer.zero_grad()
-                    loss = model.loss_step(batch, correspondences)
+                    loss = loss_closure()
                     loss.backward()
                     optimizer.step()
 

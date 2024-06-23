@@ -5,4 +5,5 @@ optimizer:
   milestones: [0]
   params: [[global_pose,transl]]
   optimizer: levenberg_marquardt
+  optimizer_params: null
   copy_optimizer_state: False

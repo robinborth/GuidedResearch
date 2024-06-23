@@ -236,9 +236,23 @@ class FLAME(nn.Module):
         assert mask.sum()  # we have some overlap
         return {"mask": mask, "f_mask": f_mask, "n_mask": n_mask, "d_mask": d_mask}
 
-    def loss_step(self, batch: dict, correspondences: dict):
+    def loss_step(
+        self,
+        batch: dict,
+        correspondences: dict,
+        params: list[torch.Tensor],
+        p_names: list[str],
+    ):
+        B = self.batch_size
+        flame_input = self.flame_input_dict(batch)
+        flame_params = {}
+        for p_name, param in flame_input.items():
+            flame_params[p_name] = param.expand(B, -1)
+        for p_name, param in zip(p_names, params):
+            flame_params[p_name] = param.expand(B, -1)
+
         mask = correspondences["mask"]
-        vertices = self.model_step(batch)["vertices"]
+        vertices = self.forward(**flame_params)
         p = self.renderer.mask_interpolate(
             vertices_idx=correspondences["vertices_idx"],
             bary_coords=correspondences["bary_coords"],
@@ -295,8 +309,13 @@ class FLAME(nn.Module):
     # Closures
     ####################################################################################
 
-    def loss_closure(self, batch: dict, correspondences: dict):
-        return lambda: self.loss_step(batch, correspondences)
+    def loss_closure(self, batch: dict, correspondences: dict, optimizer):
+        return lambda: self.loss_step(
+            batch=batch,
+            correspondences=correspondences,
+            params=optimizer._params,
+            p_names=optimizer._p_names,
+        )
 
     def jacobian_closure(self, batch: dict, correspondences: dict, optimizer):
         return lambda: self.jacobian_step(

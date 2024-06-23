@@ -78,7 +78,7 @@ class OptimizerScheduler(Scheduler):
         milestones: list[int] = [0],
         params: list[list[str]] = [["global_pose", "transl"]],
         optimizer: str = "levenberg_marquardt",
-        optimizer_params: dict[str, Any] = {},
+        optimizer_params: dict[str, Any] | None = None,
         copy_optimizer_state: bool = False,
     ) -> None:
         super().__init__()
@@ -110,6 +110,7 @@ class OptimizerScheduler(Scheduler):
         self.optimizer = optimizer
 
         # check for the configurations
+        optimizer_params = {} if optimizer_params is None else optimizer_params
         if self.optimizer == "adam":
             assert "lr" in optimizer_params
         if self.optimizer == "gradient_decent":
@@ -192,7 +193,19 @@ class OptimizerScheduler(Scheduler):
         if self.copy_optimizer_state and self.prev_optimizer is not None:
             optimizer.state = self.prev_optimizer.state
         self.prev_optimizer = optimizer
+
+        # HACK set the state similar to the BaseOptimizer
+        _params = []
+        _p_names = []
+        for group in optimizer.param_groups:
+            if len(group["params"]) != 1:
+                raise ValueError("Optimizer doesn't support per-parameter options.")
+            _params.append(group["params"][0])
+            _p_names.append(group["p_name"])
+        setattr(optimizer, "_params", _params)
+        setattr(optimizer, "_p_names", _p_names)
         setattr(optimizer, "converged", False)
+
         return optimizer
 
     def configure_levenberg_marquardt(

@@ -240,12 +240,10 @@ class FlameLogger:
     def log_gradients(self, optimizer):
         log = {}
         step = f"{self.iter_step:03}"
-        for p_name in self.model.optimization_parameters:
-            param = getattr(self.model, p_name, None)
-            if param is None or not param.weight.requires_grad:
-                continue
-            weight = param.weight
-            grad = param.weight.grad
+        for group in optimizer.param_groups:
+            p_name = group["p_name"]
+            weight = group["params"][0]
+            grad = weight.grad
 
             for i in range(weight.shape[-1]):
                 value = weight[:, i].mean()
