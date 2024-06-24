@@ -27,6 +27,7 @@
                 // "scheduler.optimizer.optimizer_params={lr:1e-02}",
                 // "scheduler.optimizer.copy_optimizer_state=True",
                 "scheduler.optimizer.optimizer=levenberg_marquardt",
+                "scheduler.optimizer.optimizer_params={lin_solver:pcg}",
                 "scheduler.optimizer.copy_optimizer_state=True",
             ],
             "console": "integratedTerminal",

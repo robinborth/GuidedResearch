@@ -72,6 +72,7 @@ def optimize(cfg: DictConfig) -> None:
             optimizer_scheduler=optimizer_scheduler,
             coarse_to_fine_scheduler=coarse_to_fine_scheduler,
         )
+        break
 
     # final full screen image
     log.info("==> log final result ...")
@@ -81,6 +82,7 @@ def optimize(cfg: DictConfig) -> None:
         datamodule = hydra.utils.instantiate(cfg.data, devie=device)
         coarse_to_fine_scheduler.full_screen(datamodule)
         logger.capture_screen(datamodule=datamodule, model=model)
+        break
     logger.log_video("render_normal", framerate=20)
     logger.log_video("render_merged", framerate=20)
     logger.log_video("error_point_to_plane", framerate=20)

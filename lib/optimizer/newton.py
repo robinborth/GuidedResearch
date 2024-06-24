@@ -4,6 +4,7 @@ from typing import Callable
 import torch
 
 from lib.optimizer.base import BaseOptimizer
+from lib.optimizer.pcg import preconditioned_conjugate_gradient
 
 log = logging.getLogger()
 
@@ -16,11 +17,14 @@ class LevenbergMarquardt(BaseOptimizer):
         factor: float = 2.0,
         max_damping_steps: int = 10,
         line_search_fn: str | None = None,
+        lin_solver: str = "pytorch",  # pytorch, pcg
     ):
         super().__init__(params, line_search_fn=line_search_fn)
         self.damping_factor = damping_factor
         self.factor = factor
         self.max_damping_steps = max_damping_steps
+        assert lin_solver in ["pytorch", "pcg"]
+        self.lin_solver = lin_solver
 
     def get_state(self):
         return {"damping_factor": self.damping_factor}
@@ -28,12 +32,14 @@ class LevenbergMarquardt(BaseOptimizer):
     def applyJTJ(self, jacobian_closure: Callable[[], torch.Tensor]):
         J = jacobian_closure()  # (M, N)
         assert J.shape[1] == self._numel
-        # log.info(f"J.shape: ({J.shape})")
         return J.T @ J  # (N, N)
 
     def solve_delta(self, J: torch.tensor, grad_f: torch.Tensor, damping_factor: float):
         """Apply the hessian approximation and solve for the delta"""
         H = 2 * J + damping_factor * torch.diag(torch.diag(J))
+        if self.lin_solver == "pcg":
+            M = torch.diag(1 / torch.diag(H))  # (N, N)
+            return preconditioned_conjugate_gradient(A=H, b=grad_f, M=M)
         return torch.linalg.solve(H, grad_f)
 
     @torch.no_grad()

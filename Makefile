@@ -9,6 +9,7 @@ levenberg_marquardt:
 	scheduler.optimizer.milestones=[0,7,10] \
 	scheduler.optimizer.params=[[global_pose,transl],[neck_pose],[shape_params,expression_params]] \
 	scheduler.optimizer.optimizer=levenberg_marquardt \
+	scheduler.optimizer.optimizer_params={lin_solver:pcg} \
 	scheduler.optimizer.copy_optimizer_state=False \
 
 adam:
