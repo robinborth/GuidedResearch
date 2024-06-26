@@ -1,5 +1,7 @@
 from typing import List
 
+import lightning as L
+import torch
 from hydra import compose, initialize
 from hydra.utils import instantiate
 from lightning import Callback
@@ -36,3 +38,12 @@ def load_config(config_name: str, overrides: list = []) -> DictConfig:
     """
     with initialize(config_path="../../conf", version_base=None):
         return compose(config_name=config_name, overrides=overrides)
+
+
+def set_configs(cfg: DictConfig):
+    L.seed_everything(cfg.seed)
+    torch.set_float32_matmul_precision("medium")  # using CUDA device RTX A400
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    assert device == "cuda"
+    cfg.device = device
+    return cfg

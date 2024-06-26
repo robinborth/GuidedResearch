@@ -1,8 +1,0 @@
-# @package scheduler
-
-coarse2fine:
-  _target_: lib.trainer.scheduler.CoarseToFineScheduler
-  milestones: [0, 150]
-  scales: [10, 4]
-  camera: ???
-  rasterizer: ???

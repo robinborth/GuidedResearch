@@ -3,12 +3,12 @@ _target_: lib.model.flame.FLAME
 
 # model settings
 flame_dir: ${paths.root_dir}/checkpoints/flame2023_no_jaw
-data_dir: ${data.data_dir}
-batch_size: ${data.batch_size}
 num_shape_params: 100
 num_expression_params: 50
 # optimization settings
-optimize_frames: ${data.max_frames}
+optimize_frames: ${data.sequence_length}
 optimize_shapes: 1
 vertices_mask: full
 init_mode: kinect
+n_threshold: 0.9
+d_threshold: 0.1

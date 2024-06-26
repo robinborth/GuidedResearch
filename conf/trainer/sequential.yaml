@@ -1,0 +1,37 @@
+# @package sequential_trainer
+
+_target_: lib.trainer.trainer.SequentialTrainer
+
+model: ???
+datamodule: ???
+logger: ???
+camera: ???
+rasterizer: ???
+
+# loop settings
+start_frame: 16
+end_frame: 50
+max_iters: 35
+max_optims: 5
+
+optimizer:
+  _target_: lib.trainer.scheduler.OptimizerScheduler
+  milestones: [0,3]
+  params: [[global_pose,transl,neck_pose,eye_pose],[expression_params]]
+  optimizer: ${trainer.optimizer}
+  optimizer_params: ${trainer.optimizer_params}
+  copy_optimizer_state: ${trainer.copy_optimizer_state}
+
+coarse2fine:
+  _target_: lib.trainer.scheduler.CoarseToFineScheduler
+  milestones: [0]
+  scales: [8]
+
+# logging settings
+save_interval: ${trainer.save_interval}
+
+# convergence tests
+check_convergence: ${trainer.check_convergence}
+convergence_threshold: ${trainer.convergence_threshold}
+min_tracker_steps: ${trainer.min_tracker_steps}
+max_tracker_steps: ${trainer.max_tracker_steps}

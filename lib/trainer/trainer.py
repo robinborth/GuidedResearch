@@ -5,23 +5,30 @@ from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
+from lib.rasterizer import Rasterizer
+from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger
 from lib.trainer.scheduler import CoarseToFineScheduler, OptimizerScheduler
 
 log = logging.getLogger()
 
 
-class Trainer:
+class BaseTrainer:
     def __init__(
         self,
         model: FLAME,
         logger: FlameLogger,
+        datamodule: DPHMDataModule,
+        optimizer: OptimizerScheduler,
+        coarse2fine: CoarseToFineScheduler,
+        # camera settings
+        camera: Camera,
+        rasterizer: Rasterizer,
         # loop settings
         max_iters: int = 25,
         max_optims: int = 100,
         # logging settings
         save_interval: int = 1,
-        prefix: str = "",
         # convergence tests
         check_convergence: bool = False,
         convergence_threshold: float = 1e-10,
@@ -29,9 +36,14 @@ class Trainer:
         max_tracker_steps: int = 5,
         **kwargs,
     ):
-        # set the state
+        # setup model
         self.model = model
         self.logger = logger
+        self.datamodule = datamodule
+
+        self.coarse2fine = coarse2fine
+        self.coarse2fine.init_scheduler(camera, rasterizer)
+        self.optimizer = optimizer
 
         # loop settings
         self.max_iters = max_iters
@@ -45,16 +57,14 @@ class Trainer:
 
         # debug settings
         self.save_interval = save_interval
-        self.prefix = prefix
+        self.frames: list[int] = []
 
-    def optimize(
-        self,
-        datamodule: DPHMDataModule,
-        optimizer_scheduler: OptimizerScheduler,
-        coarse_to_fine_scheduler: CoarseToFineScheduler,
-    ):
+    def optimize_loop(self):
         logger = self.logger
         model = self.model
+        datamodule = self.datamodule
+        coarse2fine = self.coarse2fine
+        optimizer_scheduler = self.optimizer
 
         # outer optimization loop
         optimizer_scheduler.freeze(model)
@@ -62,7 +72,7 @@ class Trainer:
             logger.iter_step = iter_step
 
             # fetch single batch
-            coarse_to_fine_scheduler.schedule(
+            coarse2fine.schedule(
                 datamodule=datamodule,
                 iter_step=iter_step,
             )
@@ -103,8 +113,7 @@ class Trainer:
                 optimizer_scheduler.update_model(model, batch)
 
                 # logging
-                logger.log("loss/point2plane", loss)
-                logger.log(f"loss/{iter_step:03}/point2plane", loss)
+                logger.log("loss/final", loss)
                 logger.log_gradients(optimizer)
 
                 # check for convergence
@@ -127,3 +136,40 @@ class Trainer:
                 logger.log_loss(batch=batch, model=correspondences)
                 if model.init_mode == "flame":
                     model.debug_params(batch=batch)
+
+    def optimize(self):
+        raise NotImplementedError
+
+
+class JointTrainer(BaseTrainer):
+    def __init__(self, init_idxs: list[int] = [], **kwargs):
+        super().__init__(**kwargs)
+        assert len(init_idxs) > 0
+        self.init_idxs = init_idxs
+        self.frames = init_idxs
+
+    def optimize(self):
+        self.logger.prefix = "joint"
+        self.optimizer.reset()
+        self.coarse2fine.reset()
+        self.datamodule.update_idxs(self.init_idxs)
+        self.optimize_loop()
+
+
+class SequentialTrainer(BaseTrainer):
+    def __init__(self, start_frame: int = 0, end_frame: int = 126, **kwargs):
+        super().__init__(**kwargs)
+        self.start_frame = start_frame
+        self.end_frame = end_frame
+        self.frames = list(range(self.start_frame, self.end_frame))
+
+    def optimize(self):
+        for frame_idx in tqdm(range(self.start_frame, self.end_frame)):
+            self.logger.prefix = "sequential"
+            self.optimizer.reset()
+            self.coarse2fine.reset()
+            self.datamodule.update_idxs([frame_idx])
+
+            if frame_idx != 0:
+                self.model.init_frame(frame_idx)
+            self.optimize_loop()

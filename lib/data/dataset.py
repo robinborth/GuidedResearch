@@ -23,20 +23,16 @@ class DPHMDataset(Dataset):
         camera: Camera,
         # dataset settings
         data_dir: str = "/data",
-        optimize_frames: int = 1,
-        start_frame_idx: int = 0,
+        sequence_length: int = 1,
         **kwargs,
     ):
-        self.optimize_frames = optimize_frames
-        self.start_frame_idx = start_frame_idx
+        self.sequence_length = sequence_length
         self.camera = camera
         self.data_dir = data_dir
         self.cache_dir = Path(data_dir) / "cache"
 
     def iter_frame_idx(self):
-        yield from range(
-            self.start_frame_idx, self.start_frame_idx + self.optimize_frames
-        )
+        yield from range(self.sequence_length)
 
     def cache_path(self, name: str, frame_idx: int) -> Path:
         return self.cache_dir / f"{self.camera.scale}_{name}" / f"{frame_idx:05}.pt"

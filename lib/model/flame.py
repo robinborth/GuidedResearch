@@ -13,19 +13,18 @@ from lib.renderer.renderer import Renderer
 class FLAME(nn.Module):
     def __init__(
         self,
-        # model settings
         flame_dir: str = "/flame",
-        batch_size: int = 1,
         num_shape_params: int = 100,
         num_expression_params: int = 50,
         optimize_frames: int = 1,
         optimize_shapes: int = 1,
         vertices_mask: str = "face",  # full, face
         init_mode: str = "kinect",
+        n_threshold: float = 0.9,
+        d_threshold: float = 0.1,
         **kwargs,
     ):
         super().__init__()
-        self.batch_size = batch_size
 
         # load the face model
         flame_model = load_flame(flame_dir=flame_dir, return_tensors="pt")
@@ -86,8 +85,8 @@ class FLAME(nn.Module):
         self.lm_mediapipe_idx = torch.nn.Parameter(lm_idx, requires_grad=False)
 
         # corresponding threshold
-        self.n_threshold: float = 0.9
-        self.d_threshold: float = 0.1
+        self.n_threshold = n_threshold
+        self.d_threshold = d_threshold
 
         # set optimization parameters
         self.shape_p_names = ["shape_params"]
@@ -95,7 +94,7 @@ class FLAME(nn.Module):
             "global_pose",
             "transl",
             "neck_pose",
-            # "eye_pose",
+            "eye_pose",
             "expression_params",
         ]
         self.full_p_names = self.shape_p_names + self.frame_p_names
@@ -161,7 +160,7 @@ class FLAME(nn.Module):
             transl = self.transl(frame_idx)
 
         # create the betas merged with shape and expression
-        B = self.batch_size
+        B = global_pose.shape[0]
         zero_shape = self.zero_shape.expand(B, -1)  # (B, 300 - S')
         shape = torch.cat([shape_params, zero_shape], dim=-1)  # (B, 300)
         zero_expression = self.zero_expression.expand(B, -1)  # (B, 100 - E')
@@ -199,7 +198,7 @@ class FLAME(nn.Module):
         vertices = self.forward(**self.flame_input_dict(batch))  # (B, V, 3)
 
         # landmarks
-        B = self.batch_size
+        B = batch["frame_idx"].shape[0]
         lm_vertices = vertices[:, self.lm_faces]  # (B, F, 3, D)
         lm_bary_coods = self.lm_bary_coords.expand(B, -1, -1).unsqueeze(-1)
         landmarks = (lm_bary_coods * lm_vertices).sum(-2)  # (B, 105, D)
@@ -243,7 +242,7 @@ class FLAME(nn.Module):
         params: list[torch.Tensor],
         p_names: list[str],
     ):
-        B = self.batch_size
+        B = batch["frame_idx"].shape[0]
         flame_input = self.flame_input_dict(batch)
         flame_params = {}
         for p_name, param in flame_input.items():
@@ -273,7 +272,7 @@ class FLAME(nn.Module):
     ):
         def closure(*args):
             # prepare the params
-            B = self.batch_size
+            B = batch["frame_idx"].shape[0]
             flame_input = self.flame_input_dict(batch)
             flame_params = {}
             for p_name, param in flame_input.items():
@@ -377,6 +376,11 @@ class FLAME(nn.Module):
         for p_name in self.frame_p_names:
             module = getattr(self, p_name)
             module.weight[frame_idx] = module.weight[frame_idx - 1]
+
+    def reset_frame(self, frame_idx: int):
+        for p_name in self.frame_p_names:
+            module = getattr(self, p_name)
+            module.weight[frame_idx] = torch.zeros_like(module.weight[frame_idx])
 
     def create_embeddings(self, tensor: torch.Tensor):
         """Creates an embedding table for multi-view multi shape optimization."""

@@ -1,8 +1,6 @@
 import logging
 
 import hydra
-import lightning as L
-import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 
@@ -11,7 +9,8 @@ from lib.model.flame import FLAME
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger
-from lib.trainer.trainer import Trainer
+from lib.trainer.trainer import BaseTrainer
+from lib.utils.config import set_configs
 
 log = logging.getLogger()
 
@@ -19,10 +18,7 @@ log = logging.getLogger()
 @hydra.main(version_base=None, config_path="../conf", config_name="optimize")
 def optimize(cfg: DictConfig) -> None:
     log.info("==> loading config ...")
-    L.seed_everything(cfg.seed)
-    torch.set_float32_matmul_precision("medium")  # using CUDA device RTX A400
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    assert device == "cuda"
+    cfg = set_configs(cfg)
 
     log.info("==> initializing camera and rasterizer ...")
     K = load_intrinsics(data_dir=cfg.data.data_dir, return_tensor="pt")
@@ -33,56 +29,55 @@ def optimize(cfg: DictConfig) -> None:
         near=cfg.data.near,
         far=cfg.data.far,
     )
-    rasterizer = Rasterizer(
-        width=camera.width,
-        height=camera.height,
-    )
+    rasterizer = Rasterizer(width=camera.width, height=camera.height)
 
     log.info(f"==> initializing model <{cfg.model._target_}>")
-    model: FLAME = hydra.utils.instantiate(cfg.model).to(device)
+    model: FLAME = hydra.utils.instantiate(cfg.model).to(cfg.device)
     model.init_renderer(camera=camera, rasterizer=rasterizer)
 
     log.info("==> initializing logger ...")
     logger: FlameLogger = hydra.utils.instantiate(cfg.logger)
     logger.init_logger(model=model, cfg=cfg)
 
-    log.info("==> initializing trainer ...")
-    trainer: Trainer = hydra.utils.instantiate(
-        cfg.trainer,
-        model=model,
-        logger=logger,
-    )
+    log.info("==> initializing datamodule ...")
+    datamodule = hydra.utils.instantiate(cfg.data, devie=cfg.device)
 
-    log.info("==> optimize frames ...")
-    for frame_idx in tqdm(range(cfg.data.max_frames)):
-        if frame_idx != 0:
-            model.init_frame(frame_idx)
-            cfg.scheduler.optimizer.milestones = [0]
-            cfg.scheduler.optimizer.params = [model.frame_p_names]
-        optimizer_scheduler = hydra.utils.instantiate(cfg.scheduler.optimizer)
-        coarse_to_fine_scheduler = hydra.utils.instantiate(
-            cfg.scheduler.coarse2fine,
+    if "joint_trainer" in cfg:
+        log.info("==> initializing joint trainer ...")
+        trainer: BaseTrainer = hydra.utils.instantiate(
+            cfg.joint_trainer,
+            model=model,
+            logger=logger,
+            datamodule=datamodule,
             camera=camera,
             rasterizer=rasterizer,
         )
-        cfg.data.start_frame_idx = frame_idx
-        datamodule = hydra.utils.instantiate(cfg.data, devie=device)
-        trainer.optimize(
+        log.info("==> joint optimization ...")
+        trainer.optimize()
+
+    if "sequential_trainer" in cfg:
+        log.info("==> initializing sequential trainer ...")
+        trainer = hydra.utils.instantiate(
+            cfg.sequential_trainer,
+            model=model,
+            logger=logger,
             datamodule=datamodule,
-            optimizer_scheduler=optimizer_scheduler,
-            coarse_to_fine_scheduler=coarse_to_fine_scheduler,
+            camera=camera,
+            rasterizer=rasterizer,
         )
-        break
+        log.info("==> sequential optimization ...")
+        trainer.optimize()
 
     # final full screen image
     log.info("==> log final result ...")
-    logger.iter_step = cfg.trainer.video_iter_step
-    for frame_idx in tqdm(range(cfg.data.max_frames)):
-        cfg.data.start_frame_idx = frame_idx
-        datamodule = hydra.utils.instantiate(cfg.data, devie=device)
-        coarse_to_fine_scheduler.full_screen(datamodule)
-        logger.capture_screen(datamodule=datamodule, model=model)
-        break
+    for frame_idx in tqdm(trainer.frames):
+        logger.capture_screen(
+            camera=camera,
+            rasterizer=rasterizer,
+            datamodule=datamodule,
+            model=model,
+            idx=frame_idx,
+        )
     logger.log_video("render_normal", framerate=20)
     logger.log_video("render_merged", framerate=20)
     logger.log_video("error_point_to_plane", framerate=20)

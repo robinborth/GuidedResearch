@@ -3,11 +3,11 @@
 defaults:
   - data: kinect
   - model: flame 
-  - trainer: default
+  - trainer:
+    - base
+    - joint 
+    - sequential
   - logger: wandb
-  - scheduler:
-    - coarse2fine
-    - optimizer 
   - hydra: default
   - paths: default
   - debug: null
@@ -17,3 +17,4 @@ defaults:
 seed: 123
 task_name: optimize
 tags: ["optimize"]
+device: cuda

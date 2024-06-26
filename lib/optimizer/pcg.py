@@ -28,14 +28,14 @@ def preconditioned_conjugate_gradient(
 
     while k < max_iter and not converged:
         # compute step size
-        ak = (rk.T @ zk) / (pk.T @ A @ pk)
+        ak = (rk[None] @ zk) / (pk[None] @ A @ pk)
         # update unknowns
         xk_1 = xk + ak * pk
         # compute residuals
         rk_1 = rk - ak * A @ pk
         # compute new pk
         zk_1 = M @ rk_1
-        bk = (rk_1.T @ zk_1) / (rk.T @ zk)
+        bk = (rk_1[None] @ zk_1) / (rk[None] @ zk)
         pk_1 = zk_1 + bk * pk
         # update the next stateprint
         xk = xk_1

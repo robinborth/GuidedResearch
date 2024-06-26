@@ -18,6 +18,7 @@ class LevenbergMarquardt(BaseOptimizer):
         max_damping_steps: int = 10,
         line_search_fn: str | None = None,
         lin_solver: str = "pytorch",  # pytorch, pcg
+        pcg_steps: int = 5,
     ):
         super().__init__(params, line_search_fn=line_search_fn)
         self.damping_factor = damping_factor
@@ -25,6 +26,7 @@ class LevenbergMarquardt(BaseOptimizer):
         self.max_damping_steps = max_damping_steps
         assert lin_solver in ["pytorch", "pcg"]
         self.lin_solver = lin_solver
+        self.pcg_steps = pcg_steps
 
     def get_state(self):
         return {"damping_factor": self.damping_factor}
@@ -39,7 +41,9 @@ class LevenbergMarquardt(BaseOptimizer):
         H = 2 * J + damping_factor * torch.diag(torch.diag(J))
         if self.lin_solver == "pcg":
             M = torch.diag(1 / torch.diag(H))  # (N, N)
-            return preconditioned_conjugate_gradient(A=H, b=grad_f, M=M)
+            return preconditioned_conjugate_gradient(
+                A=H, b=grad_f, M=M, max_iter=self.pcg_steps
+            )
         return torch.linalg.solve(H, grad_f)
 
     @torch.no_grad()

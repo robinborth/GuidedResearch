@@ -35,17 +35,14 @@ class Scheduler:
     def check_milestones(self, milestones):
         assert len(milestones) >= 1 and milestones[0] == 0
 
+    def reset(self):
+        pass
+
 
 class CoarseToFineScheduler(Scheduler):
     """Changes the data of the optimization."""
 
-    def __init__(
-        self,
-        camera: Camera,
-        rasterizer: Rasterizer,
-        milestones: list[int] = [0],
-        scales: list[int] = [1],
-    ) -> None:
+    def __init__(self, milestones: list[int] = [0], scales: list[int] = [1]) -> None:
         self.milestones = milestones
         self.check_milestones(milestones)
         self.scales = scales
@@ -53,9 +50,11 @@ class CoarseToFineScheduler(Scheduler):
         for scale in self.scales:
             assert isinstance(scale, int)
             assert scale >= 1
+        self.prev_scale = 1
+
+    def init_scheduler(self, camera: Camera, rasterizer: Rasterizer):
         self.camera = camera
         self.rasterizer = rasterizer
-        self.prev_scale = 1
 
     def schedule(self, datamodule: DPHMDataModule, iter_step: int):
         if self.skip(iter_step):
@@ -63,19 +62,6 @@ class CoarseToFineScheduler(Scheduler):
         scale = self.get_attribute(self.scales, iter_step)
         self.prev_scale = scale
         self.camera.update(scale=scale)
-        self.rasterizer.update(width=self.camera.width, height=self.camera.height)
-        datamodule.update_dataset(camera=self.camera, rasterizer=self.rasterizer)
-
-    # NOTE you can also do a context manager here
-    def full_screen(self, datamodule: DPHMDataModule):
-        scale = 1
-        self.prev_scale = scale
-        self.camera.update(scale=scale)
-        self.rasterizer.update(width=self.camera.width, height=self.camera.height)
-        datamodule.update_dataset(camera=self.camera, rasterizer=self.rasterizer)
-
-    def prev_screen(self, datamodule: DPHMDataModule):
-        self.camera.update(scale=self.prev_scale)
         self.rasterizer.update(width=self.camera.width, height=self.camera.height)
         datamodule.update_dataset(camera=self.camera, rasterizer=self.rasterizer)
 
@@ -241,3 +227,7 @@ class OptimizerScheduler(Scheduler):
             else:
                 frame_idx = batch["frame_idx"]
                 module.weight[frame_idx] = params
+
+    def reset(self):
+        self.state = {}
+        self.prev_optimizer = None
