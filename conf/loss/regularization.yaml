@@ -1,0 +1,10 @@
+# @package loss
+
+defaults:
+  - base
+  - _self_
+
+_target_: lib.model.loss.ChainedLoss
+chain:
+  point2plane: 1.0
+  regularization: 1e-03

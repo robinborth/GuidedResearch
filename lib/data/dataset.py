@@ -158,7 +158,7 @@ class DPHMDataset(Dataset):
             self.normal.append(_normal)
 
     def __len__(self) -> int:
-        return self.optimize_frames
+        return self.sequence_length
 
     def __getitem__(self, idx: int):
         raise NotImplementedError()
@@ -231,7 +231,7 @@ class FLAMEDataset(DPHMDataset):
             "frame_idx": torch.tensor([self.frame_idx], device=flame.device),
             "shape_idx": torch.tensor([self.shape_idx], device=flame.device),
         }
-        model = flame.model_step(batch)
+        model = flame(batch)
         vertices = model["vertices"]
         lm_2d_ndc = model["lm_2d_ndc"]
         lm_3d_camera = model["lm_3d_camera"]

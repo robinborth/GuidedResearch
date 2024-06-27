@@ -13,20 +13,24 @@ class LevenbergMarquardt(BaseOptimizer):
     def __init__(
         self,
         params,
+        mode: str = "dynamic",  # dynamic, static
         damping_factor: float = 1.0,
         factor: float = 2.0,
         max_damping_steps: int = 10,
         line_search_fn: str | None = None,
         lin_solver: str = "pytorch",  # pytorch, pcg
         pcg_steps: int = 5,
+        lr: float = 1.0,
     ):
         super().__init__(params, line_search_fn=line_search_fn)
+        self.mode = mode
         self.damping_factor = damping_factor
         self.factor = factor
         self.max_damping_steps = max_damping_steps
         assert lin_solver in ["pytorch", "pcg"]
         self.lin_solver = lin_solver
         self.pcg_steps = pcg_steps
+        self.lr = lr
 
     def get_state(self):
         return {"damping_factor": self.damping_factor}
@@ -46,12 +50,11 @@ class LevenbergMarquardt(BaseOptimizer):
             )
         return torch.linalg.solve(H, grad_f)
 
-    @torch.no_grad()
-    def newton_step(
+    def dynamic_solve(
         self,
         loss_closure: Callable[[], torch.Tensor],
         jacobian_closure: Callable[[], torch.Tensor],
-    ) -> float:
+    ):
         # compute the jacobians
         J = self.applyJTJ(jacobian_closure)
 
@@ -66,10 +69,10 @@ class LevenbergMarquardt(BaseOptimizer):
         x_init = self._clone_param()
 
         dx = self.solve_delta(J=J, grad_f=grad_f, damping_factor=self.damping_factor)
-        loss_df = self._evaluate(loss_closure, x_init, 1.0, dx)
+        loss_df = self._evaluate(loss_closure, x_init, self.lr, dx)
         df_factor = self.damping_factor / self.factor
         dx_factor = self.solve_delta(J=J, grad_f=grad_f, damping_factor=df_factor)
-        loss_df_factor = self._evaluate(loss_closure, x_init, 1.0, dx_factor)
+        loss_df_factor = self._evaluate(loss_closure, x_init, self.lr, dx_factor)
 
         # both are worse -> increase damping factor until improvement
         if loss_df >= loss and loss_df_factor >= loss:
@@ -77,21 +80,67 @@ class LevenbergMarquardt(BaseOptimizer):
             for k in range(1, self.max_damping_steps + 1):
                 df_k = self.damping_factor * (self.factor**k)
                 dx_k = self.solve_delta(J=J, grad_f=grad_f, damping_factor=df_k)
-                loss_dx_k = self._evaluate(loss_closure, x_init, 1.0, dx_k)
+                loss_dx_k = self._evaluate(loss_closure, x_init, self.lr, dx_k)
                 if loss_dx_k <= loss:  # improvement or same (converged)
                     improvement = True
                     break
             if not improvement:
                 self.converged = True
             self.damping_factor = df_k
-            self._add_direction(1.0, dx_k)
+            return dx_k, loss
+
         # decrease damping factor -> more gauss newton -> bigger updates
-        elif loss_df_factor < loss:
+        if loss_df_factor < loss:
             self.damping_factor = df_factor
-            self._add_direction(1.0, dx_factor)
+            return dx_factor, loss
+
         # we improve the loss with the current damping factor no update
+        assert loss_df < loss
+        return dx, loss
+
+    def static_solve(
+        self,
+        loss_closure: Callable[[], torch.Tensor],
+        jacobian_closure: Callable[[], torch.Tensor],
+    ):
+        # compute the jacobians
+        J = self.applyJTJ(jacobian_closure)
+
+        # compute the gradients
+        with torch.enable_grad():
+            self.zero_grad()
+            loss = loss_closure()
+            loss.backward()
+            grad_f = self._gather_flat_grad().neg()  # we minimize
+
+        dx = self.solve_delta(J=J, grad_f=grad_f, damping_factor=self.damping_factor)
+        return dx, loss
+
+    @torch.no_grad()
+    def newton_step(
+        self,
+        loss_closure: Callable[[], torch.Tensor],
+        jacobian_closure: Callable[[], torch.Tensor],
+    ) -> float:
+        # prepare the init delta vectors
+        x_init = self._clone_param()
+
+        # solve for the delta
+        if self.mode == "static":
+            direction, loss = self.static_solve(loss_closure, jacobian_closure)
+        elif self.mode == "dynamic":
+            direction, loss = self.dynamic_solve(loss_closure, jacobian_closure)
         else:
-            assert loss_df < loss
-            self._add_direction(1.0, dx)
+            ValueError(f"The mode={self.mode} is not possible.")
+
+        # determine the step size and possible perform linesearch
+        step_size = self.lr
+        if self.perform_linesearch:
+            step_size = self.linesearch(
+                loss_closure=loss_closure,
+                x_init=x_init,
+                direction=direction,
+            )
+        self._add_direction(step_size, direction)
 
         return float(loss)

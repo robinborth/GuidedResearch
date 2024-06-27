@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
+from lib.model.loss import BaseLoss
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger
@@ -17,6 +18,7 @@ class BaseTrainer:
     def __init__(
         self,
         model: FLAME,
+        loss: BaseLoss,
         logger: FlameLogger,
         datamodule: DPHMDataModule,
         optimizer: OptimizerScheduler,
@@ -40,6 +42,7 @@ class BaseTrainer:
         self.model = model
         self.logger = logger
         self.datamodule = datamodule
+        self.loss = loss
 
         self.coarse2fine = coarse2fine
         self.coarse2fine.init_scheduler(camera, rasterizer)
@@ -59,7 +62,7 @@ class BaseTrainer:
         self.save_interval = save_interval
         self.frames: list[int] = []
 
-    def optimize_loop(self):
+    def optimize_loop(self, outer_progress, inner_progress):
         logger = self.logger
         model = self.model
         datamodule = self.datamodule
@@ -68,7 +71,11 @@ class BaseTrainer:
 
         # outer optimization loop
         optimizer_scheduler.freeze(model)
-        for iter_step in tqdm(range(self.max_iters)):
+
+        for iter_step in range(self.max_iters):
+            # reset the inner progress bar
+            self.reset_progress(inner_progress, self.max_optims)
+            # prepare the logger
             logger.iter_step = iter_step
 
             # fetch single batch
@@ -89,12 +96,20 @@ class BaseTrainer:
                 iter_step=iter_step,
             )
 
-            # closures
-            loss_closure = model.loss_closure(batch, correspondences, optimizer)
-            jacobian_closure = model.jacobian_closure(batch, correspondences, optimizer)
+            # setup loss
+            loss = self.loss(
+                model=model,
+                batch=batch,
+                correspondences=correspondences,
+                params=optimizer._params,
+                p_names=optimizer._p_names,
+            )
+            loss_closure = loss.loss_closure()
+            jacobian_closure = loss.jacobian_closure()
 
             # inner optimization loop
             loss_tracker = []
+
             for optim_step in range(self.max_optims):
                 # state
                 logger.optim_step = optim_step
@@ -113,7 +128,8 @@ class BaseTrainer:
                 optimizer_scheduler.update_model(model, batch)
 
                 # logging
-                logger.log("loss/final", loss)
+                inner_progress.set_postfix({"loss": loss})
+                logger.log(f"loss/{self.mode}", loss)
                 logger.log_gradients(optimizer)
 
                 # check for convergence
@@ -127,6 +143,9 @@ class BaseTrainer:
                         if criterion < self.convergence_threshold:
                             break
 
+                # finish the inner loop
+                inner_progress.update(1)
+
             # debug and logging
             logger.log_metrics(batch=batch, model=correspondences)
             if (iter_step % self.save_interval) == 0:
@@ -134,11 +153,32 @@ class BaseTrainer:
                 logger.log_render(batch=batch, model=correspondences)
                 logger.log_input_batch(batch=batch, model=correspondences)
                 logger.log_loss(batch=batch, model=correspondences)
-                if model.init_mode == "flame":
-                    model.debug_params(batch=batch)
+
+            # finish the outer loop
+            outer_progress.set_postfix({"params": optimizer._p_names, "loss": loss})
+            outer_progress.update(1)
 
     def optimize(self):
         raise NotImplementedError
+
+    def frame_progress(self):
+        return tqdm(total=len(self.frames), desc="Frame Loop", position=0)
+
+    def outer_progress(self):
+        return tqdm(total=self.max_iters, desc="Outer Loop", position=1)
+
+    def inner_progress(self):
+        return tqdm(total=self.max_optims, desc="Inner Loop", leave=True, position=2)
+
+    def close_progress(self, progresses):
+        for p in progresses:
+            p.close()
+
+    def reset_progress(self, progress, total: int):
+        progress.n = 0
+        progress.last_print_n = 0
+        progress.total = total
+        progress.refresh()
 
 
 class JointTrainer(BaseTrainer):
@@ -147,13 +187,18 @@ class JointTrainer(BaseTrainer):
         assert len(init_idxs) > 0
         self.init_idxs = init_idxs
         self.frames = init_idxs
+        self.mode = "joint"
 
     def optimize(self):
-        self.logger.prefix = "joint"
+        self.logger.mode = self.mode
         self.optimizer.reset()
         self.coarse2fine.reset()
         self.datamodule.update_idxs(self.init_idxs)
-        self.optimize_loop()
+
+        outer_progress = self.outer_progress()
+        inner_progress = self.inner_progress()
+        self.optimize_loop(outer_progress, inner_progress)
+        self.close_progress([outer_progress, inner_progress])
 
 
 class SequentialTrainer(BaseTrainer):
@@ -162,14 +207,21 @@ class SequentialTrainer(BaseTrainer):
         self.start_frame = start_frame
         self.end_frame = end_frame
         self.frames = list(range(self.start_frame, self.end_frame))
+        self.mode = "sequential"
 
     def optimize(self):
-        for frame_idx in tqdm(range(self.start_frame, self.end_frame)):
-            self.logger.prefix = "sequential"
+        frame_progress = self.frame_progress()
+        outer_progress = self.outer_progress()
+        inner_progress = self.inner_progress()
+        for frame_idx in range(self.start_frame, self.end_frame):
+            self.reset_progress(outer_progress, self.max_iters)
+            self.logger.mode = self.mode
             self.optimizer.reset()
             self.coarse2fine.reset()
             self.datamodule.update_idxs([frame_idx])
 
             if frame_idx != 0:
                 self.model.init_frame(frame_idx)
-            self.optimize_loop()
+            self.optimize_loop(outer_progress, inner_progress)
+            frame_progress.update(1)
+        self.close_progress([frame_progress, outer_progress, inner_progress])

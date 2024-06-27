@@ -1,5 +1,5 @@
 # path to root directory
-root_dir: /root/sketch2shape
+root_dir: /home/borth/GuidedResearch
 
 # path to data directory
 data_dir: ${paths.root_dir}/data
@@ -17,15 +17,3 @@ output_dir: ${hydra:runtime.output_dir}
 
 # path to working directory
 work_dir: ${hydra:runtime.cwd}
-
-# the path of the mesh reconstructions of the latent optimizations
-mesh_dir: ${paths.output_dir}/mesh
-
-# the path where the video will be saved
-video_dir: ${paths.output_dir}/video
-
-# the path where the video will be saved
-latent_dir: ${paths.output_dir}/latent
-
-# the path of the metrics in the latent optimization
-metrics_path: ${paths.output_dir}/metrics.csv

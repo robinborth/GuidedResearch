@@ -12,10 +12,10 @@ from PIL import Image
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
 from lib.model.loss import (
-    calculate_point2plane,
-    calculate_point2point,
     landmark_2d_distance,
     landmark_3d_distance,
+    point2plane_distance,
+    point2point_distance,
 )
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
@@ -32,7 +32,7 @@ class FlameLogger:
         group: str,
         tags: str,
         max_loss: float = 1e-02,
-        prefix: str = "",
+        mode: str = "",
     ):
         # settings
         self.save_dir = save_dir
@@ -45,7 +45,7 @@ class FlameLogger:
         self.iter_step = 0
         self.optim_step = 0
         self.global_step = 0
-        self.prefix = prefix
+        self.mode = mode
         self.capture_video = False
 
     def init_logger(self, model: FLAME, cfg: DictConfig):
@@ -69,7 +69,7 @@ class FlameLogger:
     def log_path(self, folder: str, frame_idx: int, suffix: str):
         if self.capture_video:
             return f"final/{folder}/{frame_idx:05}.{suffix}"
-        _f = f"{self.prefix}/{folder}" if self.prefix else folder
+        _f = f"{self.mode}/{folder}" if self.mode else folder
         return f"{_f}/{frame_idx:05}/{self.iter_step:05}.{suffix}"
 
     @property
@@ -91,9 +91,7 @@ class FlameLogger:
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
             # point to point error map
             file_name = self.log_path("error_point_to_point", f_idx, "png")
-            loss = torch.sqrt(
-                calculate_point2point(batch["point"], model["point"])
-            )  # (B, W, H)
+            loss = point2point_distance(batch["point"], model["point"])  # (B, W, H)
             error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
             error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
             error_map[~model["r_mask"][b_idx], :] = 1.0
@@ -102,12 +100,10 @@ class FlameLogger:
 
             # point to plane error map
             file_name = self.log_path("error_point_to_plane", f_idx, "png")
-            loss = torch.sqrt(
-                calculate_point2plane(
-                    p=model["point"],
-                    q=batch["point"],
-                    n=model["normal"],
-                )
+            loss = point2plane_distance(
+                p=model["point"],
+                q=batch["point"],
+                n=model["normal"],
             )  # (B, W, H)
             error_map = loss[b_idx].detach().cpu().numpy()  # dist in m
             error_map = torch.from_numpy(sm.to_rgba(error_map)[:, :, :3])
@@ -201,14 +197,14 @@ class FlameLogger:
 
     def log_metrics(self, batch: dict, model: dict):
         mask = model["mask"]
-        point2plane = calculate_point2plane(
+        point2plane = point2plane_distance(
             q=model["point"][mask],
             p=batch["point"][mask],
             n=model["normal"][mask],
         )
         self.log("loss/point2plane", point2plane.mean())
 
-        point2point = calculate_point2point(
+        point2point = point2point_distance(
             q=model["point"][mask],
             p=batch["point"][mask],
         )
@@ -227,6 +223,19 @@ class FlameLogger:
         for key, value in model.items():
             if "mask" in key:
                 self.log(f"mask/{key}", float(value.sum()))
+
+        # debug for each frame own loss curve
+        i = 0
+        for _, b_idx, f_idx in self.iter_debug_idx(batch):
+            j = mask[: b_idx + 1].sum()
+            self.log(f"loss/{f_idx:03}/point2plane", point2plane[i:j].mean())
+            self.log(f"loss/{f_idx:03}/point2point", point2point[i:j].mean())
+            self.log(f"loss/{f_idx:03}/landmark_3d", lm_3d_dist[b_idx].mean())
+            self.log(f"loss/{f_idx:03}/landmark_2d", lm_2d_dist[b_idx].mean())
+            for key, value in model.items():
+                if "mask" in key:
+                    self.log(f"mask/{f_idx:05}/{key}", float(value[b_idx].sum()))
+            i = j
 
     def log_gradients(self, optimizer, verbose: bool = False):
         log = {}
@@ -260,7 +269,7 @@ class FlameLogger:
             log[f"grad/{p_name}_absmax"] = value
 
         self.log_dict(log)
-
+    
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.save_dir) / file_name  # type: ignore
         path.parent.mkdir(parents=True, exist_ok=True)

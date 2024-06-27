@@ -1,17 +1,113 @@
-levenberg_marquardt:
+####################################################################################
+# Different Levenberg Marquardt Settings
+# make dynamic_lm dynamic_lm_linesearch static_lm_gn static_lm_gd
+####################################################################################
+
+dynamic_lm:
 	python scripts/optimize.py \
-	tags=["levenberg_marquardt"] \
-	trainer.optimizer=levenberg_marquardt \
-	trainer.optimizer_params={lin_solver:pytorch} \
-	trainer.copy_optimizer_state=False \
-	joint_trainer.max_iters=100 \
-	joint_trainer.max_optims=5 \
-	joint_trainer.optimizer.milestones=[0,7,10,12] \
-	joint_trainer.optimizer.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params],[expression_params]] \
-	sequential_trainer.max_iters=35 \
-	sequential_trainer.max_optims=5 \
-	sequential_trainer.optimizer.milestones=[0,3] \
-	sequential_trainer.optimizer.params=[[global_pose,transl,neck_pose,eye_pose],[expression_params]] \
+	task_name=dynamic_lm \
+	optimizer=levenberg_marquardt \
+
+dynamic_lm_linesearch:
+	python scripts/optimize.py \
+	task_name=dynamic_lm_linesearch \
+	optimizer=levenberg_marquardt \
+	optimizer.optimizer_params.line_search_fn=ternary_search \
+
+static_lm_gn:
+	python scripts/optimize.py \
+	task_name=static_lm_gn \
+	optimizer=static_levenberg_marquardt \
+	optimizer.optimizer_params.mode=static \
+	optimizer.optimizer_params.damping_factor=0.0 \
+	optimizer.optimizer_params.line_search_fn=ternary_search \
+
+static_lm_gd:
+	python scripts/optimize.py \
+	task_name=static_lm_gd \
+	optimizer=static_levenberg_marquardt \
+	optimizer.optimizer_params.mode=static \
+	optimizer.optimizer_params.damping_factor=1.0 \
+	optimizer.optimizer_params.line_search_fn=ternary_search \
+
+####################################################################################
+# PCG vs Pytorch Levenberg Marquardt Settings
+# make lm_pytorch lm_pcg_1 lm_pcg_4 lm_pcg_20
+####################################################################################
+
+lm_pytorch:
+	python scripts/optimize.py \
+	task_name=lm_pytorch \
+	optimizer=levenberg_marquardt \
+	optimizer.optimizer_params.lin_solver=pytorch \
+
+
+lm_pcg_1:
+	python scripts/optimize.py \
+	task_name=lm_pcg_1 \
+	optimizer=levenberg_marquardt \
+	optimizer.optimizer_params.lin_solver=pcg \
+	optimizer.optimizer_params.pcg_steps=1 \
+
+
+lm_pcg_4:
+	python scripts/optimize.py \
+	task_name=lm_pcg_4 \
+	optimizer=levenberg_marquardt \
+	optimizer.optimizer_params.lin_solver=pcg \
+	optimizer.optimizer_params.pcg_steps=4 \
+
+lm_pcg_20:
+	python scripts/optimize.py \
+	task_name=lm_pcg_20 \
+	optimizer=levenberg_marquardt \
+	optimizer.optimizer_params.lin_solver=pcg \
+	optimizer.optimizer_params.pcg_steps=20 \
+
+####################################################################################
+# Different Loss Functions 
+# make lm2d lm3d plane point symm reg
+####################################################################################
+
+lm2d:
+	python scripts/optimize.py \
+	task_name=lm2d \
+	optimizer=levenberg_marquardt \
+	loss=landmark2d \
+
+lm3d:
+	python scripts/optimize.py \
+	task_name=lm3d \
+	optimizer=levenberg_marquardt \
+	loss=landmark3d \
+
+plane:
+	python scripts/optimize.py \
+	task_name=plane \
+	optimizer=levenberg_marquardt \
+	loss=point2plane \
+
+point:
+	python scripts/optimize.py \
+	task_name=point \
+	optimizer=levenberg_marquardt \
+	loss=point2point \
+
+symm:
+	python scripts/optimize.py \
+	task_name=symm \
+	optimizer=levenberg_marquardt \
+	loss=symmetricICP \
+
+reg:
+	python scripts/optimize.py \
+	task_name=reg \
+	optimizer=levenberg_marquardt \
+	loss=regularization \
+
+####################################################################################
+# Others
+####################################################################################
 
 adam:
 	python scripts/optimize.py \

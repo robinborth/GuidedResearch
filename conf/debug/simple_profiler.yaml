@@ -1,7 +1,0 @@
-# @package _global_
-
-trainer:
-  profiler:
-    _target_: lightning.pytorch.profilers.SimpleProfiler
-    dirpath: ${paths.output_dir}/profiler
-    filename: simple_profiler

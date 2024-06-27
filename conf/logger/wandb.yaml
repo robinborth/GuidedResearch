@@ -6,3 +6,4 @@ project: guided-research
 entity: robinborth
 group: ${task_name}
 tags: ${tags}
+mode: ""

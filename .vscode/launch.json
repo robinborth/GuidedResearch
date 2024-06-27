@@ -10,7 +10,18 @@
             "justMyCode": false
         },
         {
-            "name": "Debug: ICP Optimizer",
+            "name": "Debug: LM Optimizer",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/optimize.py",
+            "args": [
+                "optimizer=gauss_newton",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "Debug: ADAM Optimizer",
             "type": "debugpy",
             "request": "launch",
             "program": "scripts/optimize.py",

@@ -1,0 +1,6 @@
+# @package optimizer
+
+optimizer: gradient_decent_momentum
+copy_optimizer_state: False 
+optimizer_params:
+  lr: 10

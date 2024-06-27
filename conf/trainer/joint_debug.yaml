@@ -7,12 +7,12 @@ defaults:
 _target_: lib.trainer.trainer.JointTrainer
 
 # loop settings
-init_idxs: [0,20,35,50,65,80,95,110]
-max_iters: 50
-max_optims: 50
+init_idxs: [20,40]
+max_iters: 5
+max_optims: 3
 
 optimizer:
-  milestones: [0,10,15]
+  milestones: [0,1,2]
   params: [[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]]
 
 coarse2fine:

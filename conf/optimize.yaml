@@ -1,20 +1,22 @@
 # @package _global_
 
 defaults:
-  - data: kinect
   - model: flame 
-  - trainer:
-    - base
-    - joint 
-    - sequential
   - logger: wandb
+  - data: kinect
+  - loss: point2plane 
+  - optimizer: levenberg_marquardt
+  - trainer:
+    - joint_debug
+    - sequential_debug
+    # - joint
+    # - sequential
   - hydra: default
   - paths: default
-  - debug: null
-  - optional local: default
   - _self_
 
 seed: 123
-task_name: optimize
-tags: ["optimize"]
 device: cuda
+task_name: optimize
+tags: 
+  - ${task_name}

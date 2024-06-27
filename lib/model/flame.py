@@ -4,7 +4,6 @@ import torch.nn as nn
 
 from lib.data.loader import load_flame, load_flame_masks, load_static_landmark_embedding
 from lib.model.lbs import lbs
-from lib.model.loss import calculate_point2plane
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
@@ -19,9 +18,10 @@ class FLAME(nn.Module):
         optimize_frames: int = 1,
         optimize_shapes: int = 1,
         vertices_mask: str = "face",  # full, face
-        init_mode: str = "kinect",
         n_threshold: float = 0.9,
         d_threshold: float = 0.1,
+        init_sigma: float = 0.01,
+        init_seed: int = 2,
         **kwargs,
     ):
         super().__init__()
@@ -100,11 +100,7 @@ class FLAME(nn.Module):
         self.full_p_names = self.shape_p_names + self.frame_p_names
 
         # init the params of the model
-        self.init_mode = init_mode
-        if self.init_mode == "kinect":
-            self.init_params_dphm(0.01, seed=2)
-        else:
-            self.init_params_flame(0.03, seed=2)
+        self.init_pose_params(init_sigma, seed=init_seed)
 
     ####################################################################################
     # Core
@@ -185,20 +181,7 @@ class FLAME(nn.Module):
         # apply the translation and the scaling
         vertices += transl[:, None, :]  # (B, V, 3)
 
-        return vertices  # (B, V, 3)
-
-    def correspondence_step(self, batch: dict):
-        model = self.model_step(batch)
-        render = self.render_step(model)
-        mask = self.mask_step(batch, render)
-        return {**model, **render, **mask}
-
-    def model_step(self, batch: dict):
-        # inference get the vertices and the landmarks
-        vertices = self.forward(**self.flame_input_dict(batch))  # (B, V, 3)
-
         # landmarks
-        B = batch["frame_idx"].shape[0]
         lm_vertices = vertices[:, self.lm_faces]  # (B, F, 3, D)
         lm_bary_coods = self.lm_bary_coords.expand(B, -1, -1).unsqueeze(-1)
         landmarks = (lm_bary_coods * lm_vertices).sum(-2)  # (B, 105, D)
@@ -210,17 +193,12 @@ class FLAME(nn.Module):
 
         return {"vertices": vertices, "lm_3d_camera": landmarks, "lm_2d_ndc": lm_2d_ndc}
 
-    def render_step(self, model: dict[str, torch.Tensor]):
-        return self.renderer.render_full(
+    def correspondence_step(self, batch: dict):
+        model = self.forward(**self.flame_input_dict(batch))
+        render = self.renderer.render_full(
             vertices=model["vertices"],  # (B, V, 3)
             faces=self.masked_faces,  # (F, 3)
         )  # (B, H', W')
-
-    def mask_step(
-        self,
-        batch: dict[str, torch.Tensor],
-        render: dict[str, torch.Tensor],
-    ):
         # per pixel distance in 3d, just the length
         dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
         # calculate the forground mask
@@ -231,11 +209,17 @@ class FLAME(nn.Module):
         normal_dot = (batch["normal"] * render["normal"]).sum(-1)
         n_mask = normal_dot > self.n_threshold  # (B, W, H)
         # final loss mask of silhouette, depth and normal threshold
-        mask = d_mask & f_mask & n_mask
-        assert mask.sum()  # we have some overlap
-        return {"mask": mask, "f_mask": f_mask, "n_mask": n_mask, "d_mask": d_mask}
+        final_mask = d_mask & f_mask & n_mask
+        assert final_mask.sum()  # we have some overlap
+        mask = {
+            "mask": final_mask,
+            "f_mask": f_mask,
+            "n_mask": n_mask,
+            "d_mask": d_mask,
+        }
+        return {**model, **render, **mask}
 
-    def loss_step(
+    def model_step(
         self,
         batch: dict,
         correspondences: dict,
@@ -251,78 +235,35 @@ class FLAME(nn.Module):
             flame_params[p_name] = param.expand(B, -1)
 
         mask = correspondences["mask"]
-        vertices = self.forward(**flame_params)
-        p = self.renderer.mask_interpolate(
+        out = self.forward(**flame_params)
+        point = self.renderer.mask_interpolate(
             vertices_idx=correspondences["vertices_idx"],
             bary_coords=correspondences["bary_coords"],
-            attributes=vertices,
+            attributes=out["vertices"],
             mask=mask,
         )  # (C, 3)
-        q = batch["point"][mask]  # (C, 3)
-        n = correspondences["normal"][mask]  # (C, 3)
-        point2plane = calculate_point2plane(q=q, p=p, n=n)  # (C,)
-        return point2plane.mean()
 
-    def jacobian_step(
-        self,
-        batch: dict,
-        correspondences: dict,
-        params: list[torch.Tensor],
-        p_names: list[str],
-    ):
-        def closure(*args):
-            # prepare the params
-            B = batch["frame_idx"].shape[0]
-            flame_input = self.flame_input_dict(batch)
-            flame_params = {}
-            for p_name, param in flame_input.items():
-                flame_params[p_name] = param.expand(B, -1)
-            for p_name, param in zip(p_names, args):
-                flame_params[p_name] = param.expand(B, -1)
-            # inference step
-            mask = correspondences["mask"]
-            vertices = self.forward(**flame_params)  # (B, V, 3)
-            p = self.renderer.mask_interpolate(
-                vertices_idx=correspondences["vertices_idx"],
-                bary_coords=correspondences["bary_coords"],
-                attributes=vertices,
-                mask=mask,
-            )  # (R, 3)  (residuals for the current batch)
-            q = batch["point"][mask]  # (R, 3)
-            n = correspondences["normal"][mask]  # (R, 3)
-            point2plane = calculate_point2plane(q=q, p=p, n=n)  # (R,)
-            return point2plane
+        # set the params for regularization
+        shape_params = None
+        expression_params = None
+        for p_name, param in zip(p_names, params):
+            if p_name == "shape_params":
+                shape_params = param
+            if p_name == "expression_params":
+                expression_params = param
 
-        jacobians = torch.autograd.functional.jacobian(
-            func=closure,
-            inputs=tuple(params),
-            create_graph=False,  # this is currently note differentiable
-            strategy="forward-mode",
-            vectorize=True,
-        )
-        # this does NOT have the structure in Face2Face
-        J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)
-        return J
-
-    ####################################################################################
-    # Closures
-    ####################################################################################
-
-    def loss_closure(self, batch: dict, correspondences: dict, optimizer):
-        return lambda: self.loss_step(
-            batch=batch,
-            correspondences=correspondences,
-            params=optimizer._params,
-            p_names=optimizer._p_names,
-        )
-
-    def jacobian_closure(self, batch: dict, correspondences: dict, optimizer):
-        return lambda: self.jacobian_step(
-            batch=batch,
-            correspondences=correspondences,
-            params=optimizer._params,
-            p_names=optimizer._p_names,
-        )
+        return {
+            "point": point,
+            "normal": correspondences["normal"][mask],  # (C, 3)
+            "point_gt": batch["point"][mask],  # (C, 3)
+            "normal_gt": batch["normal"][mask],  # (C, 3)
+            "shape_params": shape_params,  # (B, 100)
+            "expression_params": expression_params,  # (B, 100)
+            "lm_3d_camera": out["lm_3d_camera"],
+            "lm_2d_ndc": out["lm_2d_ndc"],
+            "lm_3d_camera_gt": self.extract_landmarks(batch["lm_3d_camera"]),
+            "lm_2d_ndc_gt": self.extract_landmarks(batch["lm_2d_ndc"]),
+        }
 
     ####################################################################################
     # Model Utils
@@ -355,15 +296,7 @@ class FLAME(nn.Module):
             value = value.expand(param.weight.shape).to(self.device)
             param.weight = torch.nn.Parameter(value, requires_grad=True)
 
-    def init_params_flame(self, sigma: float = 0.01, seed: int = 1):
-        np.random.seed(seed)
-        s = np.random.normal(0, sigma, 6)
-        self.init_params(
-            global_pose=[s[0], s[1], s[2]],
-            transl=[0 + s[3], s[4], s[5] - 0.5],
-        )
-
-    def init_params_dphm(self, sigma: float = 0.01, seed: int = 1):
+    def init_pose_params(self, sigma: float = 0.01, seed: int = 1):
         np.random.seed(seed)
         s = np.random.normal(0, sigma, 6)
         self.init_params(

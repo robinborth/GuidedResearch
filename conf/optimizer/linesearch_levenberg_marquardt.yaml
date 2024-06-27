@@ -1,0 +1,10 @@
+# @package optimizer
+
+optimizer: levenberg_marquardt
+copy_optimizer_state: False
+optimizer_params:
+  mode: dynamic
+  damping_factor: 1.0
+  factor: 2.0
+  lin_solver: pytorch
+  line_search_fn: ternary_search

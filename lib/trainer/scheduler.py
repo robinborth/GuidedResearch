@@ -146,7 +146,7 @@ class OptimizerScheduler(Scheduler):
         p_names = self.get_attribute(self.params, iter_step=iter_step)
         for p_name in p_names:
             if p_name not in self.state:
-                log.info(f"Unfreeze (step={iter_step}): {p_name}")
+                # log.info(f"Unfreeze (step={iter_step}): {p_name}")
                 module = getattr(model, p_name)
 
                 if p_name in model.shape_p_names:

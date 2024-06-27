@@ -1,0 +1,9 @@
+# @package optimizer
+
+optimizer: levenberg_marquardt
+copy_optimizer_state: False
+optimizer_params:
+  mode: static
+  lr: 1.0
+  damping_factor: 0.0
+  lin_solver: pytorch
