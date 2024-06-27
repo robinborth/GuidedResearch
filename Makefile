@@ -18,14 +18,15 @@ adam:
 	tags=["adam"] \
 	trainer.optimizer=adam \
 	trainer.copy_optimizer_state=True \
-	joint_trainer.max_iters=20 \
-	joint_trainer.max_optims=200 \
+	trainer.optimizer_params={lr:1e-02} \
+	joint_trainer.max_iters=30 \
+	joint_trainer.max_optims=100 \
 	joint_trainer.optimizer.milestones=[0,7,10] \
 	joint_trainer.optimizer.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]] \
-	sequential_trainer.max_iters=35 \
+	sequential_trainer.max_iters=20 \
 	sequential_trainer.max_optims=50 \
-	sequential_trainer.optimizer.milestones=[0,3] \
-	sequential_trainer.optimizer.params=[[global_pose,transl,neck_pose,eye_pose],[expression_params]] \
+	sequential_trainer.optimizer.milestones=[0] \
+	sequential_trainer.optimizer.params=[[global_pose,transl,neck_pose,eye_pose,expression_params]] \
 
 adam_low_lr:
 	python scripts/optimize.py \

@@ -2,7 +2,7 @@
 
 # optimizer
 optimizer: levenberg_marquardt
-optimizer_params: {lin_solver: pytorch}
+optimizer_params: ???
 copy_optimizer_state: False
 
 # logging settings

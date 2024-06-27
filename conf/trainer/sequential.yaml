@@ -9,8 +9,8 @@ camera: ???
 rasterizer: ???
 
 # loop settings
-start_frame: 16
-end_frame: 50
+start_frame: 0
+end_frame: 120
 max_iters: 35
 max_optims: 5
 
