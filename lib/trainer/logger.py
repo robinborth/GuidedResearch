@@ -195,29 +195,29 @@ class FlameLogger:
             color_image[y_idx, x_idx, :] = 255
             self.save_image(file_name, color_image)
 
-    def log_metrics(self, batch: dict, model: dict):
+    def log_metrics(self, batch: dict, model: dict, prefix: str = "loss"):
         mask = model["mask"]
         point2plane = point2plane_distance(
             q=model["point"][mask],
             p=batch["point"][mask],
             n=model["normal"][mask],
         )
-        self.log("loss/point2plane", point2plane.mean())
+        self.log(f"{prefix}/point2plane", point2plane.mean())
 
         point2point = point2point_distance(
             q=model["point"][mask],
             p=batch["point"][mask],
         )
-        self.log("loss/point2point", point2point.mean())
+        self.log(f"{prefix}/point2point", point2point.mean())
 
         lm_3d_camera = self.model.extract_landmarks(batch["lm_3d_camera"])
         lm_3d_dist = landmark_3d_distance(model["lm_3d_camera"], lm_3d_camera)  # (B,)
-        self.log("loss/landmark_3d", lm_3d_dist.mean())
+        self.log(f"{prefix}/landmark_3d", lm_3d_dist.mean())
 
         # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
         lm_2d_ndc = self.model.extract_landmarks(batch["lm_2d_ndc"])
         lm_2d_dist = landmark_2d_distance(model["lm_2d_ndc"], lm_2d_ndc)  # (B,)
-        self.log("loss/landmark_2d", lm_2d_dist.mean())
+        self.log(f"{prefix}/landmark_2d", lm_2d_dist.mean())
 
         # debug the overlap of the mask
         for key, value in model.items():
@@ -228,10 +228,10 @@ class FlameLogger:
         i = 0
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
             j = mask[: b_idx + 1].sum()
-            self.log(f"loss/{f_idx:03}/point2plane", point2plane[i:j].mean())
-            self.log(f"loss/{f_idx:03}/point2point", point2point[i:j].mean())
-            self.log(f"loss/{f_idx:03}/landmark_3d", lm_3d_dist[b_idx].mean())
-            self.log(f"loss/{f_idx:03}/landmark_2d", lm_2d_dist[b_idx].mean())
+            self.log(f"{prefix}/{f_idx:03}/point2plane", point2plane[i:j].mean())
+            self.log(f"{prefix}/{f_idx:03}/point2point", point2point[i:j].mean())
+            self.log(f"{prefix}/{f_idx:03}/landmark_3d", lm_3d_dist[b_idx].mean())
+            self.log(f"{prefix}/{f_idx:03}/landmark_2d", lm_2d_dist[b_idx].mean())
             for key, value in model.items():
                 if "mask" in key:
                     self.log(f"mask/{f_idx:05}/{key}", float(value[b_idx].sum()))
@@ -269,7 +269,7 @@ class FlameLogger:
             log[f"grad/{p_name}_absmax"] = value
 
         self.log_dict(log)
-    
+
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.save_dir) / file_name  # type: ignore
         path.parent.mkdir(parents=True, exist_ok=True)

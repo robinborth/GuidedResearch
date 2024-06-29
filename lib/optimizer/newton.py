@@ -14,22 +14,26 @@ class LevenbergMarquardt(BaseOptimizer):
         self,
         params,
         mode: str = "dynamic",  # dynamic, static
+        only_levenberg: bool = False,
         damping_factor: float = 1.0,
         factor: float = 2.0,
         max_damping_steps: int = 10,
         line_search_fn: str | None = None,
         lin_solver: str = "pytorch",  # pytorch, pcg
         pcg_steps: int = 5,
+        pcg_jacobi: bool = True,
         lr: float = 1.0,
     ):
         super().__init__(params, line_search_fn=line_search_fn)
         self.mode = mode
         self.damping_factor = damping_factor
+        self.only_levenberg = only_levenberg
         self.factor = factor
         self.max_damping_steps = max_damping_steps
         assert lin_solver in ["pytorch", "pcg"]
         self.lin_solver = lin_solver
         self.pcg_steps = pcg_steps
+        self.pcg_jacobi = pcg_jacobi
         self.lr = lr
 
     def get_state(self):
@@ -42,9 +46,13 @@ class LevenbergMarquardt(BaseOptimizer):
 
     def solve_delta(self, J: torch.tensor, grad_f: torch.Tensor, damping_factor: float):
         """Apply the hessian approximation and solve for the delta"""
-        H = 2 * J + damping_factor * torch.diag(torch.diag(J))
+        if self.only_levenberg:
+            D = damping_factor * torch.diag(torch.ones_like(torch.diag(J)))
+        else:
+            D = damping_factor * torch.diag(torch.diag(J))
+        H = 2 * J + D
         if self.lin_solver == "pcg":
-            M = torch.diag(1 / torch.diag(H))  # (N, N)
+            M = torch.diag(1 / torch.diag(H)) if self.pcg_jacobi else None  # (N, N)
             return preconditioned_conjugate_gradient(
                 A=H, b=grad_f, M=M, max_iter=self.pcg_steps
             )
@@ -95,7 +103,7 @@ class LevenbergMarquardt(BaseOptimizer):
             return dx_factor, loss
 
         # we improve the loss with the current damping factor no update
-        assert loss_df < loss
+        assert loss_df < loss or self.line_search_fn is not None
         return dx, loss
 
     def static_solve(
@@ -113,7 +121,14 @@ class LevenbergMarquardt(BaseOptimizer):
             loss.backward()
             grad_f = self._gather_flat_grad().neg()  # we minimize
 
+        # prepare the init delta vectors
+        x_init = self._clone_param()
+
         dx = self.solve_delta(J=J, grad_f=grad_f, damping_factor=self.damping_factor)
+        loss_df = self._evaluate(loss_closure, x_init, self.lr, dx)
+
+        if loss_df > loss:
+            return torch.zeros_like(dx), loss  # ensure that the we converge
         return dx, loss
 
     @torch.no_grad()

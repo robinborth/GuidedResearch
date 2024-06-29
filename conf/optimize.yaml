@@ -7,10 +7,10 @@ defaults:
   - loss: point2plane 
   - optimizer: levenberg_marquardt
   - trainer:
-    - joint_debug
-    - sequential_debug
-    # - joint
-    # - sequential
+    # - joint_debug
+    # - sequential_debug
+    - joint
+    - sequential
   - hydra: default
   - paths: default
   - _self_

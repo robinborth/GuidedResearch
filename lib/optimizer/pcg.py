@@ -53,3 +53,21 @@ def preconditioned_conjugate_gradient(
         log.info(f"Not converged in {max_iter=} steps with rk={rk.norm()}.")
 
     return xk
+
+
+class ConjugateGradient(torch.autograd.Function):
+    def __init__(
+        self,
+        A: torch.Tensor,  # dim (N,N)
+        b: torch.Tensor,  # dim (N)
+        x0: torch.Tensor | None = None,  # dim (N)
+        max_iter: int = 20,
+        verbose: bool = False,
+        tol: float = 1e-08,
+        M: torch.Tensor | None = None,  # dim (N,N)
+    ):
+        self.tol = tol
+
+    @staticmethod
+    def forward(ctx, A: torch.Tensor, b: torch.Tensor):
+        return preconditioned_conjugate_gradient(A, b)

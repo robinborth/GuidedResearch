@@ -7,6 +7,8 @@ optimizer_params:
   lr: 1.0
   damping_factor: 1.0
   factor: 2.0
-  lin_solver: pytorch
-  line_search_fn: null
+  lin_solver: pcg
   pcg_steps: 5
+  pcg_jacobi: True
+  line_search_fn: null
+  only_levenberg: False

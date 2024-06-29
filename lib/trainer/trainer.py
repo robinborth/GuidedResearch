@@ -158,6 +158,13 @@ class BaseTrainer:
             outer_progress.set_postfix({"params": optimizer._p_names, "loss": loss})
             outer_progress.update(1)
 
+        # final metric logging
+        logger.log_metrics(
+            batch=batch,
+            model=correspondences,
+            prefix=f"metric/{self.mode}",
+        )
+
     def optimize(self):
         raise NotImplementedError
 
