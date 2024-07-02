@@ -69,7 +69,7 @@ def optimize(cfg: DictConfig) -> None:
             cfg.sequential_trainer,
             model=model,
             loss=loss,
-            optimzier=optimizer,
+            optimizer=optimizer,
             logger=logger,
             datamodule=datamodule,
             camera=camera,

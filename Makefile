@@ -6,9 +6,11 @@
 levenberg_marquardt:
 	python scripts/optimize.py \
 	task_name=levenberg_marquardt \
+	loss=regularization \
 	optimizer=levenberg_marquardt \
 	joint_trainer.max_iters=100 \
-	joint_trainer.max_optims=10 \
+	joint_trainer.max_optims=50 \
+	model.init_sigma=0.0005 \
 	sequential_trainer=null
 
 dynamic_lm_baseline:

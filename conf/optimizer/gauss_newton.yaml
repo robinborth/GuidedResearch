@@ -1,14 +1,23 @@
 # @package optimizer
 
-optimizer: levenberg_marquardt
-copy_optimizer_state: False
-optimizer_params:
-  mode: static
-  lr: 1.0
-  damping_factor: 0.0
-  factor: 2.0
-  lin_solver: pcg
-  pcg_steps: 5
-  pcg_jacobi: True
-  line_search_fn: null
-  only_levenberg: False
+_target_: lib.optimizer.newton.LevenbergMarquardt
+
+# building the matrix A
+mode: static
+max_damping_steps: 10
+damping_factor: 0.0
+factor: 2.0
+levenberg: False
+
+# step size
+step_size: 1.0
+line_search_fn: null
+
+# Ax=b solver
+lin_solver:
+  _target_: lib.optimizer.pcg.PCGSolver
+  dim: ???
+  max_iter: 5
+  verbose: False
+  tol: 1e-08
+  mode: identity

@@ -1,6 +1,0 @@
-# @package optimizer
-
-optimizer: gradient_decent
-copy_optimizer_state: False
-optimizer_params:
-  lr: 10

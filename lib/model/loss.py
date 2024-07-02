@@ -200,8 +200,15 @@ class ChainedLoss(BaseLoss):
         return loss
 
     def jacobian_step(self):
-        J = [l_func.jacobian_step() for l_func in self.chain.values()]
-        return torch.cat(J, dim=0)
+        J = []
+        F = []
+        for l_func in self.chain.values():
+            _J, _F = l_func.jacobian_step()
+            J.append(_J)
+            F.append(_F)
+        J = torch.cat(J, dim=0)
+        F = torch.cat(F, dim=0)
+        return J, F
 
 
 ####################################################################################

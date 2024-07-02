@@ -122,15 +122,7 @@ class BaseTrainer:
                 logger.optimizer = optimizer
 
                 # optimize step
-                if optimizer.requires_jacobian:
-                    optimizer.newton_step(loss_closure, jacobian_closure)
-                elif optimizer.requires_loss:
-                    optimizer.step(loss_closure)
-                else:
-                    optimizer.zero_grad()
-                    loss = loss_closure()
-                    loss.backward()
-                    optimizer.step()
+                optimizer.step(loss_closure, jacobian_closure)
                 scheduler.update_model(model, batch)
 
                 # metrics and loss logging

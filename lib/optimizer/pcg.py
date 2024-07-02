@@ -5,6 +5,10 @@ from torch import nn
 
 log = logging.getLogger()
 
+####################################################################################
+# Helper Functions
+####################################################################################
+
 
 def preconditioned_conjugate_gradient(
     A: torch.Tensor,  # dim (N,N)
@@ -127,33 +131,56 @@ class ConjugateGradient(torch.autograd.Function):
     def backward(ctx, dX):
         (A,) = ctx.saved_tensors
         # A * grad_b = grad_x
-        dB = torch.linalg.solve(A, dX)
-        # dB = conjugate_gradient(
-        #     A=A,
-        #     b=dX,
-        #     max_iter=50,
-        #     verbose=ctx.verbose,
-        #     tol=ctx.tol,
-        # )  # (N,)
+        # dB = torch.linalg.solve(A, dX)
+        dB = conjugate_gradient(
+            A=A,
+            b=dX,
+            max_iter=50,
+            verbose=ctx.verbose,
+            tol=ctx.tol,
+        )  # (N,)
         dB = torch.linalg.solve(A, dX)
         # grad_A = -grad_b * x^T
         dA = -dB[..., None] @ dX[None, ...]  # (N, N)
         return dA, dB, None, None, None
 
 
-class PCGLayer(nn.Module):
+####################################################################################
+# Linear System Solver + Preconditioned Conjugate Gradient
+####################################################################################
+
+
+class LinearSystemSolver(nn.Module):
+    def forward(self, A: torch.Tensor, b: torch.Tensor):
+        raise NotImplementedError()
+
+
+class PytorchSolver(LinearSystemSolver):
+    def forward(self, A: torch.Tensor, b: torch.Tensor):
+        return torch.linalg.solve(A, b)
+
+
+class PCGSolver(LinearSystemSolver):
     def __init__(
         self,
-        N: int = 1,
+        dim: int = 1,
         max_iter: int = 20,
         verbose: bool = False,
         tol: float = 1e-08,
+        mode: str = "identity",
     ):
         super().__init__()
         self.max_iter = max_iter
         self.verbose = verbose
         self.tol = tol
-        self.condition_net = DenseConditionNet(N=N)
+        if mode == "identity":
+            self.condition_net: ConditionNet = IdentityConditionNet()
+        elif mode == "jaccobi":
+            self.condition_net = JaccobiConditionNet()
+        elif mode == "dense":
+            self.condition_net = DenseConditionNet(dim=dim)
+        else:
+            raise ValueError(f"The {mode=} is not supported!")
 
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         # apply the preconditioner
@@ -169,20 +196,27 @@ class PCGLayer(nn.Module):
 ####################################################################################
 
 
-class IdentityConditionNet(nn.Module):
-    def __init__(self, N: int = 1):
-        super().__init__()
-        self.M = nn.Parameter(torch.eye(N), requires_grad=True)
-
+class ConditionNet(nn.Module):
     def forward(self, A: torch.Tensor):
-        return self.M
+        raise NotImplementedError
 
 
-class DenseConditionNet(nn.Module):
-    def __init__(self, N: int = 1, diag_treshold: float = 1e-08):
+class IdentityConditionNet(ConditionNet):
+    def forward(self, A: torch.Tensor):
+        return torch.diag(torch.ones_like(torch.diag(A)))
+
+
+class JaccobiConditionNet(ConditionNet):
+    def forward(self, A: torch.Tensor):
+        return torch.diag(1 / torch.diag(A))  # (N, N)
+
+
+class DenseConditionNet(ConditionNet):
+    def __init__(self, dim: int = 1, diag_treshold: float = 1e-08):
         super().__init__()
         # the number of elements in the triangular matrix
-        self.N = N
+        N = dim
+        self.N = dim
         self.diag_threshold = diag_treshold
         tri_N = ((N * N - N) // 2) + N
         self.L = nn.Sequential(

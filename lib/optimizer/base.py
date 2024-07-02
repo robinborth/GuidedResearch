@@ -5,12 +5,15 @@ from typing import Any, Callable, Tuple
 import torch
 from torch import nn
 
-from lib.optimizer.linesearch import ternary_search
+from lib.optimizer.utils import ternary_search
 
 
 class BaseOptimizer(nn.Module):
     def __init__(self):
         super().__init__()
+        self._numel_cache = None
+
+    def reset(self):
         self._numel_cache = None
 
     def set_param_groups(self, param_groups: list[dict[str, Any]]):
@@ -19,21 +22,14 @@ class BaseOptimizer(nn.Module):
         self._params = []
         self._p_names = []
         for group in param_groups:
-            self._params.append(group["params"])
+            assert len(group["params"]) == 1
+            self._params.append(group["params"][0])
             self._p_names.append(group["p_name"])
         # we need to ensure that the params only contains the ones that we want to
         # optimize for, hence for all we gather gradients and could compute the jacobian
         for param in self._params:
             if not param.requires_grad:
                 raise ValueError("All params in the params_group should require grads.")
-
-    @property
-    def requires_jacobian(self):
-        return False
-
-    @property
-    def requires_loss(self):
-        return False
 
     @property
     def _numel(self):
@@ -130,7 +126,7 @@ class BaseOptimizer(nn.Module):
 
         raise ValueError(f"The current {line_search_fn=} is not supported.")
 
-    def set_state(self, state: dict):
+    def set_state(self, state: Any):
         for key, value in state.items():
             setattr(self, key, value)
 

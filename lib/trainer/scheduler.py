@@ -6,8 +6,6 @@ import torch
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
 from lib.optimizer.base import BaseOptimizer
-from lib.optimizer.gd import GradientDecentLinesearch
-from lib.optimizer.newton import LevenbergMarquardt
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 
@@ -90,7 +88,7 @@ class OptimizerScheduler(Scheduler):
         self.check_attribute(params)
 
         self.state: dict[str, Any] = {}
-        # self.prev_optimizer: Any = None
+        self.prev_optimizer_state = None
 
         # available optimizers
         # self.pytorch_optimizers: dict[str, Any] = {
@@ -151,10 +149,39 @@ class OptimizerScheduler(Scheduler):
                 params.requires_grad_()
 
                 self.state[p_name] = {
-                    "params": params,
+                    "params": [params],
                     "p_name": p_name,
                 }
         return list(self.state.values())
+
+    def configure_optimizer(
+        self,
+        optimizer: BaseOptimizer,
+        model: FLAME,
+        batch: dict,
+        iter_step: int,
+    ):
+        param_groups = self.param_groups(model, batch, iter_step)
+        optimizer.set_param_groups(param_groups)
+        optimizer.reset()
+        if self.copy_optimizer_state and self.prev_optimizer_state is not None:
+            optimizer.set_state(self.prev_optimizer_state)
+        self.prev_optimizer_state = optimizer.get_state()
+
+    def update_model(self, model: FLAME, batch: dict):
+        for p_name, group in self.state.items():
+            params = group["params"][0]
+            module = getattr(model, p_name)
+            if p_name in model.shape_p_names:
+                shape_idx = batch["shape_idx"][:1]
+                module.weight[shape_idx] = params
+            else:
+                frame_idx = batch["frame_idx"]
+                module.weight[frame_idx] = params
+
+    def reset(self):
+        self.state = {}
+        self.prev_optimizer_state = None
 
     # def configure_optimizer(self, model: FLAME, batch: dict, iter_step: int):
     #     if self.optimizer in self.pytorch_optimizers:
@@ -172,18 +199,6 @@ class OptimizerScheduler(Scheduler):
     #         **self.optimizer_params,
     #     )  # type: ignore
     #     return optimizer
-
-    def configure_optimizer(
-        self,
-        optimizer: BaseOptimizer,
-        model: FLAME,
-        batch: dict,
-        iter_step: int,
-    ):
-        param_groups = self.param_groups(model, batch, iter_step)
-        optimizer.set_param_groups(param_groups)
-        if self.copy_optimizer_state and self.prev_optimizer is not None:
-            optimizer.set_state(self.prev_optimizer.get_state())
 
     # def configure_pytorch_optimizer(
     #     self, model: FLAME, batch: dict, iter_step: int
@@ -220,18 +235,3 @@ class OptimizerScheduler(Scheduler):
     #     self, model: FLAME, batch: dict, iter_step: int
     # ) -> BaseOptimizer:
     #     return self.get_optimizer(model, batch, iter_step)
-
-    def update_model(self, model: FLAME, batch: dict):
-        for p_name, group in self.state.items():
-            params = group["params"][0]
-            module = getattr(model, p_name)
-            if p_name in model.shape_p_names:
-                shape_idx = batch["shape_idx"][:1]
-                module.weight[shape_idx] = params
-            else:
-                frame_idx = batch["frame_idx"]
-                module.weight[frame_idx] = params
-
-    def reset(self):
-        self.state = {}
-        self.prev_optimizer = None

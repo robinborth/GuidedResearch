@@ -1,12 +1,25 @@
 # @package optimizer
 
 _target_: lib.optimizer.newton.LevenbergMarquardt
+
+# building the matrix A
 mode: dynamic
-lr: 1
+max_damping_steps: 20
 damping_factor: 1.0
 factor: 2.0
-lin_solver: pcg
-pcg_steps: 5
-pcg_jacobi: True
+levenberg: False
+
+# step size
+step_size: 1.0
 line_search_fn: null
-only_levenberg: False
+
+# Ax=b solver
+# lin_solver:
+#   _target_: lib.optimizer.pcg.PCGSolver
+#   max_iter: 5
+#   verbose: False
+#   tol: 1e-08
+#   mode: jaccobi 
+
+lin_solver:
+  _target_: lib.optimizer.pcg.PytorchSolver

@@ -1,5 +1,0 @@
-# @package optimizer
-
-optimizer: ternary_linesearch
-copy_optimizer_state: False
-optimizer_params: {}

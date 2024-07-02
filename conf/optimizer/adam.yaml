@@ -1,6 +1,7 @@
 # @package optimizer
 
-optimizer: adam
-copy_optimizer_state: True
-optimizer_params:
+_target_: lib.optimizer.pytorch.PytorchOptimizer
+optimizer:
+  _target_: torch.optim.adam.Adam
+  _partial_: True
   lr: 1e-02
