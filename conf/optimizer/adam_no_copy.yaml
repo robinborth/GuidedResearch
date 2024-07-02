@@ -1,6 +1,5 @@
 # @package optimizer
 
 optimizer: adam
-copy_optimizer_state: False 
 optimizer_params:
   lr: 1e-02

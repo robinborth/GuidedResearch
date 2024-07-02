@@ -13,7 +13,7 @@ end_frame: 24
 max_iters: 4
 max_optims: 3
 
-optimizer:
+scheduler:
   milestones: [0]
   params: [[global_pose,transl,neck_pose,eye_pose,expression_params]]
 

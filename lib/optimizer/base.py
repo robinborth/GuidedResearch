@@ -1,44 +1,39 @@
 # https://pytorch.org/docs/stable/_modules/torch/optim/lbfgs.html#LBFGS
 
-from typing import Callable, Tuple
+from typing import Any, Callable, Tuple
 
 import torch
-from torch.optim import Optimizer
+from torch import nn
 
 from lib.optimizer.linesearch import ternary_search
 
 
-class BaseOptimizer(Optimizer):
-    def __init__(
-        self,
-        params,
-        lr: float = 1.0,
-        line_search_fn: str | None = None,
-    ):
-        super().__init__(params, defaults={})
+class BaseOptimizer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self._numel_cache = None
 
+    def set_param_groups(self, param_groups: list[dict[str, Any]]):
         # we only have one param group per optimization, where in params we have
         # multiple parameters which we optimize
         self._params = []
         self._p_names = []
-        for group in self.param_groups:
-            if len(group["params"]) != 1:
-                raise ValueError("Optimizer doesn't support per-parameter options.")
-            self._params.append(group["params"][0])
+        for group in param_groups:
+            self._params.append(group["params"])
             self._p_names.append(group["p_name"])
-
         # we need to ensure that the params only contains the ones that we want to
         # optimize for, hence for all we gather gradients and could compute the jacobian
         for param in self._params:
             if not param.requires_grad:
                 raise ValueError("All params in the params_group should require grads.")
 
-        self._numel_cache = None
-        self.converged = False
+    @property
+    def requires_jacobian(self):
+        return False
 
-        # line search options
-        self.lr = lr  # default lr
-        self.line_search_fn = line_search_fn
+    @property
+    def requires_loss(self):
+        return False
 
     @property
     def _numel(self):
@@ -71,6 +66,10 @@ class BaseOptimizer(Optimizer):
         for p, pdata in zip(self._params, params_data):
             p.copy_(pdata)  # inplace copy
 
+    def _zero_grad(self):
+        for p in self._params:
+            p.grad = None
+
     def _directional_evaluate(
         self,
         loss_closure: Callable[[], torch.Tensor],  # does not modify the grad
@@ -79,7 +78,7 @@ class BaseOptimizer(Optimizer):
         direction: torch.Tensor,
     ) -> Tuple[float, torch.Tensor]:
         self._add_direction(step_size=step_size, direction=direction)
-        self.zero_grad()
+        self._zero_grad()
         loss = loss_closure()
         loss.backward()
         flat_grad = self._gather_flat_grad()
@@ -111,24 +110,14 @@ class BaseOptimizer(Optimizer):
             direction=direction,
         )
 
-    def newton_step(
-        self,
-        loss_closure: Callable[[], torch.Tensor],
-        jacobian_closure: Callable[[], torch.Tensor],
-    ) -> float:
-        raise NotImplementedError
-
-    @property
-    def perform_linesearch(self):
-        return self.line_search_fn is not None
-
     def linesearch(
         self,
         loss_closure: Callable[[], torch.Tensor],
         x_init: list[torch.Tensor],
         direction: torch.Tensor,
+        line_search_fn: str | None = None,
     ) -> float:
-        if self.line_search_fn is None:
+        if line_search_fn is None:
             raise ValueError("Currently no line search selected.")
 
         evaluate_closure = self._evaluate_closure(
@@ -136,14 +125,21 @@ class BaseOptimizer(Optimizer):
             x_init=x_init,
             direction=direction,
         )
-        if self.line_search_fn == "ternary_search":
+        if line_search_fn == "ternary_search":
             return ternary_search(evaluate_closure=evaluate_closure)
 
-        raise ValueError(f"The current {self.line_search_fn=} is not supported.")
-
-    def get_state(self):
-        raise NotImplementedError
+        raise ValueError(f"The current {line_search_fn=} is not supported.")
 
     def set_state(self, state: dict):
         for key, value in state.items():
             setattr(self, key, value)
+
+    def get_state(self):
+        raise NotImplementedError
+
+    def step(
+        self,
+        loss_closure: Callable[[], torch.Tensor],
+        jacobian_closure: Callable[[], torch.Tensor],
+    ) -> float:
+        raise NotImplementedError

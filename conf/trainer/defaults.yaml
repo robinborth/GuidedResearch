@@ -2,6 +2,7 @@
 model: ???
 datamodule: ???
 logger: ???
+optimizer: ???
 loss: ???
 camera: ???
 rasterizer: ???
@@ -10,11 +11,9 @@ rasterizer: ???
 save_interval: 1
 final_video: True
 
-optimizer:
+scheduler:
   _target_: lib.trainer.scheduler.OptimizerScheduler
-  optimizer: ${optimizer.optimizer}
-  optimizer_params: ${optimizer.optimizer_params}
-  copy_optimizer_state: ${optimizer.copy_optimizer_state}
+  copy_optimizer_state: False
   milestones: ???
   params: ???
 

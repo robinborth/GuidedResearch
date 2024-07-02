@@ -11,7 +11,7 @@ init_idxs: [0,20,35,55,65,95,110,115]
 max_iters: 50
 max_optims: 50
 
-optimizer:
+scheduler:
   milestones: [0,10,15]
   params: [[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]]
 

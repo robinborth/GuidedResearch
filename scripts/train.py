@@ -45,16 +45,12 @@ def optimize(cfg: DictConfig) -> None:
     log.info("==> initilizing loss ...")
     loss = hydra.utils.instantiate(cfg.loss, _partial_=True)
 
-    log.info("==> initilizing optimizer ...")
-    optimizer = hydra.utils.instantiate(cfg.optimizer)
-
     if cfg.get("joint_trainer"):
         log.info("==> initializing joint trainer ...")
         trainer: BaseTrainer = hydra.utils.instantiate(
             cfg.joint_trainer,
             model=model,
             loss=loss,
-            optimizer=optimizer,
             logger=logger,
             datamodule=datamodule,
             camera=camera,
@@ -69,7 +65,6 @@ def optimize(cfg: DictConfig) -> None:
             cfg.sequential_trainer,
             model=model,
             loss=loss,
-            optimzier=optimizer,
             logger=logger,
             datamodule=datamodule,
             camera=camera,

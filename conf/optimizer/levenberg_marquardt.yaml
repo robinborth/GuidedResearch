@@ -1,14 +1,12 @@
 # @package optimizer
 
-optimizer: levenberg_marquardt
-copy_optimizer_state: False
-optimizer_params:
-  mode: dynamic
-  lr: 1
-  damping_factor: 1.0
-  factor: 2.0
-  lin_solver: pcg
-  pcg_steps: 5
-  pcg_jacobi: True
-  line_search_fn: null
-  only_levenberg: False
+_target_: lib.optimizer.newton.LevenbergMarquardt
+mode: dynamic
+lr: 1
+damping_factor: 1.0
+factor: 2.0
+lin_solver: pcg
+pcg_steps: 5
+pcg_jacobi: True
+line_search_fn: null
+only_levenberg: False

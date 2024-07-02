@@ -254,9 +254,7 @@ class FlameLogger:
 
     def log_gradients(self, verbose: bool = False):
         log = {}
-        for group in self.optimizer.param_groups:
-            p_name = group["p_name"]
-            weight = group["params"][0]
+        for p_name, weight in zip(self.optimizer._p_names, self.optimizer._params):
             grad = weight.grad
 
             log[f"{self.mode}/{p_name}/weight/mean"] = weight.mean()

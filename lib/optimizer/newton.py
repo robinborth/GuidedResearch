@@ -1,5 +1,5 @@
 import logging
-from typing import Callable
+from typing import Any, Callable
 
 import torch
 
@@ -12,19 +12,18 @@ log = logging.getLogger()
 class LevenbergMarquardt(BaseOptimizer):
     def __init__(
         self,
-        params,
         mode: str = "dynamic",  # dynamic, static
         only_levenberg: bool = False,
+        max_damping_steps: int = 10,
         damping_factor: float = 1.0,
         factor: float = 2.0,
-        max_damping_steps: int = 20,
-        line_search_fn: str | None = None,
         lin_solver: str = "pytorch",  # pytorch, pcg
         pcg_steps: int = 5,
         pcg_jacobi: bool = True,
         lr: float = 1.0,
+        line_search_fn: str | None = None,
     ):
-        super().__init__(params, line_search_fn=line_search_fn)
+        super().__init__()
         self.mode = mode
         self.damping_factor = damping_factor
         self.only_levenberg = only_levenberg
@@ -35,6 +34,11 @@ class LevenbergMarquardt(BaseOptimizer):
         self.pcg_steps = pcg_steps
         self.pcg_jacobi = pcg_jacobi
         self.lr = lr
+        self.line_search_fn = line_search_fn
+
+    @property
+    def requires_jacobian(self):
+        return True
 
     def get_state(self):
         return {"damping_factor": self.damping_factor}
@@ -125,7 +129,7 @@ class LevenbergMarquardt(BaseOptimizer):
 
         # difference with JTF
         with torch.enable_grad():
-            self.zero_grad()
+            self._zero_grad()
             loss = loss_closure()
             loss.backward()
             grad_f = self._gather_flat_grad().neg()  # we minimize
@@ -142,11 +146,12 @@ class LevenbergMarquardt(BaseOptimizer):
 
         # determine the step size and possible perform linesearch
         step_size = self.lr
-        if self.perform_linesearch:
+        if self.line_search_fn is not None:
             step_size = self.linesearch(
                 loss_closure=loss_closure,
                 x_init=x_init,
                 direction=direction,
+                line_search_fn=self.line_search_fn,
             )
         self._add_direction(step_size, direction)
 

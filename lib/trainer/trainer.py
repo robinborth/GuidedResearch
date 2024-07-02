@@ -6,6 +6,7 @@ from tqdm import tqdm
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
 from lib.model.loss import BaseLoss
+from lib.optimizer.base import BaseOptimizer
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger
@@ -21,7 +22,8 @@ class BaseTrainer:
         loss: BaseLoss,
         logger: FlameLogger,
         datamodule: DPHMDataModule,
-        optimizer: OptimizerScheduler,
+        optimizer: BaseOptimizer,
+        scheduler: OptimizerScheduler,
         coarse2fine: CoarseToFineScheduler,
         # camera settings
         camera: Camera,
@@ -43,11 +45,12 @@ class BaseTrainer:
         self.model = model
         self.logger = logger
         self.datamodule = datamodule
+        self.optimizer = optimizer
         self.loss = loss
 
         self.coarse2fine = coarse2fine
         self.coarse2fine.init_scheduler(camera, rasterizer)
-        self.optimizer = optimizer
+        self.scheduler = scheduler
 
         # loop settings
         self.max_iters = max_iters
@@ -69,10 +72,11 @@ class BaseTrainer:
         model = self.model
         datamodule = self.datamodule
         coarse2fine = self.coarse2fine
-        optimizer_scheduler = self.optimizer
+        scheduler = self.scheduler
+        optimizer = self.optimizer
 
         # outer optimization loop
-        optimizer_scheduler.freeze(model)
+        scheduler.freeze(model)
 
         for iter_step in range(self.max_iters):
             # prepare logging
@@ -91,7 +95,8 @@ class BaseTrainer:
                 correspondences = model.correspondence_step(batch)
 
             # setup optimizer
-            optimizer = optimizer_scheduler.configure_optimizer(
+            scheduler.configure_optimizer(
+                optimizer=optimizer,
                 model=model,
                 batch=batch,
                 iter_step=iter_step,
@@ -117,16 +122,16 @@ class BaseTrainer:
                 logger.optimizer = optimizer
 
                 # optimize step
-                if optimizer_scheduler.requires_jacobian:
+                if optimizer.requires_jacobian:
                     optimizer.newton_step(loss_closure, jacobian_closure)
-                elif optimizer_scheduler.requires_loss:
+                elif optimizer.requires_loss:
                     optimizer.step(loss_closure)
                 else:
                     optimizer.zero_grad()
                     loss = loss_closure()
                     loss.backward()
                     optimizer.step()
-                optimizer_scheduler.update_model(model, batch)
+                scheduler.update_model(model, batch)
 
                 # metrics and loss logging
                 logger.log_gradients()
@@ -189,7 +194,7 @@ class JointTrainer(BaseTrainer):
 
     def optimize(self):
         self.logger.mode = self.mode
-        self.optimizer.reset()
+        self.scheduler.reset()
         self.coarse2fine.reset()
         self.datamodule.update_idxs(self.init_idxs)
 
@@ -214,7 +219,7 @@ class SequentialTrainer(BaseTrainer):
         for frame_idx in range(self.start_frame, self.end_frame):
             self.reset_progress(outer_progress, self.max_iters)
             self.logger.mode = self.mode
-            self.optimizer.reset()
+            self.scheduler.reset()
             self.coarse2fine.reset()
             self.datamodule.update_idxs([frame_idx])
 
