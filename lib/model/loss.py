@@ -62,6 +62,13 @@ def point2plane_distance(q: torch.Tensor, p: torch.Tensor, n: torch.Tensor):
     return torch.sqrt(torch.pow(((q - p) * n).sum(-1), 2))  # (B, W, H)
 
 
+def regularization_distance(params: list[torch.Tensor]):
+    latents = [(p**2).view(-1) for p in params if p is not None]
+    if latents:
+        return torch.cat(latents)
+    return torch.tensor(0.0)
+
+
 class BaseLoss(nn.Module):
     def __init__(
         self,
@@ -87,6 +94,14 @@ class BaseLoss(nn.Module):
     def forward(self, out: dict[str, torch.Tensor]):
         raise NotImplementedError
 
+    def model_step(self):
+        return self.model.model_step(
+            batch=self.batch,
+            correspondences=self.correspondences,
+            params=self.params,
+            p_names=self.p_names,
+        )
+
     def _loss_step(
         self,
         model: FLAME,
@@ -100,13 +115,14 @@ class BaseLoss(nn.Module):
         return loss.reshape(-1)  # (B, C)
 
     def loss_step(self):
-        return self._loss_step(
+        loss = self._loss_step(
             model=self.model,
             batch=self.batch,
             correspondences=self.correspondences,
             params=self.params,
             p_names=self.p_names,
         )
+        return dict(loss=loss)
 
     def _jacobian_step(
         self,
@@ -127,7 +143,8 @@ class BaseLoss(nn.Module):
             vectorize=True,
         )
         J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
-        return J
+        F = self._loss_step(model, batch, correspondences, params, p_names)
+        return J, F
 
     def jacobian_step(self):
         return self._jacobian_step(
@@ -143,7 +160,7 @@ class BaseLoss(nn.Module):
     ####################################################################################
 
     def loss_closure(self):
-        return lambda: self.loss_step().mean()  # this returns a scalar
+        return lambda: self.loss_step()["loss"].mean()
 
     def jacobian_closure(self):
         return lambda: self.jacobian_step()
@@ -157,29 +174,33 @@ class BaseLoss(nn.Module):
 class ChainedLoss(BaseLoss):
     def __init__(self, chain: dict = {}, **kwargs):
         super().__init__(**kwargs)
-        self.chain: list[BaseLoss] = []
+        self.chain: dict[str, BaseLoss] = {}
         for loss, weight in chain.items():
             if loss == "point2plane":
-                self.chain.append(Point2PlaneLoss(weight=weight, **kwargs))
+                _loss: BaseLoss = Point2PlaneLoss(weight=weight, **kwargs)
             elif loss == "point2point":
-                self.chain.append(Point2PointLoss(weight=weight, **kwargs))
+                _loss = Point2PointLoss(weight=weight, **kwargs)
             elif loss == "regularization":
-                self.chain.append(LatentRegularizationLoss(weight=weight, **kwargs))
+                _loss = LatentRegularizationLoss(weight=weight, **kwargs)
             elif loss == "symmetricICP":
-                self.chain.append(SymmetricICPLoss(weight=weight, **kwargs))
+                _loss = SymmetricICPLoss(weight=weight, **kwargs)
             elif loss == "landmark2d":
-                self.chain.append(Landmark2DLoss(weight=weight, **kwargs))
+                _loss = Landmark2DLoss(weight=weight, **kwargs)
             elif loss == "landmark3d":
-                self.chain.append(Landmark3DLoss(weight=weight, **kwargs))
+                _loss = Landmark3DLoss(weight=weight, **kwargs)
             else:
                 raise ValueError(f"Value {loss} is not specified.")
+            self.chain[loss] = _loss
 
     def loss_step(self):
-        loss = [l_func.loss_step() for l_func in self.chain]
-        return torch.cat(loss)
+        loss = {}
+        for key, l_func in self.chain.items():
+            loss[key] = l_func.loss_step()["loss"]
+        loss["loss"] = torch.cat(tuple(loss.values()))
+        return loss
 
     def jacobian_step(self):
-        J = [l_func.jacobian_step() for l_func in self.chain]
+        J = [l_func.jacobian_step() for l_func in self.chain.values()]
         return torch.cat(J, dim=0)
 
 

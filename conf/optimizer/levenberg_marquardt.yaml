@@ -4,7 +4,7 @@ optimizer: levenberg_marquardt
 copy_optimizer_state: False
 optimizer_params:
   mode: dynamic
-  lr: 1.0
+  lr: 1
   damping_factor: 1.0
   factor: 2.0
   lin_solver: pcg

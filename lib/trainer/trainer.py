@@ -31,6 +31,7 @@ class BaseTrainer:
         max_optims: int = 100,
         # logging settings
         save_interval: int = 1,
+        final_video: bool = True,
         # convergence tests
         check_convergence: bool = False,
         convergence_threshold: float = 1e-10,
@@ -60,6 +61,7 @@ class BaseTrainer:
 
         # debug settings
         self.save_interval = save_interval
+        self.final_video = final_video
         self.frames: list[int] = []
 
     def optimize_loop(self, outer_progress, inner_progress):
@@ -73,9 +75,8 @@ class BaseTrainer:
         optimizer_scheduler.freeze(model)
 
         for iter_step in range(self.max_iters):
-            # reset the inner progress bar
+            # prepare logging
             self.reset_progress(inner_progress, self.max_optims)
-            # prepare the logger
             logger.iter_step = iter_step
 
             # fetch single batch
@@ -97,29 +98,29 @@ class BaseTrainer:
             )
 
             # setup loss
-            loss = self.loss(
+            L = self.loss(
                 model=model,
                 batch=batch,
                 correspondences=correspondences,
                 params=optimizer._params,
                 p_names=optimizer._p_names,
             )
-            loss_closure = loss.loss_closure()
-            jacobian_closure = loss.jacobian_closure()
+            loss_closure = L.loss_closure()
+            jacobian_closure = L.jacobian_closure()
+            logger.log_loss(L.loss_step())
 
             # inner optimization loop
-            loss_tracker = []
-
             for optim_step in range(self.max_optims):
-                # state
+                # update logger state
                 logger.optim_step = optim_step
                 logger.global_step = iter_step * self.max_optims + optim_step + 1
+                logger.optimizer = optimizer
 
                 # optimize step
                 if optimizer_scheduler.requires_jacobian:
-                    loss = optimizer.newton_step(loss_closure, jacobian_closure)
+                    optimizer.newton_step(loss_closure, jacobian_closure)
                 elif optimizer_scheduler.requires_loss:
-                    loss = optimizer.step(loss_closure)
+                    optimizer.step(loss_closure)
                 else:
                     optimizer.zero_grad()
                     loss = loss_closure()
@@ -127,42 +128,32 @@ class BaseTrainer:
                     optimizer.step()
                 optimizer_scheduler.update_model(model, batch)
 
-                # logging
+                # metrics and loss logging
+                logger.log_gradients()
+                logger.log_metrics(batch=batch, model=L.model_step())
+                loss = logger.log_loss(L.loss_step())
                 inner_progress.set_postfix({"loss": loss})
-                logger.log(f"loss/{self.mode}", loss)
-                logger.log_gradients(optimizer)
-
-                # check for convergence
-                if self.check_convergence:
-                    loss_tracker.append(loss)
-                    if len(loss_tracker) >= self.min_tracker_steps:
-                        tracks = loss_tracker[-self.max_tracker_steps :]
-                        criterion = torch.tensor(tracks).std()
-                        logger.log("convergence/std", criterion)
-                        logger.log(f"convergence/{iter_step:03}/std", criterion)
-                        if criterion < self.convergence_threshold:
-                            break
 
                 # finish the inner loop
                 inner_progress.update(1)
 
-            # debug and logging
-            logger.log_metrics(batch=batch, model=correspondences)
+            # progress logging
             if (iter_step % self.save_interval) == 0:
                 logger.log_3d_points(batch=batch, model=correspondences)
                 logger.log_render(batch=batch, model=correspondences)
                 logger.log_input_batch(batch=batch, model=correspondences)
-                logger.log_loss(batch=batch, model=correspondences)
+                logger.log_error(batch=batch, model=correspondences)
 
             # finish the outer loop
-            outer_progress.set_postfix({"params": optimizer._p_names, "loss": loss})
+            outer_progress.set_postfix({"params": optimizer._p_names})
             outer_progress.update(1)
 
         # final metric logging
+        logger.mode = f"final/{self.mode}"
         logger.log_metrics(
             batch=batch,
-            model=correspondences,
-            prefix=f"metric/{self.mode}",
+            model=L.model_step(),
+            verbose=False,
         )
 
     def optimize(self):

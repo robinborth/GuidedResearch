@@ -45,7 +45,7 @@ def optimize(cfg: DictConfig) -> None:
     log.info("==> initilizing loss ...")
     loss = hydra.utils.instantiate(cfg.loss, _partial_=True)
 
-    if "joint_trainer" in cfg:
+    if cfg.get("joint_trainer"):
         log.info("==> initializing joint trainer ...")
         trainer: BaseTrainer = hydra.utils.instantiate(
             cfg.joint_trainer,
@@ -59,7 +59,7 @@ def optimize(cfg: DictConfig) -> None:
         log.info("==> joint optimization ...")
         trainer.optimize()
 
-    if "sequential_trainer" in cfg:
+    if cfg.get("sequential_trainer"):
         log.info("==> initializing sequential trainer ...")
         trainer = hydra.utils.instantiate(
             cfg.sequential_trainer,
@@ -74,19 +74,20 @@ def optimize(cfg: DictConfig) -> None:
         trainer.optimize()
 
     # final full screen image
-    log.info("==> log final result ...")
-    for frame_idx in tqdm(trainer.frames):
-        logger.capture_screen(
-            camera=camera,
-            rasterizer=rasterizer,
-            datamodule=datamodule,
-            model=model,
-            idx=frame_idx,
-        )
-    logger.log_video("render_normal", framerate=20)
-    logger.log_video("render_merged", framerate=20)
-    logger.log_video("error_point_to_plane", framerate=20)
-    logger.log_video("batch_color", framerate=20)
+    if trainer.final_video:
+        log.info("==> log final result ...")
+        for frame_idx in tqdm(trainer.frames):
+            logger.capture_screen(
+                camera=camera,
+                rasterizer=rasterizer,
+                datamodule=datamodule,
+                model=model,
+                idx=frame_idx,
+            )
+        logger.log_video("render_normal", framerate=20)
+        logger.log_video("render_merged", framerate=20)
+        logger.log_video("error_point_to_plane", framerate=20)
+        logger.log_video("batch_color", framerate=20)
 
 
 if __name__ == "__main__":

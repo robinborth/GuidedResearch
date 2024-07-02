@@ -253,6 +253,7 @@ class FLAME(nn.Module):
                 expression_params = param
 
         return {
+            "mask": mask,
             "point": point,
             "normal": correspondences["normal"][mask],  # (C, 3)
             "point_gt": batch["point"][mask],  # (C, 3)

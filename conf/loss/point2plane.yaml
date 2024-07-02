@@ -5,3 +5,4 @@ defaults:
   - _self_
 
 _target_: lib.model.loss.Point2PlaneLoss
+weight: 1.0

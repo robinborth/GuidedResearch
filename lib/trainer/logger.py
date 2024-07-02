@@ -16,6 +16,7 @@ from lib.model.loss import (
     landmark_3d_distance,
     point2plane_distance,
     point2point_distance,
+    regularization_distance,
 )
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
@@ -47,6 +48,7 @@ class FlameLogger:
         self.global_step = 0
         self.mode = mode
         self.capture_video = False
+        self.optimizer: Any = None
 
     def init_logger(self, model: FLAME, cfg: DictConfig):
         config: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
@@ -81,7 +83,7 @@ class FlameLogger:
         for idx in range(B):
             yield B, idx, batch["frame_idx"][idx].item()
 
-    def log_loss(self, batch: dict, model: dict):
+    def log_error(self, batch: dict, model: dict):
         """The max is an error of 10cm"""
         # color entcoding for the loss map
         norm = plt.Normalize(0.0, vmax=self.max_loss)
@@ -114,6 +116,21 @@ class FlameLogger:
             # error mask
             file_name = self.log_path("error_mask", f_idx, "png")
             self.save_image(file_name, model["mask"][b_idx])
+
+            # normal distance
+            file_name = self.log_path("error_normal", f_idx, "png")
+            normal_dot = (batch["normal"][b_idx] * model["normal"][b_idx]).sum(-1)
+            normal_map = normal_dot.detach().cpu().numpy()
+            normal_map = (1 - ((normal_map + 1) / 2)) * self.max_loss
+            normal_map = torch.from_numpy(sm.to_rgba(normal_map)[:, :, :3])
+            normal_map[~model["r_mask"][b_idx], :] = 1.0
+            normal_map = (normal_map * 255).to(torch.uint8)
+            self.save_image(file_name, normal_map)
+
+        # debug the overlap of the mask
+        for key, value in model.items():
+            if "mask" in key:
+                self.log(f"mask/{key}", float(value.sum()))
 
     def log_render(self, batch: dict, model: dict):
         for _, b_idx, f_idx in self.iter_debug_idx(batch):
@@ -195,78 +212,69 @@ class FlameLogger:
             color_image[y_idx, x_idx, :] = 255
             self.save_image(file_name, color_image)
 
-    def log_metrics(self, batch: dict, model: dict, prefix: str = "loss"):
-        mask = model["mask"]
-        point2plane = point2plane_distance(
-            q=model["point"][mask],
-            p=batch["point"][mask],
-            n=model["normal"][mask],
-        )
-        self.log(f"{prefix}/point2plane", point2plane.mean())
+    def log_metrics(self, batch, model: dict, verbose: bool = False):
+        m = model
+        mask = m["mask"]
 
-        point2point = point2point_distance(
-            q=model["point"][mask],
-            p=batch["point"][mask],
-        )
-        self.log(f"{prefix}/point2point", point2point.mean())
+        point2plane = point2plane_distance(m["point"], m["point_gt"], m["normal"])
+        self.log(f"{self.mode}/metric/point2plane", point2plane.mean())
 
-        lm_3d_camera = self.model.extract_landmarks(batch["lm_3d_camera"])
-        lm_3d_dist = landmark_3d_distance(model["lm_3d_camera"], lm_3d_camera)  # (B,)
-        self.log(f"{prefix}/landmark_3d", lm_3d_dist.mean())
+        point2point = point2point_distance(m["point"], m["point_gt"])
+        self.log(f"{self.mode}/metric/point2point", point2point.mean())
 
-        # debug lm_3d loss, the dataset contains all >400 mediapipe landmarks
-        lm_2d_ndc = self.model.extract_landmarks(batch["lm_2d_ndc"])
-        lm_2d_dist = landmark_2d_distance(model["lm_2d_ndc"], lm_2d_ndc)  # (B,)
-        self.log(f"{prefix}/landmark_2d", lm_2d_dist.mean())
+        lm_3d_dist = landmark_3d_distance(m["lm_3d_camera"], m["lm_3d_camera_gt"])
+        self.log(f"{self.mode}/metric/landmark_3d", lm_3d_dist.mean())
 
-        # debug the overlap of the mask
-        for key, value in model.items():
-            if "mask" in key:
-                self.log(f"mask/{key}", float(value.sum()))
+        lm_2d_dist = landmark_3d_distance(m["lm_2d_ndc"], m["lm_2d_ndc_gt"])
+        self.log(f"{self.mode}/metric/landmark_2d", lm_2d_dist.mean())
+
+        # debug the regularization
+        params = ["expression_params", "shape_params"]
+        reg_dist = regularization_distance([m[p] for p in params])
+        self.log(f"{self.mode}/metric/regularization", reg_dist.mean())
 
         # debug for each frame own loss curve
-        i = 0
-        for _, b_idx, f_idx in self.iter_debug_idx(batch):
-            j = mask[: b_idx + 1].sum()
-            self.log(f"{prefix}/{f_idx:03}/point2plane", point2plane[i:j].mean())
-            self.log(f"{prefix}/{f_idx:03}/point2point", point2point[i:j].mean())
-            self.log(f"{prefix}/{f_idx:03}/landmark_3d", lm_3d_dist[b_idx].mean())
-            self.log(f"{prefix}/{f_idx:03}/landmark_2d", lm_2d_dist[b_idx].mean())
-            for key, value in model.items():
-                if "mask" in key:
-                    self.log(f"mask/{f_idx:05}/{key}", float(value[b_idx].sum()))
-            i = j
+        if self.mode == "sequential" and verbose:
+            i = 0
+            for _, b_idx, f_idx in self.iter_debug_idx(batch):
+                pre = f"{self.mode}/metric/{f_idx:03}"
+                j = mask[: b_idx + 1].sum()
+                self.log(f"{pre}/point2plane", point2plane[i:j].mean())
+                self.log(f"{pre}/point2point", point2point[i:j].mean())
+                self.log(f"{pre}/landmark_3d", lm_3d_dist[b_idx].mean())
+                self.log(f"{pre}/landmark_2d", lm_2d_dist[b_idx].mean())
+                i = j
 
-    def log_gradients(self, optimizer, verbose: bool = False):
+    def log_loss(self, loss_info: dict[str, torch.Tensor]):
+        for key, value in loss_info.items():
+            k = f"loss/{key}" if key != "loss" else "loss/"
+            v = value.mean() if value.numel() else torch.tensor(0.0)
+            self.log(f"{self.mode}/{k}", v)
+        return loss_info["loss"].mean().item()
+
+    def log_gradients(self, verbose: bool = False):
         log = {}
-        for group in optimizer.param_groups:
+        for group in self.optimizer.param_groups:
             p_name = group["p_name"]
             weight = group["params"][0]
             grad = weight.grad
 
+            log[f"{self.mode}/{p_name}/weight/mean"] = weight.mean()
+            log[f"{self.mode}/{p_name}/weight/absmax"] = weight.abs().max()
+            log[f"{self.mode}/{p_name}/grad/mean"] = grad.mean()
+            log[f"{self.mode}/{p_name}/grad/absmax"] = grad.abs().max()
+
             if verbose:
                 for i in range(weight.shape[-1]):
                     value = weight[:, i].mean()
-                    log[f"weight/{p_name}_{i}_mean"] = value
+                    log[f"{self.mode}/{p_name}/{i:03}/weight"] = value
                 for i in range(grad.shape[-1]):
                     value = grad[:, i].mean()
-                    log[f"grad/{p_name}_{i}_mean"] = value
+                    log[f"{self.mode}/{p_name}/{i:03}/grad"] = value
 
-            value = weight.mean()
-            # log[f"weight/{step}/{p_name}_mean"] = value
-            log[f"weight/{p_name}_mean"] = value
-
-            value = weight.abs().max()
-            # log[f"weight/{step}/{p_name}_absmax"] = value
-            log[f"weight/{p_name}_absmax"] = value
-
-            value = grad.mean()
-            # log[f"grad/{step}/{p_name}_mean"] = value
-            log[f"grad/{p_name}_mean"] = value
-
-            value = grad.abs().max()
-            # log[f"grad/{step}/{p_name}_absmax"] = value
-            log[f"grad/{p_name}_absmax"] = value
+        damping_factor = getattr(self.optimizer, "damping_factor", None)
+        if damping_factor:
+            log[f"{self.mode}/optimizer/damping_factor"] = damping_factor
 
         self.log_dict(log)
 
@@ -307,7 +315,7 @@ class FlameLogger:
         # log
         self.log_render(batch=batch, model=out)
         self.log_input_batch(batch=batch, model=out)
-        self.log_loss(batch=batch, model=out)
+        self.log_error(batch=batch, model=out)
 
         # restore state
         camera.update(scale=prev_scale)

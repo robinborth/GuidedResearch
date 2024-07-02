@@ -5,8 +5,8 @@ import torch
 
 def ternary_search(
     evaluate_closure: Callable[[float], torch.Tensor],
-    ls_a: float = 1e-04,  # the lower bound on the step size
-    ls_z: float = 1e02,  # the uppper bound on the step size
+    ls_a: float = 1e-06,  # the lower bound on the step size
+    ls_z: float = 1e06,  # the uppper bound on the step size
     max_steps: int = 25,
 ) -> float:
     """The ternary search for linesearch.

@@ -3,10 +3,13 @@
 # make dynamic_lm dynamic_lm_levenberg static_lm_gn static_lm_gd
 ####################################################################################
 
-dynamic_lm:
+levenberg_marquardt:
 	python scripts/optimize.py \
-	task_name=dynamic_lm \
+	task_name=levenberg_marquardt \
 	optimizer=levenberg_marquardt \
+	joint_trainer.max_iters=100 \
+	joint_trainer.max_optims=10 \
+	sequential_trainer=null
 
 dynamic_lm_baseline:
 	python scripts/optimize.py \
@@ -136,6 +139,23 @@ reg:
 ####################################################################################
 # LM One Iter vs Adam
 ####################################################################################
+
+gauss_newton:
+	python scripts/optimize.py \
+	task_name=gauss_newton \
+	optimizer=gauss_newton \
+	optimizer.optimizer_params.pcg_steps=1 \
+	optimizer.optimizer_params.pcg_jacobi=False \
+	loss=point2plane \
+	joint_trainer.final_video=False \
+	joint_trainer.init_idxs=[0] \
+	joint_trainer.max_iters=1 \
+	joint_trainer.max_optims=1 \
+	joint_trainer.optimizer.milestones=[0] \
+	joint_trainer.optimizer.params=[[global_pose,transl]] \
+	joint_trainer.coarse2fine.milestones=[0] \
+	joint_trainer.coarse2fine.scales=[8] \
+	sequential_trainer=null \
 
 lm_one_optim:
 	python scripts/optimize.py \
