@@ -9,14 +9,27 @@ lm_JTF:
 	optimizer=levenberg_marquardt \
 	optimizer.use_grad=False \
 	optimizer.verbose=False \
+	sequential_trainer=null \
 
-lm_JTF_reg:
+lm_JTF_reg_6:
 	python scripts/optimize.py \
-	task_name=lm_JTF_reg \
+	task_name=lm_JTF_reg_6 \
 	loss=regularization \
+	loss.chain.regularization=1e-06 \
 	optimizer=levenberg_marquardt \
 	optimizer.use_grad=False \
 	optimizer.verbose=False \
+	sequential_trainer=null \
+
+lm_JTF_reg_7:
+	python scripts/optimize.py \
+	task_name=lm_JTF_reg_7 \
+	loss=regularization \
+	loss.chain.regularization=1e-07 \
+	optimizer=levenberg_marquardt \
+	optimizer.use_grad=False \
+	optimizer.verbose=False \
+	sequential_trainer=null \
 
 lm_grad:
 	python scripts/optimize.py \
@@ -25,6 +38,7 @@ lm_grad:
 	optimizer=levenberg_marquardt \
 	optimizer.use_grad=True \
 	optimizer.verbose=False \
+	sequential_trainer=null \
 
 
 ####################################################################################

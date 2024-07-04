@@ -68,3 +68,63 @@ class DPHMDataModule(L.LightningDataModule):
             sampler=self.sampler,
         )
         return next(iter(dataloader))
+
+
+class PCGDataModule(L.LightningDataModule):
+    def __init__(
+        self,
+        # dataset settings
+        data_dir: str = "/data",
+        split: list[float] = [0.8, 0.1, 0.1],
+        # training
+        batch_size: int = 32,
+        num_workers: int = 0,
+        pin_memory: bool = False,
+        drop_last: bool = True,
+        persistent_workers: bool = False,
+        shuffle: bool = True,
+        # dataset
+        dataset: Dataset | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__()
+        self.save_hyperparameters(logger=False)
+
+    def setup(self, stage: str):
+        if stage in ["fit", "all"]:
+            self.train_dataset = self.hparams["dataset"](split="train")
+        if stage in ["validate", "fit", "all"]:
+            self.val_dataset = self.hparams["dataset"](split="val")
+        if stage in ["test", "all"]:
+            self.test_dataset = self.hparams["dataset"](split="test")
+
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(
+            dataset=self.train_dataset,
+            batch_size=self.hparams["batch_size"],
+            num_workers=self.hparams["num_workers"],
+            pin_memory=self.hparams["pin_memory"],
+            drop_last=self.hparams["drop_last"],
+            persistent_workers=self.hparams["persistent_workers"],
+            shuffle=self.hparams["shuffle"],
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(
+            dataset=self.val_dataset,
+            batch_size=self.hparams["batch_size"],
+            num_workers=self.hparams["num_workers"],
+            pin_memory=self.hparams["pin_memory"],
+            drop_last=self.hparams["drop_last"],
+            persistent_workers=self.hparams["persistent_workers"],
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        return DataLoader(
+            dataset=self.test_dataset,
+            batch_size=self.hparams["batch_size"],
+            num_workers=self.hparams["num_workers"],
+            pin_memory=self.hparams["pin_memory"],
+            drop_last=self.hparams["drop_last"],
+            persistent_workers=self.hparams["persistent_workers"],
+        )

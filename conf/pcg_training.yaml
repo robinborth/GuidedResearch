@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - data: pcg
+  - model: pcg 
+  - callbacks: default
+  - logger: wandb 
+  - trainer: lightning 
+  - hydra: default
+  - paths: default
+  - optional local: default
+  - _self_
+
+seed: 123
+task_name: pcg_training
+tags: 
+  - ${task_name}

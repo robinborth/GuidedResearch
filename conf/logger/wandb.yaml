@@ -1,9 +1,0 @@
-# https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.loggers.wandb.html
-
-_target_: lib.trainer.logger.FlameLogger
-save_dir: ${paths.output_dir}
-project: guided-research
-entity: robinborth
-group: ${task_name}
-tags: ${tags}
-mode: ""

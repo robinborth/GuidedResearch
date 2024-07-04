@@ -2,7 +2,7 @@
 
 defaults:
   - model: flame 
-  - logger: wandb
+  - logger: flame_wandb 
   - data: kinect
   - loss: point2plane 
   - optimizer: levenberg_marquardt

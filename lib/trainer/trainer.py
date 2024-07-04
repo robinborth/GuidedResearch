@@ -129,7 +129,7 @@ class BaseTrainer:
 
                 # metrics and loss logging
                 if self.verbose:
-                    logger.log_gradients()
+                    logger.log_gradients(verbose=True)
                     logger.log_metrics(batch=batch, model=L.model_step())
                 loss = logger.log_loss(L.loss_step())
                 inner_progress.set_postfix({"loss": loss})

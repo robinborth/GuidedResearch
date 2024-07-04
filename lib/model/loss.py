@@ -112,7 +112,7 @@ class BaseLoss(nn.Module):
     ):
         out = model.model_step(batch, correspondences, params, p_names)
         loss = self.weight * self.forward(out)  # (C,)
-        return loss.reshape(-1)  # (B, C)
+        return loss.reshape(-1)  # (C,)
 
     def loss_step(self):
         loss = self._loss_step(

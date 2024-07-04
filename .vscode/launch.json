@@ -37,7 +37,10 @@
             "program": "scripts/optimize.py",
             "args": [
                 "optimizer=levenberg_marquardt",
+                "optimizer.step_size=1.0",
                 "loss=point2plane",
+                "loss.weight=2.0",
+                "joint_trainer.scheduler.milestones=[0,20,25]",
                 "sequential_trainer=null"
             ],
             "console": "integratedTerminal",

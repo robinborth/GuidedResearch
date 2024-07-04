@@ -275,3 +275,12 @@ class FLAMEDataset(DPHMDataset):
             "transl": self.transl,
             "scale": self.scale,
         }
+
+
+class PCGDataset(DPHMDataset):
+    def __init__(self, data_dir: str = "/flame", split: str = "train"):
+        self.data_dir = data_dir
+        self.split = split
+
+        paths = Path(self.data_dir).iterdir()
+

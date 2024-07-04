@@ -154,8 +154,9 @@ class LevenbergMarquardt(BaseOptimizer):
             self._zero_grad()
             loss = loss_closure()
             loss.backward()
+            grad = self._gather_flat_grad().neg()
             if self.use_grad:
-                JTF = self._gather_flat_grad().neg()  # dont use the pytorch gradients
+                JTF = grad  # dont use the pytorch gradients
 
         x_init = self._clone_param()
 
