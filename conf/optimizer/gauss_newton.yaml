@@ -16,6 +16,7 @@ line_search_fn: null
 # store linear system
 store_system: True
 output_dir: ${paths.output_dir}/linsys
+verbose: True
 
 # Ax=b solver
 # lin_solver:

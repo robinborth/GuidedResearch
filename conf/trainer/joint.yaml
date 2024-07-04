@@ -9,7 +9,7 @@ _target_: lib.trainer.trainer.JointTrainer
 # loop settings
 init_idxs: [0,20,35,55,65,95,110,115]
 max_iters: 50
-max_optims: 10
+max_optims: 20
 
 scheduler:
   milestones: [0,10,15]

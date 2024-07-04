@@ -1,16 +1,12 @@
 # @package _global_
 
 defaults:
-  - model:
-    - flame 
-    - dphm_christoph_mouthmove
+  - model: flame 
   - logger: wandb
   - data: kinect
   - loss: point2plane 
   - optimizer: levenberg_marquardt
   - trainer:
-    # - joint_debug
-    # - sequential_debug
     - joint
     - sequential
   - hydra: default

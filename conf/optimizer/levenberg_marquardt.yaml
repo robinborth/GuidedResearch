@@ -8,6 +8,7 @@ max_damping_steps: 10
 damping_factor: 1.0
 factor: 2.0
 levenberg: False
+use_grad: False
 
 # step size
 step_size: 1.0
@@ -16,6 +17,7 @@ line_search_fn: null
 # store linear system
 store_system: False
 output_dir: ${paths.output_dir}/linsys
+verbose: True
 
 # Ax=b solver
 # lin_solver:

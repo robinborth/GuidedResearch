@@ -1,0 +1,32 @@
+# @package _global_
+
+defaults:
+  - model:
+    - flame 
+    - dphm_christoph_mouthmove
+  - logger: wandb
+  - data: kinect
+  - loss: point2plane 
+  - optimizer: levenberg_marquardt
+  - trainer:
+    - joint
+    - sequential
+  - hydra: default
+  - paths: default
+  - _self_
+
+seed: 123
+device: cuda
+task_name: optimize
+tags: 
+  - ${task_name}
+
+# settings
+max_samplings: 10
+optimizer:
+  store_system: True   # we want to store the linear systems
+joint_trainer:
+  verbose: False # disable logging
+model:
+  init_config:
+    seed: null   # random samples

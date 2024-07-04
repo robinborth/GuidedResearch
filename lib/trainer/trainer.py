@@ -39,6 +39,7 @@ class BaseTrainer:
         convergence_threshold: float = 1e-10,
         min_tracker_steps: int = 2,
         max_tracker_steps: int = 5,
+        verbose: bool = True,
         **kwargs,
     ):
         # setup model
@@ -65,6 +66,7 @@ class BaseTrainer:
         # debug settings
         self.save_interval = save_interval
         self.final_video = final_video
+        self.verbose = verbose
         self.frames: list[int] = []
 
     def optimize_loop(self, outer_progress, inner_progress):
@@ -126,8 +128,9 @@ class BaseTrainer:
                 scheduler.update_model(model, batch)
 
                 # metrics and loss logging
-                logger.log_gradients()
-                logger.log_metrics(batch=batch, model=L.model_step())
+                if self.verbose:
+                    logger.log_gradients()
+                    logger.log_metrics(batch=batch, model=L.model_step())
                 loss = logger.log_loss(L.loss_step())
                 inner_progress.set_postfix({"loss": loss})
 
@@ -135,7 +138,7 @@ class BaseTrainer:
                 inner_progress.update(1)
 
             # progress logging
-            if (iter_step % self.save_interval) == 0:
+            if (iter_step % self.save_interval) == 0 and self.verbose:
                 logger.log_3d_points(batch=batch, model=correspondences)
                 logger.log_render(batch=batch, model=correspondences)
                 logger.log_input_batch(batch=batch, model=correspondences)
@@ -146,12 +149,13 @@ class BaseTrainer:
             outer_progress.update(1)
 
         # final metric logging
-        logger.mode = f"final/{self.mode}"
-        logger.log_metrics(
-            batch=batch,
-            model=L.model_step(),
-            verbose=False,
-        )
+        if self.verbose:
+            logger.mode = f"final/{self.mode}"
+            logger.log_metrics(
+                batch=batch,
+                model=L.model_step(),
+                verbose=False,
+            )
 
     def optimize(self):
         raise NotImplementedError

@@ -99,6 +99,7 @@ class FLAME(nn.Module):
         self.full_p_names = self.shape_p_names + self.frame_p_names
 
         # init the params of the model
+        self.init_config = init_config
         self.init_params_with_config(init_config=init_config)
 
     ####################################################################################

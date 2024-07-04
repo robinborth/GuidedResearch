@@ -15,6 +15,7 @@ class LevenbergMarquardt(BaseOptimizer):
         self,
         # solver
         lin_solver: LinearSystemSolver,
+        use_grad: bool = False,
         # building the matrix A
         mode: str = "dynamic",  # dynamic, static
         max_damping_steps: int = 10,
@@ -27,6 +28,7 @@ class LevenbergMarquardt(BaseOptimizer):
         # store linear systems
         store_system: bool = False,
         output_dir: str = "/data",
+        verbose: bool = True,
     ):
         super().__init__()
 
@@ -38,6 +40,7 @@ class LevenbergMarquardt(BaseOptimizer):
         self.levenberg = levenberg
 
         self.lin_solver = lin_solver
+        self.use_grad = use_grad
 
         self.step_size = step_size
         self.line_search_fn = line_search_fn
@@ -45,6 +48,7 @@ class LevenbergMarquardt(BaseOptimizer):
         self.step_count = 0
         self.store_system = store_system
         self.output_dir = output_dir
+        self.verbose = verbose
 
     def save_system(self, A: torch.Tensor, x: torch.Tensor, b: torch.Tensor):
         if not self.store_system:
@@ -53,6 +57,7 @@ class LevenbergMarquardt(BaseOptimizer):
         path.parent.mkdir(exist_ok=True, parents=True)
         system = {"A": A.detach().cpu(), "x": x.detach().cpu(), "b": b.detach().cpu()}
         torch.save(system, path)
+        self.step_count += 1
 
     def reset(self):
         super().reset()
@@ -66,8 +71,13 @@ class LevenbergMarquardt(BaseOptimizer):
         D = torch.diag(torch.ones_like(torch.diag(JTJ)))
         if not self.levenberg:
             D = torch.diag(torch.diag(JTJ))
+
+        # build the matrix and solve for the delta
         A = 2 * JTJ + damping_factor * D
-        return self.lin_solver(A=A, b=JTF)
+        direction = self.lin_solver(A=A, b=JTF)
+
+        self.save_system(A=A, x=direction, b=JTF)
+        return direction
 
     def dynamic_solve(
         self,
@@ -95,7 +105,7 @@ class LevenbergMarquardt(BaseOptimizer):
                 if loss_dx_k <= loss:  # improvement or same (converged)
                     improvement = True
                     break
-            if not improvement:
+            if not improvement and self.verbose:
                 log.info("No IMPROVEMENT!")
                 self.converged = True
             self.damping_factor = df_k
@@ -144,7 +154,8 @@ class LevenbergMarquardt(BaseOptimizer):
             self._zero_grad()
             loss = loss_closure()
             loss.backward()
-            # JTF = self._gather_flat_grad().neg()  # we minimize
+            if self.use_grad:
+                JTF = self._gather_flat_grad().neg()  # dont use the pytorch gradients
 
         x_init = self._clone_param()
 
@@ -166,8 +177,5 @@ class LevenbergMarquardt(BaseOptimizer):
                 line_search_fn=self.line_search_fn,
             )
         self._add_direction(step_size, direction)
-
-        self.save_system(A=JTJ, x=direction, b=JTF)
-        self.step_count += 1
 
         return float(loss)
