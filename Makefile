@@ -6,11 +6,8 @@
 levenberg_marquardt:
 	python scripts/optimize.py \
 	task_name=levenberg_marquardt \
-	loss=regularization \
+	loss=point2plane \
 	optimizer=levenberg_marquardt \
-	joint_trainer.max_iters=100 \
-	joint_trainer.max_optims=50 \
-	model.init_sigma=0.0005 \
 	sequential_trainer=null
 
 dynamic_lm_baseline:
@@ -153,8 +150,8 @@ gauss_newton:
 	joint_trainer.init_idxs=[0] \
 	joint_trainer.max_iters=1 \
 	joint_trainer.max_optims=1 \
-	joint_trainer.optimizer.milestones=[0] \
-	joint_trainer.optimizer.params=[[global_pose,transl]] \
+	joint_trainer.scheduler.milestones=[0] \
+	joint_trainer.scheduler.params=[[global_pose,transl]] \
 	joint_trainer.coarse2fine.milestones=[0] \
 	joint_trainer.coarse2fine.scales=[8] \
 	sequential_trainer=null \
@@ -165,8 +162,8 @@ lm_one_optim:
 	optimizer=levenberg_marquardt \
 	joint_trainer.max_iters=150 \
 	joint_trainer.max_optims=1 \
-	joint_trainer.optimizer.milestones=[0,50,60] \
-	joint_trainer.optimizer.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]] \
+	joint_trainer.scheduler.milestones=[0,50,60] \
+	joint_trainer.scheduler.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]] \
 	sequential_trainer.max_iters=10 \
 	sequential_trainer.max_optims=1 \
 	sequential_trainer.optimizer.milestones=[0] \
@@ -179,8 +176,8 @@ adam_one_optim:
 	optimizer=adam \
 	joint_trainer.max_iters=500 \
 	joint_trainer.max_optims=1 \
-	joint_trainer.optimizer.milestones=[0,150,200] \
-	joint_trainer.optimizer.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]] \
+	joint_trainer.scheduler.milestones=[0,150,200] \
+	joint_trainer.scheduler.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]] \
 	sequential_trainer.max_iters=100 \
 	sequential_trainer.max_optims=1 \
 	sequential_trainer.optimizer.milestones=[0] \
@@ -201,8 +198,8 @@ adam:
 	trainer.optimizer_params={lr:1e-02} \
 	joint_trainer.max_iters=30 \
 	joint_trainer.max_optims=100 \
-	joint_trainer.optimizer.milestones=[0,7,10] \
-	joint_trainer.optimizer.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]] \
+	joint_trainer.scheduler.milestones=[0,7,10] \
+	joint_trainer.scheduler.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]] \
 	sequential_trainer.max_iters=20 \
 	sequential_trainer.max_optims=50 \
 	sequential_trainer.optimizer.milestones=[0] \

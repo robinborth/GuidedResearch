@@ -177,6 +177,8 @@ class PCGSolver(LinearSystemSolver):
             self.condition_net: ConditionNet = IdentityConditionNet()
         elif mode == "jaccobi":
             self.condition_net = JaccobiConditionNet()
+        elif mode == "fix":
+            self.condition_net = FixConditionNet(dim=dim)
         elif mode == "dense":
             self.condition_net = DenseConditionNet(dim=dim)
         else:
@@ -211,6 +213,15 @@ class JaccobiConditionNet(ConditionNet):
         return torch.diag(1 / torch.diag(A))  # (N, N)
 
 
+class FixConditionNet(ConditionNet):
+    def __init__(self, dim: int = 1):
+        super().__init__()
+        self.M = torch.nn.Parameter(torch.eye(dim), requires_grad=True)
+
+    def forward(self, A: torch.Tensor):
+        return self.M
+
+
 class DenseConditionNet(ConditionNet):
     def __init__(self, dim: int = 1, diag_treshold: float = 1e-08):
         super().__init__()
@@ -226,6 +237,7 @@ class DenseConditionNet(ConditionNet):
             nn.ReLU(),
             nn.Linear(N * N, tri_N),
         )
+        self.L
 
     def forward(self, A: torch.Tensor):
         L_flat = self.L(A.view(-1))

@@ -4,7 +4,7 @@ _target_: lib.optimizer.newton.LevenbergMarquardt
 
 # building the matrix A
 mode: dynamic
-max_damping_steps: 20
+max_damping_steps: 10
 damping_factor: 1.0
 factor: 2.0
 levenberg: False
@@ -12,6 +12,10 @@ levenberg: False
 # step size
 step_size: 1.0
 line_search_fn: null
+
+# store linear system
+store_system: False
+output_dir: ${paths.output_dir}/linsys
 
 # Ax=b solver
 # lin_solver:

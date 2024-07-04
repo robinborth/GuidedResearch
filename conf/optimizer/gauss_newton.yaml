@@ -13,11 +13,18 @@ levenberg: False
 step_size: 1.0
 line_search_fn: null
 
+# store linear system
+store_system: True
+output_dir: ${paths.output_dir}/linsys
+
 # Ax=b solver
+# lin_solver:
+#   _target_: lib.optimizer.pcg.PCGSolver
+#   dim: ???
+#   max_iter: 5
+#   verbose: False
+#   tol: 1e-08
+#   mode: identity
+
 lin_solver:
-  _target_: lib.optimizer.pcg.PCGSolver
-  dim: ???
-  max_iter: 5
-  verbose: False
-  tol: 1e-08
-  mode: identity
+  _target_: lib.optimizer.pcg.PytorchSolver

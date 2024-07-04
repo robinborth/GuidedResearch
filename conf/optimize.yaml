@@ -1,7 +1,9 @@
 # @package _global_
 
 defaults:
-  - model: flame 
+  - model:
+    - flame 
+    - dphm_christoph_mouthmove
   - logger: wandb
   - data: kinect
   - loss: point2plane 

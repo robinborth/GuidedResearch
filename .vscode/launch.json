@@ -17,8 +17,7 @@
             "args": [
                 "optimizer=levenberg_marquardt",
                 "loss=point2plane",
-                "joint_trainer.max_iters=100",
-                "joint_trainer.max_optims=10",
+                "sequential_trainer=null"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
@@ -30,12 +29,12 @@
             "program": "scripts/optimize.py",
             "args": [
                 "optimizer=gauss_newton",
-                "loss=point2plane",
+                // "optimzier.lin_solver.dim=6",
                 "joint_trainer.init_idxs=[0]",
                 "joint_trainer.max_iters=1",
                 "joint_trainer.max_optims=1",
-                "joint_trainer.optimizer.milestones=[0]",
-                "joint_trainer.optimizer.params=[[global_pose,transl]]",
+                "joint_trainer.scheduler.milestones=[0]",
+                "joint_trainer.scheduler.params=[[global_pose,transl]]",
                 "joint_trainer.coarse2fine.milestones=[0]",
                 "joint_trainer.coarse2fine.scales=[8]",
                 "sequential_trainer=null",

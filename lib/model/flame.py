@@ -20,8 +20,7 @@ class FLAME(nn.Module):
         vertices_mask: str = "face",  # full, face
         n_threshold: float = 0.9,
         d_threshold: float = 0.1,
-        init_sigma: float = 0.01,
-        init_seed: int = 2,
+        init_config: dict = {},
         **kwargs,
     ):
         super().__init__()
@@ -100,7 +99,7 @@ class FLAME(nn.Module):
         self.full_p_names = self.shape_p_names + self.frame_p_names
 
         # init the params of the model
-        self.init_pose_params(init_sigma, seed=init_seed)
+        self.init_params_with_config(init_config=init_config)
 
     ####################################################################################
     # Core
@@ -297,13 +296,17 @@ class FLAME(nn.Module):
             value = value.expand(param.weight.shape).to(self.device)
             param.weight = torch.nn.Parameter(value, requires_grad=True)
 
-    def init_pose_params(self, sigma: float = 0.01, seed: int = 1):
-        np.random.seed(seed)
-        s = np.random.normal(0, sigma, 6)
-        self.init_params(
-            global_pose=[s[0], s[1], s[2]],
-            transl=[s[3], s[4], s[5] - 0.5],
-        )
+    def init_params_with_config(self, init_config: dict):
+        seed = init_config.get("seed")
+        sigma = init_config.get("sigma")
+        assert sigma is not None
+        params = {}
+        for p_name in self.full_p_names:
+            if param := init_config.get(p_name):
+                np.random.seed(seed)
+                delta = np.random.normal(0, sigma, len(param))
+                params[p_name] = [p + d for p, d in zip(param, delta)]
+        self.init_params(**params)
 
     def init_frame(self, frame_idx: int):
         assert frame_idx > 0

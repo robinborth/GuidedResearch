@@ -1,0 +1,5 @@
+# @package model
+
+init_config:
+  global_pose: [0.0732, -0.1272, 0.0322]
+  transl: [0.0434, 0.0109, -0.5312]

@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Any, Callable
 
 import torch
@@ -23,6 +24,9 @@ class LevenbergMarquardt(BaseOptimizer):
         # step size
         step_size: float = 1.0,
         line_search_fn: str | None = None,
+        # store linear systems
+        store_system: bool = False,
+        output_dir: str = "/data",
     ):
         super().__init__()
 
@@ -37,6 +41,18 @@ class LevenbergMarquardt(BaseOptimizer):
 
         self.step_size = step_size
         self.line_search_fn = line_search_fn
+
+        self.step_count = 0
+        self.store_system = store_system
+        self.output_dir = output_dir
+
+    def save_system(self, A: torch.Tensor, x: torch.Tensor, b: torch.Tensor):
+        if not self.store_system:
+            return
+        path = Path(self.output_dir) / f"{self.step_count:07}.pt"
+        path.parent.mkdir(exist_ok=True, parents=True)
+        system = {"A": A.detach().cpu(), "x": x.detach().cpu(), "b": b.detach().cpu()}
+        torch.save(system, path)
 
     def reset(self):
         super().reset()
@@ -128,7 +144,7 @@ class LevenbergMarquardt(BaseOptimizer):
             self._zero_grad()
             loss = loss_closure()
             loss.backward()
-            grad_f = self._gather_flat_grad().neg()  # we minimize
+            # JTF = self._gather_flat_grad().neg()  # we minimize
 
         x_init = self._clone_param()
 
@@ -150,5 +166,8 @@ class LevenbergMarquardt(BaseOptimizer):
                 line_search_fn=self.line_search_fn,
             )
         self._add_direction(step_size, direction)
+
+        self.save_system(A=JTJ, x=direction, b=JTF)
+        self.step_count += 1
 
         return float(loss)

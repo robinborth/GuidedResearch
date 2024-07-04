@@ -11,5 +11,8 @@ optimize_shapes: 1
 vertices_mask: full
 n_threshold: 0.9
 d_threshold: 0.1
-init_sigma: 0.001
-init_seed: 2
+init_config:
+  seed: 1
+  sigma: 0.01
+  transl: [0.0, 0.0, -0.5]
+  global_pose: [0.0, 0.0, 0.0] 
