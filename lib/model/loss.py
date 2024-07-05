@@ -102,7 +102,7 @@ class BaseLoss(nn.Module):
             p_names=self.p_names,
         )
 
-    def _loss_step(
+    def _residual_step(
         self,
         model: FLAME,
         batch: dict,
@@ -115,14 +115,20 @@ class BaseLoss(nn.Module):
         return loss.reshape(-1)  # (C,)
 
     def loss_step(self):
-        loss = self._loss_step(
+        residuals = self._residual_step(
             model=self.model,
             batch=self.batch,
             correspondences=self.correspondences,
             params=self.params,
             p_names=self.p_names,
         )
-        return dict(loss=loss)
+
+        # for regularization we don't have a residual and just return the empty tensor
+        if not residuals.numel():
+            return {"loss": residuals, self.name: residuals}
+
+        loss = residuals**2
+        return {"loss": loss, self.name: loss}
 
     def _jacobian_step(
         self,
@@ -133,7 +139,7 @@ class BaseLoss(nn.Module):
         p_names: list[str],
     ):
         def closure(*args):
-            return self._loss_step(model, batch, correspondences, args, p_names)
+            return self._residual_step(model, batch, correspondences, args, p_names)
 
         jacobians = torch.autograd.functional.jacobian(
             func=closure,
@@ -143,7 +149,7 @@ class BaseLoss(nn.Module):
             vectorize=True,
         )
         J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
-        F = self._loss_step(model, batch, correspondences, params, p_names)
+        F = self._residual_step(model, batch, correspondences, params, p_names)
         return J, F
 
     def jacobian_step(self):
@@ -160,7 +166,7 @@ class BaseLoss(nn.Module):
     ####################################################################################
 
     def loss_closure(self):
-        return lambda: self.loss_step()["loss"].mean()
+        return lambda: self.loss_step()["loss"].sum()  # sum of the squared residuals
 
     def jacobian_closure(self):
         return lambda: self.jacobian_step()
@@ -215,29 +221,35 @@ class ChainedLoss(BaseLoss):
 # Dense Loss Terms
 ####################################################################################
 class Point2PlaneLoss(BaseLoss):
+    name: str = "point2plane"
+
     def forward(self, out: dict[str, torch.Tensor]):
         point = out["point"]
         point_gt = out["point_gt"]
         normal = out["normal"]
         plane_dist = ((point - point_gt) * normal).sum(-1)
-        return plane_dist**2
+        return plane_dist
 
 
 class Point2PointLoss(BaseLoss):
+    name: str = "point2point"
+
     def forward(self, out: dict[str, torch.Tensor]):
         point = out["point"]
         point_gt = out["point_gt"]
-        return (point - point_gt) ** 2
+        return point - point_gt
 
 
 class SymmetricICPLoss(BaseLoss):
+    name: str = "symmetricICP"
+
     def forward(self, out: dict[str, torch.Tensor]):
         point = out["point"]
         point_gt = out["point_gt"]
         normal = out["normal"]
         normal_gt = out["normal_gt"]
         plane_dist = ((point - point_gt) * (normal + normal_gt)).sum(-1)
-        return plane_dist**2
+        return plane_dist
 
 
 ####################################################################################
@@ -246,6 +258,8 @@ class SymmetricICPLoss(BaseLoss):
 
 
 class LatentRegularizationLoss(BaseLoss):
+    name: str = "regularization"
+
     def forward(self, out: dict[str, torch.Tensor]):
         device = out["point"].device
         shape_params = out["shape_params"]
@@ -261,7 +275,7 @@ class LatentRegularizationLoss(BaseLoss):
             return torch.tensor([], device=device)
 
         latents = torch.cat(params)
-        return latents**2
+        return latents
 
 
 ####################################################################################
@@ -270,14 +284,18 @@ class LatentRegularizationLoss(BaseLoss):
 
 
 class Landmark2DLoss(BaseLoss):
+    name: str = "landmark2d"
+
     def forward(self, out: dict[str, torch.Tensor]):
         lm_2d_ndc = out["lm_2d_ndc"]
         lm_2d_ndc_gt = out["lm_2d_ndc_gt"]
-        return (lm_2d_ndc - lm_2d_ndc_gt) ** 2
+        return lm_2d_ndc - lm_2d_ndc_gt
 
 
 class Landmark3DLoss(BaseLoss):
+    name: str = "landmark3d"
+
     def forward(self, out: dict[str, torch.Tensor]):
         lm_3d_camera = out["lm_3d_camera"]
         lm_3d_camera_gt = out["lm_3d_camera_gt"]
-        return (lm_3d_camera - lm_3d_camera_gt) ** 2
+        return lm_3d_camera - lm_3d_camera_gt

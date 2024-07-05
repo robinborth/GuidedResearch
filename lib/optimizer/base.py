@@ -55,6 +55,14 @@ class BaseOptimizer(nn.Module):
             offset += numel
         assert offset == self._numel
 
+    def _sub_direction(self, step_size, direction):
+        offset = 0
+        for p in self._params:
+            numel = p.numel()
+            p.sub_(direction[offset : offset + numel].view_as(p), alpha=step_size)
+            offset += numel
+        assert offset == self._numel
+
     def _clone_param(self):
         return [p.clone(memory_format=torch.contiguous_format) for p in self._params]
 

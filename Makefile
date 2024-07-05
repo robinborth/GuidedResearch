@@ -2,9 +2,9 @@
 # Different LM Linear Systems
 ####################################################################################
 
-lm_JTF:
+lm_fix:
 	python scripts/optimize.py \
-	task_name=lm_JTF \
+	task_name=lm_fix \
 	loss=point2plane \
 	optimizer=levenberg_marquardt \
 	optimizer.use_grad=False \
@@ -35,6 +35,17 @@ lm_grad:
 	python scripts/optimize.py \
 	task_name=lm_grad \
 	loss=point2plane \
+	optimizer=levenberg_marquardt \
+	optimizer.use_grad=True \
+	optimizer.verbose=False \
+	sequential_trainer=null \
+
+# now we need more regularization!
+lm_grad_reg_6:
+	python scripts/optimize.py \
+	task_name=lm_grad \
+	loss=regularization \
+	loss.chain.regularization=1e-06 \
 	optimizer=levenberg_marquardt \
 	optimizer.use_grad=True \
 	optimizer.verbose=False \

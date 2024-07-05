@@ -66,33 +66,34 @@ class LevenbergMarquardt(BaseOptimizer):
     def get_state(self):
         return {"damping_factor": self.damping_factor}
 
-    def solve_delta(self, JTJ: torch.tensor, JTF: torch.Tensor, damping_factor: float):
+    def solve_delta(self, H: torch.tensor, grad_f: torch.Tensor, damping_factor: float):
         """Apply the hessian approximation and solve for the delta"""
-        D = torch.diag(torch.ones_like(torch.diag(JTJ)))
+        D = torch.diag(torch.ones_like(torch.diag(H)))
         if not self.levenberg:
-            D = torch.diag(torch.diag(JTJ))
+            D = torch.diag(torch.diag(H))
 
         # build the matrix and solve for the delta
-        A = 2 * JTJ + damping_factor * D
-        direction = self.lin_solver(A=A, b=JTF)
+        A = H + damping_factor * D
+        delta = self.lin_solver(A=A, b=grad_f)
+        direction = -delta  # we need to go the negative direction
 
-        self.save_system(A=A, x=direction, b=JTF)
+        self.save_system(A=A, x=delta, b=grad_f)
         return direction
 
     def dynamic_solve(
         self,
-        JTJ: torch.Tensor,
-        JTF: torch.Tensor,
+        H: torch.Tensor,
+        grad_f: torch.Tensor,
         loss_closure: Callable[[], torch.Tensor],
     ):
         # prepare the init delta vectors
         x_init = self._clone_param()
         loss = loss_closure()
 
-        dx = self.solve_delta(JTJ, JTF, damping_factor=self.damping_factor)
+        dx = self.solve_delta(H, grad_f, damping_factor=self.damping_factor)
         loss_df = self._evaluate(loss_closure, x_init, self.step_size, dx)
         df_factor = self.damping_factor / self.factor
-        dx_factor = self.solve_delta(JTJ, JTF, damping_factor=df_factor)
+        dx_factor = self.solve_delta(H, grad_f, damping_factor=df_factor)
         loss_df_factor = self._evaluate(loss_closure, x_init, self.step_size, dx_factor)
 
         # both are worse -> increase damping factor until improvement
@@ -100,7 +101,7 @@ class LevenbergMarquardt(BaseOptimizer):
             improvement = False
             for k in range(1, self.max_damping_steps + 1):
                 df_k = self.damping_factor * (self.factor**k)
-                dx_k = self.solve_delta(JTJ, JTF, damping_factor=df_k)
+                dx_k = self.solve_delta(H, grad_f, damping_factor=df_k)
                 loss_dx_k = self._evaluate(loss_closure, x_init, self.step_size, dx_k)
                 if loss_dx_k <= loss:  # improvement or same (converged)
                     improvement = True
@@ -122,23 +123,23 @@ class LevenbergMarquardt(BaseOptimizer):
 
     def static_solve(
         self,
-        JTJ: torch.Tensor,
-        JTF: torch.Tensor,
+        H: torch.Tensor,
+        grad_f: torch.Tensor,
         loss_closure: Callable[[], torch.Tensor],
     ):
         loss = loss_closure()
-        dx = self.solve_delta(JTJ, JTF, damping_factor=self.damping_factor)
+        dx = self.solve_delta(H, grad_f, damping_factor=self.damping_factor)
         # loss_df = self._evaluate(loss_closure, x_init, self.step_size, dx)
         # if loss_df > loss:
         #     return torch.zeros_like(dx), loss  # ensure that the we converge
-        return dx, loss
+        return -dx, loss
 
     def apply_jacobian(self, jacobian_closure: Callable[[], torch.Tensor]):
         J, F = jacobian_closure()  # (M, N)
         assert J.shape[1] == self._numel
-        JTJ = J.T @ J  # (N, N)
-        JTF = J.T @ F
-        return JTJ, -JTF
+        H = 2 * J.T @ J  # (N, N)
+        grad_f = 2 * J.T @ F
+        return H, grad_f
 
     @torch.no_grad()
     def step(
@@ -147,24 +148,24 @@ class LevenbergMarquardt(BaseOptimizer):
         jacobian_closure: Callable[[], torch.Tensor],
     ) -> float:
         # prepare the init delta vectors
-        JTJ, JTF = self.apply_jacobian(jacobian_closure)
+        H, grad_f = self.apply_jacobian(jacobian_closure)
 
         # difference with JTF
         with torch.enable_grad():
             self._zero_grad()
             loss = loss_closure()
             loss.backward()
-            grad = self._gather_flat_grad().neg()
+            grad = self._gather_flat_grad()
             if self.use_grad:
-                JTF = grad  # dont use the pytorch gradients
+                grad_f = grad  # dont use the pytorch gradients
 
         x_init = self._clone_param()
 
         # solve for the delta
         if self.mode == "static":
-            direction, loss = self.static_solve(JTJ, JTF, loss_closure)
+            direction, loss = self.static_solve(H, grad_f, loss_closure)
         elif self.mode == "dynamic":
-            direction, loss = self.dynamic_solve(JTJ, JTF, loss_closure)
+            direction, loss = self.dynamic_solve(H, grad_f, loss_closure)
         else:
             ValueError(f"The mode={self.mode} is not possible.")
 
