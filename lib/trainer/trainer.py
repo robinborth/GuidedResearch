@@ -1,3 +1,4 @@
+import itertools
 import logging
 
 import torch
@@ -78,8 +79,6 @@ class BaseTrainer:
         optimizer = self.optimizer
 
         # outer optimization loop
-        scheduler.freeze(model)
-
         for iter_step in range(self.max_iters):
             # prepare logging
             self.reset_progress(inner_progress, self.max_optims)
@@ -129,7 +128,7 @@ class BaseTrainer:
 
                 # metrics and loss logging
                 if self.verbose:
-                    logger.log_gradients(verbose=True)
+                    logger.log_gradients(verbose=False)
                     logger.log_metrics(batch=batch, model=L.model_step())
                 loss = logger.log_loss(L.loss_step())
                 inner_progress.set_postfix({"loss": loss})
@@ -143,6 +142,7 @@ class BaseTrainer:
                 logger.log_render(batch=batch, model=correspondences)
                 logger.log_input_batch(batch=batch, model=correspondences)
                 logger.log_error(batch=batch, model=correspondences)
+                logger.log_params(batch=batch)
 
             # finish the outer loop
             outer_progress.set_postfix({"params": optimizer._p_names})
@@ -159,9 +159,6 @@ class BaseTrainer:
 
     def optimize(self):
         raise NotImplementedError
-
-    def frame_progress(self):
-        return tqdm(total=len(self.frames), desc="Frame Loop", position=0)
 
     def outer_progress(self):
         return tqdm(total=self.max_iters, desc="Outer Loop", position=1)
@@ -183,44 +180,82 @@ class BaseTrainer:
 class JointTrainer(BaseTrainer):
     def __init__(self, init_idxs: list[int] = [], **kwargs):
         super().__init__(**kwargs)
+        self.mode = "joint"
         assert len(init_idxs) > 0
         self.init_idxs = init_idxs
         self.frames = init_idxs
-        self.mode = "joint"
 
     def optimize(self):
+        outer_progress = self.outer_progress()
+        inner_progress = self.inner_progress()
+        self.scheduler.freeze(self.model)
+
         self.logger.mode = self.mode
         self.scheduler.reset()
         self.coarse2fine.reset()
         self.datamodule.update_idxs(self.init_idxs)
 
-        outer_progress = self.outer_progress()
-        inner_progress = self.inner_progress()
         self.optimize_loop(outer_progress, inner_progress)
         self.close_progress([outer_progress, inner_progress])
 
 
 class SequentialTrainer(BaseTrainer):
-    def __init__(self, start_frame: int = 0, end_frame: int = 126, **kwargs):
+    def __init__(
+        self,
+        kernel_size: int = 1,
+        stride: int = 1,
+        dilation: int = 1,
+        start_frame: int = 0,
+        end_frame: int = 126,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
+        self.mode = "sequential"
         self.start_frame = start_frame
         self.end_frame = end_frame
-        self.frames = list(range(self.start_frame, self.end_frame))
-        self.mode = "sequential"
+        self.prev_last_frame_idx = self.start_frame
+        self.kernal_size = kernel_size
+        self.stride = stride
+        self.dilation = dilation
+        full_frames = [i for k in self.frame_idxs_iter() for i in k]
+        self.frames = sorted(set(full_frames))
+
+    def frame_progress(self):
+        total = len(list(self.frame_idxs_iter()))
+        return tqdm(total=total, desc="Frame Loop", position=0)
+
+    def frame_idxs_iter(self):
+        """Groups the frame idxs for optimization.
+        kernel_size=3; stride=3; dilation=2
+        [[0, 2, 4], [6, 8, 10]]
+        """
+        # defines the frame idxs to iterate over, possible with some space
+        frame_idxs = list(range(self.start_frame, self.end_frame, self.dilation))
+        # convoulution like iterations
+        for idx in range(0, len(frame_idxs), self.stride):
+            idxs = frame_idxs[idx : idx + self.kernal_size]
+            if len(idxs) == self.kernal_size:
+                yield idxs
+
+    def init_frames(self, frame_idxs: list[int]):
+        # initilize the kernal
+        for frame_idx in frame_idxs:
+            self.model.init_frame(frame_idx, self.prev_last_frame_idx)
+        # set the last frame of the kernal to the one that we initlize from
+        self.prev_last_frame_idx = max(frame_idxs)
 
     def optimize(self):
         frame_progress = self.frame_progress()
         outer_progress = self.outer_progress()
         inner_progress = self.inner_progress()
-        for frame_idx in range(self.start_frame, self.end_frame):
+        self.scheduler.freeze(self.model)
+        for frame_idxs in self.frame_idxs_iter():
             self.reset_progress(outer_progress, self.max_iters)
             self.logger.mode = self.mode
             self.scheduler.reset()
             self.coarse2fine.reset()
-            self.datamodule.update_idxs([frame_idx])
-
-            if frame_idx != 0:
-                self.model.init_frame(frame_idx)
+            self.datamodule.update_idxs(frame_idxs)
+            self.init_frames(frame_idxs)
             self.optimize_loop(outer_progress, inner_progress)
             frame_progress.update(1)
         self.close_progress([frame_progress, outer_progress, inner_progress])

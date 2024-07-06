@@ -151,13 +151,13 @@ class LevenbergMarquardt(BaseOptimizer):
         H, grad_f = self.apply_jacobian(jacobian_closure)
 
         # difference with JTF
-        with torch.enable_grad():
-            self._zero_grad()
-            loss = loss_closure()
-            loss.backward()
-            grad = self._gather_flat_grad()
-            if self.use_grad:
-                grad_f = grad  # dont use the pytorch gradients
+        # with torch.enable_grad():
+        #     self._zero_grad()
+        #     loss = loss_closure()
+        #     loss.backward()
+        #     grad = self._gather_flat_grad()
+        #     if self.use_grad:
+        #         grad_f = grad  # dont use the pytorch gradients
 
         x_init = self._clone_param()
 
@@ -179,5 +179,6 @@ class LevenbergMarquardt(BaseOptimizer):
                 line_search_fn=self.line_search_fn,
             )
         self._add_direction(step_size, direction)
+        self._store_flat_grad(grad_f)
 
         return float(loss)

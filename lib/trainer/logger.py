@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import wandb
+import yaml
 from matplotlib import cm
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
@@ -252,6 +253,21 @@ class FlameLogger:
             self.log(f"{self.mode}/{k}", v)
         return loss_info["loss"].mean().item()
 
+    def log_params(self, batch: dict):
+        for _, _, f_idx in self.iter_debug_idx(batch):
+            params = {}
+            for p_name in self.model.frame_p_names:
+                module = getattr(self.model, p_name)
+                weight = module.weight[f_idx].detach().cpu().numpy()
+                params[p_name] = [float(w) for w in weight]
+            for p_name in self.model.shape_p_names:
+                module = getattr(self.model, p_name)
+                weight = module.weight[0].detach().cpu().numpy()
+                params[p_name] = [float(w) for w in weight]
+            file_name = self.log_path("model_params", f_idx, "yaml")
+            params = dict(sorted(params.items(), key=lambda item: len(item[1])))
+            self.save_params(file_name, params)
+
     def log_gradients(self, verbose: bool = False):
         log = {}
         for p_name, weight in zip(self.optimizer._p_names, self.optimizer._params):
@@ -286,6 +302,13 @@ class FlameLogger:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
             np.save(f, points.detach().cpu().numpy())
+
+    def save_params(self, file_name: str, params: dict):
+        path = Path(self.save_dir) / file_name  # type: ignore
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            out = yaml.dump(params, sort_keys=False)
+            f.write(out)
 
     def capture_screen(
         self,

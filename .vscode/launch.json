@@ -2,14 +2,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
             "name": "Debug: PCG Sampling",
             "type": "debugpy",
             "request": "launch",
@@ -37,11 +29,15 @@
             "program": "scripts/optimize.py",
             "args": [
                 "optimizer=levenberg_marquardt",
-                "optimizer.step_size=1.0",
                 "loss=point2plane",
-                "loss.weight=1.0",
-                "joint_trainer.scheduler.milestones=[0,10,15]",
-                "sequential_trainer=null"
+                "joint_trainer=null",
+                "sequential_trainer.max_iters=10",
+                "sequential_trainer.max_optims=5",
+                "sequential_trainer.kernel_size=4",
+                "sequential_trainer.stride=4",
+                "sequential_trainer.dilation=2",
+                "sequential_trainer.scheduler.milestones=[0,2]",
+                "sequential_trainer.scheduler.params=[[global_pose,transl,neck_pose,eye_pose],[shape_params,expression_params]]",
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

@@ -2,20 +2,53 @@
 # Different LM Linear Systems
 ####################################################################################
 
-lm_fix:
+lm:
 	python scripts/optimize.py \
-	task_name=lm_fix \
+	task_name=levenberg_marquardt \
 	loss=point2plane \
 	optimizer=levenberg_marquardt \
 	optimizer.use_grad=False \
 	optimizer.verbose=False \
 	sequential_trainer=null \
 
-lm_JTF_reg_6:
+lm_reg_shape_23_expr_8:
 	python scripts/optimize.py \
-	task_name=lm_JTF_reg_6 \
+	task_name=lm_reg_shape_23_expr_8 \
 	loss=regularization \
-	loss.chain.regularization=1e-06 \
+	loss.chain.shape_regularization=5e-03 \
+	loss.chain.expression_regularization=1e-08 \
+	optimizer=levenberg_marquardt \
+	optimizer.use_grad=False \
+	optimizer.verbose=False \
+	sequential_trainer=null \
+
+lm_reg_shape_3_expr_3:
+	python scripts/optimize.py \
+	task_name=lm_reg_shape_3_expr_3 \
+	loss=regularization \
+	loss.chain.shape_regularization=1e-03 \
+	loss.chain.expression_regularization=1e-03 \
+	optimizer=levenberg_marquardt \
+	optimizer.use_grad=False \
+	optimizer.verbose=False \
+	sequential_trainer=null \
+
+lm_reg_shape_2_expr_2:
+	python scripts/optimize.py \
+	task_name=lm_reg_shape_2_expr_2 \
+	loss=regularization \
+	loss.chain.shape_regularization=1e-02 \
+	loss.chain.expression_regularization=1e-02 \
+	optimizer=levenberg_marquardt \
+	optimizer.use_grad=False \
+	optimizer.verbose=False \
+	sequential_trainer=null \
+
+lm_reg_6:
+	python scripts/optimize.py \
+	task_name=lm_reg_6 \
+	loss=regularization \
+	loss.chain.regularization=1e-05 \
 	optimizer=levenberg_marquardt \
 	optimizer.use_grad=False \
 	optimizer.verbose=False \

@@ -309,11 +309,12 @@ class FLAME(nn.Module):
                 params[p_name] = [p + d for p, d in zip(param, delta)]
         self.init_params(**params)
 
-    def init_frame(self, frame_idx: int):
-        assert frame_idx > 0
+    def init_frame(self, target_idx: int, source_idx: int):
+        assert source_idx >= 0
+        assert target_idx >= 0
         for p_name in self.frame_p_names:
             module = getattr(self, p_name)
-            module.weight[frame_idx] = module.weight[frame_idx - 1]
+            module.weight[target_idx] = module.weight[source_idx].detach()
 
     def reset_frame(self, frame_idx: int):
         for p_name in self.frame_p_names:

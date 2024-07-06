@@ -186,8 +186,10 @@ class ChainedLoss(BaseLoss):
                 _loss: BaseLoss = Point2PlaneLoss(weight=weight, **kwargs)
             elif loss == "point2point":
                 _loss = Point2PointLoss(weight=weight, **kwargs)
-            elif loss == "regularization":
-                _loss = LatentRegularizationLoss(weight=weight, **kwargs)
+            elif loss == "shape_regularization":
+                _loss = ShapeRegularizationLoss(weight=weight, **kwargs)
+            elif loss == "expression_regularization":
+                _loss = ExpressionRegularizationLoss(weight=weight, **kwargs)
             elif loss == "symmetricICP":
                 _loss = SymmetricICPLoss(weight=weight, **kwargs)
             elif loss == "landmark2d":
@@ -257,25 +259,28 @@ class SymmetricICPLoss(BaseLoss):
 ####################################################################################
 
 
-class LatentRegularizationLoss(BaseLoss):
-    name: str = "regularization"
+class ShapeRegularizationLoss(BaseLoss):
+    name: str = "shape_regularization"
 
     def forward(self, out: dict[str, torch.Tensor]):
-        device = out["point"].device
         shape_params = out["shape_params"]
-        expression_params = out["expression_params"]
-
-        params = []
         if shape_params is not None:
-            params.append(shape_params.view(-1))
+            return shape_params.view(-1)
+
+        device = out["point"].device
+        return torch.tensor([], device=device)
+
+
+class ExpressionRegularizationLoss(BaseLoss):
+    name: str = "expression_regularization"
+
+    def forward(self, out: dict[str, torch.Tensor]):
+        expression_params = out["expression_params"]
         if expression_params is not None:
-            params.append(expression_params.view(-1))
+            return expression_params.view(-1)
 
-        if not params:
-            return torch.tensor([], device=device)
-
-        latents = torch.cat(params)
-        return latents
+        device = out["point"].device
+        return torch.tensor([], device=device)
 
 
 ####################################################################################

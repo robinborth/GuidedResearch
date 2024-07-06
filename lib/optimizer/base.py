@@ -47,6 +47,14 @@ class BaseOptimizer(nn.Module):
             views.append(view)
         return torch.cat(views, dim=0)
 
+    def _store_flat_grad(self, grad_f: torch.Tensor):
+        offset = 0
+        for p in self._params:
+            numel = p.numel()
+            p.grad = grad_f[offset : offset + numel].view_as(p)
+            offset += numel
+        assert offset == self._numel
+
     def _add_direction(self, step_size, direction):
         offset = 0
         for p in self._params:
