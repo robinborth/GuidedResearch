@@ -166,7 +166,8 @@ class BaseLoss(nn.Module):
     ####################################################################################
 
     def loss_closure(self):
-        return lambda: self.loss_step()["loss"].sum()  # sum of the squared residuals
+        # return lambda: self.loss_step()["loss"].sum()  # sum of the squared residuals
+        return lambda: self.loss_step()["loss"].mean()  # easier for convergence checks
 
     def jacobian_closure(self):
         return lambda: self.jacobian_step()

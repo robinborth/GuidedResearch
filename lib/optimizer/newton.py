@@ -15,7 +15,7 @@ class LevenbergMarquardt(BaseOptimizer):
         self,
         # solver
         lin_solver: LinearSystemSolver,
-        use_grad: bool = False,
+        eps: float = 1e-10,
         # building the matrix A
         mode: str = "dynamic",  # dynamic, static
         max_damping_steps: int = 10,
@@ -40,8 +40,7 @@ class LevenbergMarquardt(BaseOptimizer):
         self.levenberg = levenberg
 
         self.lin_solver = lin_solver
-        self.use_grad = use_grad
-
+        self.init_step_size = step_size
         self.step_size = step_size
         self.line_search_fn = line_search_fn
 
@@ -49,6 +48,7 @@ class LevenbergMarquardt(BaseOptimizer):
         self.store_system = store_system
         self.output_dir = output_dir
         self.verbose = verbose
+        self.eps = eps
 
     def save_system(self, A: torch.Tensor, x: torch.Tensor, b: torch.Tensor):
         if not self.store_system:
@@ -96,30 +96,35 @@ class LevenbergMarquardt(BaseOptimizer):
         dx_factor = self.solve_delta(H, grad_f, damping_factor=df_factor)
         loss_df_factor = self._evaluate(loss_closure, x_init, self.step_size, dx_factor)
 
+        improvement = False
         # both are worse -> increase damping factor until improvement
         if loss_df >= loss and loss_df_factor >= loss:
-            improvement = False
             for k in range(1, self.max_damping_steps + 1):
                 df_k = self.damping_factor * (self.factor**k)
                 dx_k = self.solve_delta(H, grad_f, damping_factor=df_k)
                 loss_dx_k = self._evaluate(loss_closure, x_init, self.step_size, dx_k)
-                if loss_dx_k <= loss:  # improvement or same (converged)
+                if loss_dx_k + self.eps < loss:
+                    self.damping_factor = df_k
                     improvement = True
+                    direction = dx_k
                     break
-            if not improvement and self.verbose:
-                log.info("No IMPROVEMENT!")
-                self.converged = True
-            self.damping_factor = df_k
-            return dx_k, loss
-
         # decrease damping factor -> more gauss newton -> bigger updates
-        if loss_df_factor < loss:
+        elif loss_df_factor + self.eps < loss:
+            improvement = True
             self.damping_factor = df_factor
-            return dx_factor, loss
-
+            direction = dx_factor
         # we improve the loss with the current damping factor no update
-        assert loss_df < loss or self.line_search_fn is not None
-        return dx, loss
+        elif loss_df + self.eps < loss:
+            improvement = True
+            direction = dx
+
+        if not improvement:
+            self.converged = True
+            direction = torch.zeros_like(dx)
+            if self.verbose:
+                log.info(f"No improvement with {self.damping_factor=}")
+
+        return direction, loss
 
     def static_solve(
         self,
@@ -149,15 +154,6 @@ class LevenbergMarquardt(BaseOptimizer):
     ) -> float:
         # prepare the init delta vectors
         H, grad_f = self.apply_jacobian(jacobian_closure)
-
-        # difference with JTF
-        # with torch.enable_grad():
-        #     self._zero_grad()
-        #     loss = loss_closure()
-        #     loss.backward()
-        #     grad = self._gather_flat_grad()
-        #     if self.use_grad:
-        #         grad_f = grad  # dont use the pytorch gradients
 
         x_init = self._clone_param()
 

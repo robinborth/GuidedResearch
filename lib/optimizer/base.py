@@ -12,9 +12,11 @@ class BaseOptimizer(nn.Module):
     def __init__(self):
         super().__init__()
         self._numel_cache = None
+        self.converged = False
 
     def reset(self):
         self._numel_cache = None
+        self.converged = False
 
     def set_param_groups(self, param_groups: list[dict[str, Any]]):
         # we only have one param group per optimization, where in params we have

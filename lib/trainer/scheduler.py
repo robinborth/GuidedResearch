@@ -13,9 +13,12 @@ log = logging.getLogger()
 class Scheduler:
     milestones: list[int]
 
-    def skip(self, current_epoch):
+    def skip(self, iter_step):
         """Skip the scheduler if now new milestone is reached."""
-        return not any(current_epoch == m for m in self.milestones)
+        return not any(iter_step == m for m in self.milestones)
+
+    def set_dirty(self, iter_step):
+        self.dirty = not self.skip(iter_step)
 
     def get_attribute(self, attributes: list[Any], iter_step: int):
         """Select the current attribute from the list."""
@@ -53,6 +56,7 @@ class CoarseToFineScheduler(Scheduler):
         self.rasterizer = rasterizer
 
     def schedule(self, datamodule: DPHMDataModule, iter_step: int):
+        self.set_dirty(iter_step)
         if self.skip(iter_step):
             return
         scale = self.get_attribute(self.scales, iter_step)
@@ -98,7 +102,6 @@ class OptimizerScheduler(Scheduler):
         p_names = self.get_attribute(self.params, iter_step=iter_step)
         for p_name in p_names:
             if p_name not in self.state:
-                # log.info(f"Unfreeze (step={iter_step}): {p_name}")
                 module = getattr(model, p_name)
 
                 if p_name in model.shape_p_names:
@@ -123,12 +126,25 @@ class OptimizerScheduler(Scheduler):
         batch: dict,
         iter_step: int,
     ):
+        self.set_dirty(iter_step)
+
+        # reset the optimizer
+        optimizer.reset()
+
+        # set the parameters
         param_groups = self.param_groups(model, batch, iter_step)
         optimizer.set_param_groups(param_groups)
-        optimizer.reset()
+
+        # copy from previous iterations
         if self.copy_optimizer_state and self.prev_optimizer_state is not None:
             optimizer.set_state(self.prev_optimizer_state)
         self.prev_optimizer_state = optimizer.get_state()
+
+        # adjust learning rate
+        if not self.skip(iter_step):
+            optimizer.step_size = optimizer.init_step_size
+        else:
+            optimizer.step_size = optimizer.step_size * 0.9
 
     def update_model(self, model: FLAME, batch: dict):
         for p_name, group in self.state.items():

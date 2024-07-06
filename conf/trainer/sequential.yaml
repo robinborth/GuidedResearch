@@ -13,8 +13,8 @@ stride: 1
 dilation: 1
 start_frame: 0
 end_frame: 120
-max_iters: 10
-max_optims: 5
+max_iters: 100
+max_optims: 50
 
 scheduler:
   milestones: [0]

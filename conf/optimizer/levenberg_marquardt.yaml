@@ -4,11 +4,10 @@ _target_: lib.optimizer.newton.LevenbergMarquardt
 
 # building the matrix A
 mode: dynamic
-max_damping_steps: 10
+max_damping_steps: 15
 damping_factor: 1.0
 factor: 2.0
 levenberg: False
-use_grad: False
 
 # step size
 step_size: 1.0

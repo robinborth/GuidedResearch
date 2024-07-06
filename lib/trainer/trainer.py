@@ -73,10 +73,14 @@ class BaseTrainer:
     def optimize_loop(self, outer_progress, inner_progress):
         logger = self.logger
         model = self.model
+        optimizer = self.optimizer
         datamodule = self.datamodule
+
+        # schedulers
+        converged = False
+        state_change = False
         coarse2fine = self.coarse2fine
         scheduler = self.scheduler
-        optimizer = self.optimizer
 
         # outer optimization loop
         for iter_step in range(self.max_iters):
@@ -91,10 +95,6 @@ class BaseTrainer:
             )
             batch = datamodule.fetch()
 
-            # find correspondences
-            with torch.no_grad():
-                correspondences = model.correspondence_step(batch)
-
             # setup optimizer
             scheduler.configure_optimizer(
                 optimizer=optimizer,
@@ -102,6 +102,19 @@ class BaseTrainer:
                 batch=batch,
                 iter_step=iter_step,
             )
+            outer_progress.set_postfix({"params": optimizer._p_names})
+
+            # resets convergence when changin the state
+            state_change = scheduler.dirty or coarse2fine.dirty
+            if state_change:
+                converged = False
+            if converged:
+                outer_progress.update(1)
+                continue
+
+            # find correspondences
+            with torch.no_grad():
+                correspondences = model.correspondence_step(batch)
 
             # setup loss
             L = self.loss(
@@ -136,6 +149,10 @@ class BaseTrainer:
                 # finish the inner loop
                 inner_progress.update(1)
 
+                if optimizer.converged:
+                    converged = optim_step == 0  # outer convergence
+                    break  # skip the next inner loops
+
             # progress logging
             if (iter_step % self.save_interval) == 0 and self.verbose:
                 logger.log_3d_points(batch=batch, model=correspondences)
@@ -145,7 +162,6 @@ class BaseTrainer:
                 logger.log_params(batch=batch)
 
             # finish the outer loop
-            outer_progress.set_postfix({"params": optimizer._p_names})
             outer_progress.update(1)
 
         # final metric logging
