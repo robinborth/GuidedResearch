@@ -277,10 +277,41 @@ class FLAMEDataset(DPHMDataset):
         }
 
 
-class PCGDataset(DPHMDataset):
-    def __init__(self, data_dir: str = "/flame", split: str = "train"):
+class PCGDataset(Dataset):
+    def __init__(
+        self,
+        data_dir: str = "/flame",
+        split: str = "train",
+        samples: list[float] = [0.8, 0.1, 0.1],
+    ):
         self.data_dir = data_dir
         self.split = split
 
-        paths = Path(self.data_dir).iterdir()
+        paths = list(Path(self.data_dir).iterdir())
+        i, j = self.split_dataset(split, samples, len(paths))
 
+        data = []
+        for path in paths[i:j]:
+            out = torch.load(path)
+            data.append(out)
+        self.data = data
+
+    def split_dataset(self, split: str, splits: list[float], num_samples: int):
+        if split == "train":
+            i = 0
+            j = int(num_samples * splits[0])
+        elif split == "val":
+            i = int(num_samples * splits[0])
+            j = int(num_samples * (splits[0] + splits[1]))
+        elif split == "test":
+            i = int(num_samples * (splits[0] + splits[1]))
+            j = num_samples
+        else:
+            raise ValueError(f"Wrong {split=}")
+        return i, j
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]

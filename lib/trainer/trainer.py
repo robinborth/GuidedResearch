@@ -306,6 +306,6 @@ class PCGSamplingTrainer(BaseTrainer):
 
             self.optimize_loop(outer_progress, inner_progress)
 
-            self.sampling_progress.update(1)
+            sampling_progress.update(1)
 
         self.close_progress([sampling_progress, outer_progress, inner_progress])

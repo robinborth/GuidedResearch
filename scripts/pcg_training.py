@@ -7,15 +7,15 @@ from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
 
-from lib.utils.config import instantiate_callbacks, log_hyperparameters
+from lib.utils.config import instantiate_callbacks, log_hyperparameters, set_configs
 
 log = logging.getLogger()
 
 
-@hydra.main(version_base=None, config_path="../conf", config_name="train_loss")
+@hydra.main(version_base=None, config_path="../conf", config_name="pcg_training")
 def train(cfg: DictConfig) -> None:
     log.info("==> loading config ...")
-    L.seed_everything(cfg.seed)
+    cfg = set_configs(cfg)
 
     log.info("==> initializing logger ...")
     logger: Logger = hydra.utils.instantiate(cfg.logger)

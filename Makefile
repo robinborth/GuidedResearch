@@ -7,6 +7,9 @@ pcg_sampling:
 	task_name=pcg_sampling \
 	optimizer=gauss_newton \
 	loss=point2plane \
+	pcg_sampling_trainer.max_samplings=1000 \
+	pcg_sampling_trainer.max_iters=1 \
+	pcg_sampling_trainer.max_optims=1 \
 
 
 ####################################################################################

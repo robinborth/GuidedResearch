@@ -1,5 +1,6 @@
 import logging
 
+import lightning as L
 import torch
 from torch import nn
 
@@ -150,7 +151,7 @@ class ConjugateGradient(torch.autograd.Function):
 ####################################################################################
 
 
-class LinearSystemSolver(nn.Module):
+class LinearSystemSolver(L.LightningModule):
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         raise NotImplementedError()
 
@@ -168,19 +169,26 @@ class PCGSolver(LinearSystemSolver):
         verbose: bool = False,
         tol: float = 1e-08,
         mode: str = "identity",
+        gradients: str = "close",  # close, backprop
     ):
         super().__init__()
         self.max_iter = max_iter
         self.verbose = verbose
         self.tol = tol
+        assert gradients in ["close", "backprop"]
+        self.gradients = gradients
         if mode == "identity":
             self.condition_net: ConditionNet = IdentityConditionNet()
         elif mode == "jaccobi":
             self.condition_net = JaccobiConditionNet()
         elif mode == "fix":
             self.condition_net = FixConditionNet(dim=dim)
-        elif mode == "dense":
-            self.condition_net = DenseConditionNet(dim=dim)
+        elif mode == "dense1":
+            self.condition_net = Dense1ConditionNet(dim=dim)
+        elif mode == "dense2":
+            self.condition_net = Dense2ConditionNet(dim=dim)
+        elif mode == "dense3":
+            self.condition_net = Dense3ConditionNet(dim=dim)
         else:
             raise ValueError(f"The {mode=} is not supported!")
 
@@ -190,7 +198,21 @@ class PCGSolver(LinearSystemSolver):
         M_A = M @ A
         M_b = M @ b
         # evaluate x
-        return ConjugateGradient.apply(M_A, M_b, self.max_iter, self.verbose, self.tol)
+        if self.gradients == "close":
+            return ConjugateGradient.apply(
+                M_A,
+                M_b,
+                self.max_iter,
+                self.verbose,
+                self.tol,
+            )
+        return conjugate_gradient(
+            M_A,
+            M_b,
+            max_iter=self.max_iter,
+            verbose=self.verbose,
+            tol=self.tol,
+        )
 
 
 ####################################################################################
@@ -198,7 +220,7 @@ class PCGSolver(LinearSystemSolver):
 ####################################################################################
 
 
-class ConditionNet(nn.Module):
+class ConditionNet(L.LightningModule):
     def forward(self, A: torch.Tensor):
         raise NotImplementedError
 
@@ -222,7 +244,7 @@ class FixConditionNet(ConditionNet):
         return self.M
 
 
-class DenseConditionNet(ConditionNet):
+class Dense1ConditionNet(ConditionNet):
     def __init__(self, dim: int = 1, diag_treshold: float = 1e-08):
         super().__init__()
         # the number of elements in the triangular matrix
@@ -237,13 +259,12 @@ class DenseConditionNet(ConditionNet):
             nn.ReLU(),
             nn.Linear(N * N, tri_N),
         )
-        self.L
 
     def forward(self, A: torch.Tensor):
         L_flat = self.L(A.view(-1))
 
         # lower triangular matrix
-        L = torch.zeros_like(A)
+        L = torch.zeros((self.N, self.N), device=A.device)
         tril_indices = torch.tril_indices(row=self.N, col=self.N, offset=0)
         L[tril_indices[0], tril_indices[1]] = L_flat
 
@@ -251,3 +272,56 @@ class DenseConditionNet(ConditionNet):
         M = L @ L.T
 
         return M
+
+
+class Dense2ConditionNet(ConditionNet):
+    def __init__(self, dim: int = 1):
+        super().__init__()
+        # the number of elements in the triangular matrix
+        N = dim
+        self.N = dim
+        self.M = nn.Sequential(
+            nn.Linear(N * N, N * N),
+            nn.ReLU(),
+            nn.Linear(N * N, N * N),
+            nn.ReLU(),
+            nn.Linear(N * N, N * N),
+        )
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.normal_(m.weight, mean=0.0, std=1e-05)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+
+    def forward(self, A: torch.Tensor):
+        Identiy = torch.eye(self.N, device=A.device)
+        D = self.M(A.view(-1)).reshape(self.N, self.N)
+        M = Identiy + D
+        return M
+
+
+class Dense3ConditionNet(ConditionNet):
+    def __init__(self, dim: int = 1):
+        super().__init__()
+        # the number of elements in the triangular matrix
+        N = dim
+        self.N = dim
+        self.M = nn.Sequential(
+            nn.Linear(N * N, N * N),
+            nn.ReLU(),
+            nn.Linear(N * N, N * N),
+            nn.ReLU(),
+            nn.Linear(N * N, N),
+        )
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.normal_(m.weight, mean=0.0, std=1e-02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+
+    def forward(self, A: torch.Tensor):
+        return torch.diag(self.M(A.view(-1)))
