@@ -2,29 +2,29 @@
 
 _target_: lib.optimizer.newton.LevenbergMarquardt
 
-# building the matrix A
-mode: dynamic
-max_damping_steps: 15
-damping_factor: 1.0
-factor: 2.0
+# solver
 levenberg: False
+lin_solver:
+  _target_: lib.optimizer.pcg.PytorchSolver
+
+# building the matrix A
+max_df_steps: 20
+damping_factor: 1e-02
+df_lower: 1e-07
+df_upper: 1e07
+df_up: 2.0
+df_down: 2.0
 
 # step size
 step_size: 1.0
-line_search_fn: null
+
+# convergence
+eps_step: 1e-10
+eps_grad: 1e-10
+eps_params: 1e-10
+eps_energy: 1e-10
 
 # store linear system
 store_system: False
 output_dir: ${paths.output_dir}/linsys
 verbose: True
-
-# Ax=b solver
-# lin_solver:
-#   _target_: lib.optimizer.pcg.PCGSolver
-#   max_iter: 5
-#   verbose: False
-#   tol: 1e-08
-#   mode: jaccobi 
-
-lin_solver:
-  _target_: lib.optimizer.pcg.PytorchSolver

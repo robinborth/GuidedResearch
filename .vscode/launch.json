@@ -30,7 +30,9 @@
             "args": [
                 "optimizer=levenberg_marquardt",
                 "optimizer.verbose=False",
-                "loss=point2plane",
+                "loss=regularization",
+                "loss.chain.shape_regularization=1e-04",
+                "loss.chain.expression_regularization=1e-04",
                 // "joint_trainer=null",
                 // "joint_trainer.max_iters=300",
                 // "joint_trainer.max_optims=100",

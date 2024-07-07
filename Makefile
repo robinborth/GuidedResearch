@@ -22,16 +22,14 @@ lm_reg_shape_23_expr_8:
 	optimizer.verbose=False \
 	sequential_trainer=null \
 
-lm_reg_shape_3_expr_3:
+lm_reg:
 	python scripts/optimize.py \
-	task_name=lm_reg_shape_3_expr_3 \
+	task_name=lm_reg \
 	loss=regularization \
-	loss.chain.shape_regularization=1e-03 \
+	loss.chain.shape_regularization=5e-03 \
 	loss.chain.expression_regularization=1e-03 \
 	optimizer=levenberg_marquardt \
-	optimizer.use_grad=False \
 	optimizer.verbose=False \
-	sequential_trainer=null \
 
 lm_reg_shape_2_expr_2:
 	python scripts/optimize.py \
@@ -142,3 +140,148 @@ gauss_newton:
 	joint_trainer.coarse2fine.milestones=[0] \
 	joint_trainer.coarse2fine.scales=[8] \
 	sequential_trainer=null \
+
+####################################################################################
+# Reg Tests 
+####################################################################################
+
+lm_reg_0:
+	python scripts/optimize.py \
+	task_name=lm_reg_0 \
+	loss=regularization \
+	loss.chain.shape_regularization=7e-03 \
+	loss.chain.expression_regularization=1e-03 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_1:
+	python scripts/optimize.py \
+	task_name=lm_reg_1 \
+	loss=regularization \
+	loss.chain.shape_regularization=5e-03 \
+	loss.chain.expression_regularization=1e-03 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_2:  # this is good
+	python scripts/optimize.py \
+	task_name=lm_reg_2 \
+	loss=regularization \
+	loss.chain.shape_regularization=4e-03 \
+	loss.chain.expression_regularization=1e-03 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_3:
+	python scripts/optimize.py \
+	task_name=lm_reg_3 \
+	loss=regularization \
+	loss.chain.shape_regularization=3e-03 \
+	loss.chain.expression_regularization=1e-03 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_4:
+	python scripts/optimize.py \
+	task_name=lm_reg_4 \
+	loss=regularization \
+	loss.chain.shape_regularization=2e-03 \
+	loss.chain.expression_regularization=1e-03 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_5:
+	python scripts/optimize.py \
+	task_name=lm_reg_5 \
+	loss=regularization \
+	loss.chain.shape_regularization=1e-03 \
+	loss.chain.expression_regularization=1e-03 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_6:
+	python scripts/optimize.py \
+	task_name=lm_reg_6 \
+	loss=regularization \
+	loss.chain.shape_regularization=5e-03 \
+	loss.chain.expression_regularization=1e-04 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_7:
+	python scripts/optimize.py \
+	task_name=lm_reg_7 \
+	loss=regularization \
+	loss.chain.shape_regularization=5e-03 \
+	loss.chain.expression_regularization=1e-05 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_8:
+	python scripts/optimize.py \
+	task_name=lm_reg_8 \
+	loss=regularization \
+	loss.chain.shape_regularization=5e-03 \
+	loss.chain.expression_regularization=1e-06 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_9:
+	python scripts/optimize.py \
+	task_name=lm_reg_9 \
+	loss=regularization \
+	loss.chain.shape_regularization=3e-03 \
+	loss.chain.expression_regularization=1e-04 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_10:
+	python scripts/optimize.py \
+	task_name=lm_reg_10 \
+	loss=regularization \
+	loss.chain.shape_regularization=3e-03 \
+	loss.chain.expression_regularization=1e-05 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_11:
+	python scripts/optimize.py \
+	task_name=lm_reg_11 \
+	loss=regularization \
+	loss.chain.shape_regularization=3e-03 \
+	loss.chain.expression_regularization=1e-06 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+
+
+####################################################################################
+# Reg Tests Expression
+####################################################################################
+
+lm_reg_3_0: 
+	python scripts/optimize.py \
+	task_name=lm_reg_3_0 \
+	loss=regularization \
+	loss.chain.shape_regularization=4e-03 \
+	loss.chain.expression_regularization=7e-04 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_3_1:
+	python scripts/optimize.py \
+	task_name=lm_reg_3_1 \
+	loss=regularization \
+	loss.chain.shape_regularization=3e-03 \
+	loss.chain.expression_regularization=4e-04 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \
+
+lm_reg_3_2: 
+	python scripts/optimize.py \
+	task_name=lm_reg_3_2 \
+	loss=regularization \
+	loss.chain.shape_regularization=3e-03 \
+	loss.chain.expression_regularization=1e-04 \
+	optimizer=levenberg_marquardt \
+	optimizer.verbose=False \

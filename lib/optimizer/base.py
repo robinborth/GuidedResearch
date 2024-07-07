@@ -49,6 +49,13 @@ class BaseOptimizer(nn.Module):
             views.append(view)
         return torch.cat(views, dim=0)
 
+    def _gather_flat_param(self):
+        views = []
+        for p in self._params:
+            view = p.view(-1)
+            views.append(view)
+        return torch.cat(views, dim=0)
+
     def _store_flat_grad(self, grad_f: torch.Tensor):
         offset = 0
         for p in self._params:
@@ -83,21 +90,6 @@ class BaseOptimizer(nn.Module):
     def _zero_grad(self):
         for p in self._params:
             p.grad = None
-
-    def _directional_evaluate(
-        self,
-        loss_closure: Callable[[], torch.Tensor],  # does not modify the grad
-        x_init: list[torch.Tensor],
-        step_size: float,
-        direction: torch.Tensor,
-    ) -> Tuple[float, torch.Tensor]:
-        self._add_direction(step_size=step_size, direction=direction)
-        self._zero_grad()
-        loss = loss_closure()
-        loss.backward()
-        flat_grad = self._gather_flat_grad()
-        self._set_param(x_init)
-        return float(loss), flat_grad
 
     def _evaluate(
         self,
@@ -155,5 +147,6 @@ class BaseOptimizer(nn.Module):
         self,
         loss_closure: Callable[[], torch.Tensor],
         jacobian_closure: Callable[[], torch.Tensor],
-    ) -> float:
+    ):
+        """After the step the converged property is set."""
         raise NotImplementedError

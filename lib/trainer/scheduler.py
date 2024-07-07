@@ -78,8 +78,6 @@ class OptimizerScheduler(Scheduler):
         self,
         milestones: list[int] = [0],
         params: list[list[str]] = [["global_pose", "transl"]],
-        # optimizer: str = "levenberg_marquardt",
-        # optimizer_params: dict[str, Any] | None = None,
         copy_optimizer_state: bool = False,
     ) -> None:
         super().__init__()
@@ -143,8 +141,8 @@ class OptimizerScheduler(Scheduler):
         # adjust learning rate
         if not self.skip(iter_step):
             optimizer.step_size = optimizer.init_step_size
-        else:
-            optimizer.step_size = optimizer.step_size * 0.9
+        # else:
+        #     optimizer.step_size = optimizer.step_size * 0.9
 
     def update_model(self, model: FLAME, batch: dict):
         for p_name, group in self.state.items():

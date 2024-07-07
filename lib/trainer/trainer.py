@@ -104,9 +104,9 @@ class BaseTrainer:
             )
             outer_progress.set_postfix({"params": optimizer._p_names})
 
-            # resets convergence when changin the state
-            state_change = scheduler.dirty or coarse2fine.dirty
-            if state_change:
+            # resets convergence when changin the energy
+            energy_change = scheduler.dirty or coarse2fine.dirty
+            if energy_change:
                 converged = False
             if converged:
                 outer_progress.update(1)
