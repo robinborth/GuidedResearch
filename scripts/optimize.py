@@ -9,14 +9,14 @@ from lib.model.flame import FLAME
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger
-from lib.trainer.trainer import BaseTrainer
+from lib.trainer.trainer import BaseTrainer, JointTrainer, SequentialTrainer
 from lib.utils.config import set_configs
 
 log = logging.getLogger()
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="optimize")
-def optimize(cfg: DictConfig) -> None:
+def optimize(cfg: DictConfig):
     log.info("==> loading config ...")
     cfg = set_configs(cfg)
 
@@ -50,7 +50,7 @@ def optimize(cfg: DictConfig) -> None:
 
     if cfg.get("joint_trainer"):
         log.info("==> initializing joint trainer ...")
-        trainer: BaseTrainer = hydra.utils.instantiate(
+        trainer = hydra.utils.instantiate(
             cfg.joint_trainer,
             model=model,
             loss=loss,

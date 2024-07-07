@@ -51,7 +51,7 @@ def optimize(cfg: DictConfig) -> None:
     assert cfg.get("joint_trainer")
     log.info("==> initializing trainer ...")
     trainer: BaseTrainer = hydra.utils.instantiate(
-        cfg.joint_trainer,
+        cfg.pcg_sampling_trainer,
         model=model,
         loss=loss,
         optimizer=optimizer,
@@ -61,11 +61,7 @@ def optimize(cfg: DictConfig) -> None:
         rasterizer=rasterizer,
     )
     log.info("==> sample linear systems ...")
-    pbar = tqdm(total=cfg.max_samplings, desc="Sampling Loop", position=0)
-    for _ in range(cfg.max_samplings):
-        model.init_params_with_config(model.init_config)
-        trainer.optimize()
-        pbar.update(1)
+    trainer.optimize()
 
 
 if __name__ == "__main__":

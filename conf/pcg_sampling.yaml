@@ -4,25 +4,22 @@ defaults:
   - model:
     - flame 
     - dphm_christoph_mouthmove
-  - logger: wandb
+  - logger: flame_wandb
   - data: kinect
   - loss: point2plane 
   - optimizer: levenberg_marquardt
-  - trainer:
-    - joint
-    - sequential
+  - trainer: pcg_sampling
   - hydra: default
   - paths: default
   - _self_
 
 seed: 123
 device: cuda
-task_name: optimize
+task_name: pcg_sampling
 tags: 
   - ${task_name}
 
 # settings
-max_samplings: 10
 optimizer:
   store_system: True   # we want to store the linear systems
 joint_trainer:

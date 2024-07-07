@@ -73,6 +73,9 @@ class GaussNewton(NewtonOptimizer):
         )
         self.line_search_fn = line_search_fn
 
+    def get_state(self):
+        return {}
+
     def solve_delta(self, H: torch.tensor, grad_f: torch.Tensor):
         """Apply the hessian approximation and solve for the delta"""
         delta = self.lin_solver(A=H, b=grad_f)
@@ -92,7 +95,6 @@ class GaussNewton(NewtonOptimizer):
         x_init = self._clone_param()
 
         # solve for the direction
-        loss = loss_closure()
         direction = self.solve_delta(H, grad_f)
 
         # determine the step size and possible perform linesearch
@@ -106,8 +108,6 @@ class GaussNewton(NewtonOptimizer):
             )
         self._add_direction(step_size, direction)
         self._store_flat_grad(grad_f)
-
-        return float(loss)
 
 
 class LevenbergMarquardt(NewtonOptimizer):

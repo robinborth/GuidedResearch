@@ -71,6 +71,7 @@ class BaseTrainer:
         self.frames: list[int] = []
 
     def optimize_loop(self, outer_progress, inner_progress):
+        # state
         logger = self.logger
         model = self.model
         optimizer = self.optimizer
@@ -78,7 +79,6 @@ class BaseTrainer:
 
         # schedulers
         converged = False
-        state_change = False
         coarse2fine = self.coarse2fine
         scheduler = self.scheduler
 
@@ -204,6 +204,7 @@ class JointTrainer(BaseTrainer):
     def optimize(self):
         outer_progress = self.outer_progress()
         inner_progress = self.inner_progress()
+
         self.scheduler.freeze(self.model)
 
         self.logger.mode = self.mode
@@ -275,3 +276,36 @@ class SequentialTrainer(BaseTrainer):
             self.optimize_loop(outer_progress, inner_progress)
             frame_progress.update(1)
         self.close_progress([frame_progress, outer_progress, inner_progress])
+
+
+class PCGSamplingTrainer(BaseTrainer):
+    def __init__(self, init_idxs: list[int] = [], max_samplings: int = 1000, **kwargs):
+        super().__init__(**kwargs)
+        self.mode = "pcg"
+        assert len(init_idxs) > 0
+        self.init_idxs = init_idxs
+        self.frames = init_idxs
+        self.max_samplings = max_samplings
+
+    def sampling_progress(self):
+        return tqdm(total=self.max_samplings, desc="Sampling Loop", position=0)
+
+    def optimize(self):
+        sampling_progress = self.sampling_progress()
+        outer_progress = self.outer_progress()
+        inner_progress = self.inner_progress()
+
+        for _ in range(self.max_samplings):
+            self.model.init_params_with_config(self.model.init_config)
+
+            self.scheduler.freeze(self.model)
+            self.logger.mode = self.mode
+            self.scheduler.reset()
+            self.coarse2fine.reset()
+            self.datamodule.update_idxs(self.init_idxs)
+
+            self.optimize_loop(outer_progress, inner_progress)
+
+            self.sampling_progress.update(1)
+
+        self.close_progress([sampling_progress, outer_progress, inner_progress])
