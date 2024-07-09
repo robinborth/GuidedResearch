@@ -1,11 +1,9 @@
 # @package _global_
 
 defaults:
-  - data: pcg
-  - model: pcg 
+  - data: linsys_pose 
   - callbacks: default
-  - logger: default
-  - trainer: lightning 
+  - logger: wandb
   - hydra: default
   - paths: default
   - optional local: default
@@ -16,3 +14,30 @@ device: cuda
 task_name: pcg_training
 tags: 
   - ${task_name}
+
+data:
+  batch_size: 1
+
+trainer:
+  _target_: lightning.pytorch.trainer.Trainer
+  default_root_dir: ${paths.output_dir}
+  min_epochs: 1 
+  max_epochs: 5000
+  accelerator: ${device}
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: 0
+  log_every_n_steps: 1
+  overfit_batches: 1
+  # accumulate_grad_batches: 1
+
+model:
+  _target_: lib.optimizer.pcg.PCGSolver
+  mode: diagonal_offset
+  gradients: backprop
+  dim: 6
+  max_iter: 1
+  verbose: False
+  optimizer:
+    _target_: torch.optim.Adam
+    _partial_: True
+    lr: 1e-06

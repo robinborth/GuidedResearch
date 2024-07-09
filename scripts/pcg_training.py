@@ -3,6 +3,7 @@ from typing import List
 
 import hydra
 import lightning as L
+import wandb
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
@@ -50,6 +51,9 @@ def train(cfg: DictConfig) -> None:
 
     log.info("==> start training ...")
     trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+
+    # closing wandb
+    wandb.finish()
 
 
 if __name__ == "__main__":

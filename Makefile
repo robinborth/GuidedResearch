@@ -177,3 +177,12 @@ lm_reg_3_2:
 	loss.chain.expression_regularization=1e-04 \
 	optimizer=levenberg_marquardt \
 	optimizer.verbose=False \
+
+####################################################################################
+# Reg Tests Expression
+####################################################################################
+
+pcg_lr: 
+	python scripts/pcg_training.py --multirun \
+	task_name=pcg_lr \
+	model.optimizer.lr=1e-06,2e-05,5e-05,8e-05,1e-04,3e-04,5e-04,8e-04,1e-03,4e-03,7e-03,9e-03,2e-02,5e-02,8e-02,1e-02,4e-01,8e-01,1.0 \
