@@ -97,6 +97,8 @@ class PCGDataModule(L.LightningDataModule):
             self.val_dataset = self.hparams["dataset"](split="val")
         if stage in ["test", "all"]:
             self.test_dataset = self.hparams["dataset"](split="test")
+        if stage in ["predict", "all"]:
+            self.predict_dataset = self.hparams["dataset"](split="val")
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
@@ -122,6 +124,16 @@ class PCGDataModule(L.LightningDataModule):
     def test_dataloader(self) -> DataLoader:
         return DataLoader(
             dataset=self.test_dataset,
+            batch_size=self.hparams["batch_size"],
+            num_workers=self.hparams["num_workers"],
+            pin_memory=self.hparams["pin_memory"],
+            drop_last=self.hparams["drop_last"],
+            persistent_workers=self.hparams["persistent_workers"],
+        )
+
+    def predict_dataloader(self) -> DataLoader:
+        return DataLoader(
+            dataset=self.predict_dataset,
             batch_size=self.hparams["batch_size"],
             num_workers=self.hparams["num_workers"],
             pin_memory=self.hparams["pin_memory"],

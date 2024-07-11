@@ -26,6 +26,7 @@
                 "model.max_iter=1",
                 "data.batch_size=1",
                 "trainer.overfit_batches=1",
+                "trainer.max_epochs=100",
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

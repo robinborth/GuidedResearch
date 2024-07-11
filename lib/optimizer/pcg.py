@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Any
 
 import lightning as L
@@ -20,6 +21,7 @@ def preconditioned_conjugate_gradient(
     max_iter: int = 20,  # the maximum number of iterations
     rel_tol: float = 1e-06,  # tol for relative residual error ||b-Ax||/||b||
     verbose: bool = False,
+    check_convergence: bool = True,  # fix, converge
 ):
     # stores information about the optimization
     info: dict[str, Any] = {}
@@ -60,7 +62,7 @@ def preconditioned_conjugate_gradient(
     info["relres_norm"] = init_residual_norm / b_norm
     info["relres_norms"].append(info["relres_norm"])  # convergence checks
     converged[info["relres_norm"] < rel_tol] = 1.0
-    if converged.all():
+    if converged.all() and check_convergence:
         xk_1 = xk  # we return xk_1
         info["converged"] = True
 
@@ -88,7 +90,7 @@ def preconditioned_conjugate_gradient(
         info["relres_norm"] = residual_norm / b_norm
         info["relres_norms"].append(info["relres_norm"])  # tracks the relres norms
         converged[info["relres_norm"] < rel_tol] = 1.0
-        if converged.all():
+        if converged.all() and check_convergence:
             info["k"] += 1
             info["converged"] = True
             break
@@ -134,6 +136,7 @@ class ConjugateGradient(torch.autograd.Function):
         max_iter=20,
         verbose=False,
         rel_tol=1e-08,
+        check_convergence=False,
     ):
         ctx.save_for_backward(A)
         ctx.max_iter = max_iter
@@ -145,6 +148,7 @@ class ConjugateGradient(torch.autograd.Function):
             max_iter=max_iter,
             verbose=verbose,
             rel_tol=rel_tol,
+            check_convergence=check_convergence,
         )
 
     @staticmethod
@@ -157,7 +161,7 @@ class ConjugateGradient(torch.autograd.Function):
         # grad_A = -grad_b * x^T
         dA = -torch.matmul(dB.unsqueeze(-1), dX.unsqueeze(-2))
 
-        return dA, dB, None, None, None
+        return dA, dB, None, None, None, None, None
 
 
 ####################################################################################
@@ -181,6 +185,7 @@ class PCGSolver(LinearSystemSolver):
         max_iter: int = 20,
         verbose: bool = False,
         rel_tol: float = 1e-06,
+        check_convergence: bool = False,
         gradients: str = "backprop",  # close, backprop
         condition_net: Any = None,
         **kwargs,
@@ -191,6 +196,7 @@ class PCGSolver(LinearSystemSolver):
         self.max_iter = max_iter
         self.verbose = verbose
         self.rel_tol = rel_tol
+        self.check_convergence = check_convergence
 
         # the gradient computation mode
         assert gradients in ["backprop", "close"]
@@ -219,6 +225,7 @@ class PCGSolver(LinearSystemSolver):
                 self.max_iter,
                 False,
                 self.tol,
+                self.check_convergence,
             )
         else:
             x, info = preconditioned_conjugate_gradient(
@@ -228,6 +235,7 @@ class PCGSolver(LinearSystemSolver):
                 max_iter=self.max_iter,
                 verbose=False,
                 rel_tol=self.rel_tol,
+                check_convergence=self.check_convergence,
             )
 
         return x, info
@@ -248,12 +256,11 @@ class PCGSolver(LinearSystemSolver):
     def compute_residual_statistics(self, A, x, b, suffix=None):
         out = {}
         A_x = torch.matmul(A, x.unsqueeze(-1)).squeeze(-1)
-        residual = torch.linalg.vector_norm(A_x - b, dim=-1)
-        out["residual_norm"] = residual.mean(dim=-1)
+        out["residual_norm"] = torch.linalg.vector_norm(A_x - b, dim=-1)
         out["x_norm"] = torch.linalg.vector_norm(x, dim=-1)
         if self.verbose:
-            out["residual_max"] = residual.max(-1).values
-            out["residual_min"] = residual.min(-1).values
+            out["residual_max"] = out["residual_norm"].max(-1).values
+            out["residual_min"] = out["residual_norm"].min(-1).values
         if suffix is not None:
             return {f"{suffix}_{k}": v for k, v in out.items()}
         return out
@@ -264,7 +271,11 @@ class PCGSolver(LinearSystemSolver):
         x_gt = batch["x_gt"]
 
         M = torch.matmul(self.condition_net(A), A)
+
+        start_time = time.time()
         x, info = self.forward(A, b)
+        measure_time = (time.time() - start_time) * 1000  # in ms
+
         loss = torch.abs(x - x_gt).mean()
 
         # statistics
@@ -275,7 +286,8 @@ class PCGSolver(LinearSystemSolver):
 
         return dict(
             loss=loss,
-            relres_norm=info["relres_norm"],
+            measure_time=measure_time,
+            **info,
             **residual_stats,
             **residual_stats_gt,
             **stats_A,
@@ -286,6 +298,8 @@ class PCGSolver(LinearSystemSolver):
         self.log(f"{mode}/loss", out["loss"].mean(), prog_bar=True)
         logs = {}
         for key, value in out.items():
+            if not isinstance(value, torch.Tensor):
+                continue
             if key != "loss":
                 logs[f"{mode}/{key}"] = value.mean()
             if value.numel() != 1 and self.verbose:
@@ -305,12 +319,19 @@ class PCGSolver(LinearSystemSolver):
 
     def test_step(self, batch, batch_idx):
         out = self.model_step(batch)
-        self.log_step(batch, out, "test")
+        self.log_step(batch, out, "val")
         return out["loss"].sum()
 
-    def on_before_optimizer_step(self, optimizer):
-        for group in optimizer.param_groups:
-            group["params"][0]
+    def predict_step(self, batch, batch_idx):
+        out = self.model_step(batch)
+        return {
+            "cond": out["M_cond"],
+            "relres_norms": torch.stack(out["relres_norms"]),
+            "residual_norm": out["residual_norm"],
+            "gt_residual_norm": out["gt_residual_norm"],
+            "measure_time": torch.tensor([out["measure_time"]]),
+            "iters": torch.tensor([float(out["k"])]),
+        }
 
     def configure_optimizers(self):
         optimizer = self.hparams["optimizer"](self.parameters())
@@ -332,6 +353,8 @@ class PCGSolver(LinearSystemSolver):
 
 
 class ConditionNet(L.LightningModule):
+    name: str = ""
+
     def forward(self, A: torch.Tensor):
         """
         Can handle either A of dim (N, N) or the batched version (B, N, N).
@@ -341,12 +364,16 @@ class ConditionNet(L.LightningModule):
 
 
 class IdentityConditionNet(ConditionNet):
+    name: str = "IdentityConditionNet"
+
     def forward(self, A: torch.Tensor):
         ones = torch.ones((A.shape[0], A.shape[1]), device=A.device)
         return torch.diag_embed(ones)
 
 
 class JaccobiConditionNet(ConditionNet):
+    name: str = "JaccobiConditionNet"
+
     def forward(self, A: torch.Tensor):
         diagonals = A.diagonal(dim1=-2, dim2=-1)
         return torch.diag_embed(1 / diagonals)
@@ -388,6 +415,8 @@ class MLP(nn.Module):
 
 
 class DiagonalConditionNet(ConditionNet):
+    name: str = "DiagonalConditionNet"
+
     def __init__(self, unknowns: int = 1, hidden_dim: int = 200, num_layers: int = 2):
         super().__init__()
         self.M = MLP(
@@ -413,6 +442,8 @@ class DiagonalConditionNet(ConditionNet):
 
 
 class DiagonalOffsetConditionNet(ConditionNet):
+    name: str = "DiagonalOffsetConditionNet"
+
     def __init__(self, unknowns: int = 1, hidden_dim: int = 200, num_layers: int = 2):
         super().__init__()
         self.N = unknowns
@@ -442,6 +473,8 @@ class DiagonalOffsetConditionNet(ConditionNet):
 
 
 class DenseConditionNet(ConditionNet):
+    name: str = "DenseConditionNet"
+
     def __init__(self, dim: int = 1, diag_treshold: float = 1e-08):
         super().__init__()
         # the number of elements in the triangular matrix

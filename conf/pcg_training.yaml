@@ -11,12 +11,17 @@ defaults:
 
 seed: 123
 device: cuda
+train: True
+eval: True
+eval_max_iter: 15
+eval_batch_size: 32
 task_name: pcg_training
 tags: 
   - ${task_name}
 
 data:
   batch_size: 1
+  split: [0.8, 0.1, 0.1]
 
 trainer:
   _target_: lightning.pytorch.trainer.Trainer
