@@ -8,165 +8,121 @@ from torch import nn
 log = logging.getLogger()
 
 ####################################################################################
-# Helper Functions
+# Helper Function
 ####################################################################################
 
 
 def preconditioned_conjugate_gradient(
-    A: torch.Tensor,  # dim (N,N)
-    b: torch.Tensor,  # dim (N)
-    x0: torch.Tensor | None = None,  # dim (N)
-    max_iter: int = 20,
+    A: torch.Tensor,  # dim (B, N, N)
+    b: torch.Tensor,  # dim (B, N)
+    M: torch.Tensor | None = None,  # preconditioner of dim (B, N, N)
+    x0: torch.Tensor | None = None,  # dim (B, N)
+    max_iter: int = 20,  # the maximum number of iterations
+    rel_tol: float = 1e-06,  # tol for relative residual error ||b-Ax||/||b||
     verbose: bool = False,
-    tol: float = 1e-08,
-    M: torch.Tensor | None = None,  # dim (N,N)
 ):
-    k = 0
-    converged = False
+    # stores information about the optimization
+    info: dict[str, Any] = {}
+    info["k"] = 0  # number of iterations
+    info["converged"] = False
+    info["residual_norms"] = []  # list of all residual norms /w inital residual
+    info["relres_norms"] = []  # relative residual norms, /w inital relres norm
+    info["xs"] = []  # list of intermediate xs that are tracked /wo inital x
+    info["relres_norm"] = None  # relative residual norm, used for convergence
 
-    M = torch.diag(torch.ones_like(b)) if M is None else M  # identity
-    xk = torch.zeros_like(b) if x0 is None else x0  # (N)
-    rk = b - A @ xk  # column vector (N)
-    zk = M @ rk  # (N)
+    # default values for unknwons and preconditioner
+    b_norm = torch.linalg.vector_norm(b, dim=-1)
+    if M is None:
+        M = torch.diag_embed(torch.ones_like(b))  # identity
+    xk = x0
+    if xk is None:
+        xk = torch.zeros_like(b)  # zeroes
+
+    # handle different input dimensions
+    batched = A.dim() == 3
+    if not batched:
+        A = A.unsqueeze(0)
+        b = b.unsqueeze(0)
+        M = M.unsqueeze(0)
+        xk = xk.unsqueeze(0)
+    B = A.shape[0]  # determines the batch dimension
+
+    # setup optimization
+    converged = torch.zeros(B, device=b.device)
+
+    # compute initial residual
+    A_xk = torch.bmm(A, xk[..., None]).squeeze(-1)  # A @ xk
+    rk = b - A_xk  # column vector (B, N)
+
+    # checks for initial convergence
+    init_residual_norm = torch.linalg.vector_norm(rk, dim=-1)  # (B,)
+    info["residual_norms"].append(init_residual_norm)  # tracks the residual norms
+    info["relres_norm"] = init_residual_norm / b_norm
+    info["relres_norms"].append(info["relres_norm"])  # convergence checks
+    converged[info["relres_norm"] < rel_tol] = 1.0
+    if converged.all():
+        xk_1 = xk  # we return xk_1
+        info["converged"] = True
+
+    # compute conjugate vector
+    zk = torch.bmm(M, rk[..., None]).squeeze(-1)  # M @ rk
     pk = zk
 
-    if torch.norm(rk) < tol:
-        converged = True
+    while info["k"] < max_iter and not info["converged"]:
+        # compute step size alpha
+        rk_zk = (rk * zk).sum(dim=-1)  # (B,)
+        A_pk = torch.bmm(A, pk[..., None]).squeeze(-1)  # A @ pk (B, N)
+        pk_A_pk = (pk * A_pk).sum(dim=-1)  # (B,)
+        ak = (rk_zk) / (pk_A_pk)
 
-    while k < max_iter and not converged:
-        # compute step size
-        ak = (rk[None] @ zk) / (pk[None] @ A @ pk)
         # update unknowns
-        xk_1 = xk + ak * pk
+        xk_1 = xk + ak[..., None] * pk
+        info["xs"].append(xk_1)
+
         # compute residuals
-        rk_1 = rk - ak * A @ pk
-        # compute new pk
-        zk_1 = M @ rk_1
-        bk = (rk_1[None] @ zk_1) / (rk[None] @ zk)
-        pk_1 = zk_1 + bk * pk
-        # update the next stateprint
+        rk_1 = rk - ak[..., None] * A_pk
+
+        # check for convergence
+        residual_norm = torch.linalg.vector_norm(rk_1, dim=-1)  # (B,)
+        info["residual_norms"].append(residual_norm)
+        info["relres_norm"] = residual_norm / b_norm
+        info["relres_norms"].append(info["relres_norm"])  # tracks the relres norms
+        converged[info["relres_norm"] < rel_tol] = 1.0
+        if converged.all():
+            info["k"] += 1
+            info["converged"] = True
+            break
+
+        # compute the next conjugate vector
+        zk_1 = torch.bmm(M, rk_1[..., None]).squeeze(-1)  # M @ rk_1
+        rk1_zk1 = (rk_1 * zk_1).sum(dim=-1)  # (B,)
+        bk = rk1_zk1 / rk_zk
+        pk_1 = zk_1 + bk[..., None] * pk
+
+        # update state
         xk = xk_1
         pk = pk_1
         rk = rk_1
         zk = zk_1
+        info["k"] += 1
 
-        k += 1
-        if torch.norm(rk) < tol:
-            converged = True
+    # changes the dimension for non batched input
+    if not batched:
+        xk_1 = xk_1.squeeze(0)
+        info["relres_norm"] = info["relres_norm"].squeeze(0)
+        info["relres_norms"] = [n.squeeze(0) for n in info["relres_norms"]]
+        info["residual_norms"] = [n.squeeze(0) for n in info["residual_norms"]]
+        info["xs"] = [x.squeeze(0) for x in info["xs"]]
 
-    if verbose and converged:
-        log.info(f"Converged in {k=} steps with rk={rk.norm()}.")
-    if verbose and not converged:
-        log.info(f"Not converged in {max_iter=} steps with rk={rk.norm()}.")
+    # print information about the optimization
+    k = info["k"]
+    relres_norm = info["relres_norm"]
+    if verbose and info["converged"]:
+        log.info(f"Converged in {k=} steps with rk={relres_norm.max()}.")
+    if verbose and not info["converged"]:
+        log.info(f"Not converged in {max_iter=} steps with rk={relres_norm.max()}.")
 
-    return xk
-
-
-def conjugate_gradient(
-    A: torch.Tensor,  # dim (N,N)
-    b: torch.Tensor,  # dim (N)
-    max_iter: int = 20,
-    verbose: bool = False,
-    tol: float = 1e-06,
-):
-    # used the batched version
-    if A.dim() == 3:
-        return batched_conjugate_gradient(
-            A=A,
-            b=b,
-            max_iter=max_iter,
-            verbose=verbose,
-            tol=tol,
-        )
-
-    k = 0
-    converged = False
-
-    xk = torch.zeros_like(b)  # (N)
-    rk = b - A @ xk  # column vector (N)
-    pk = rk
-
-    if torch.norm(rk) < tol:
-        converged = True
-
-    while k < max_iter and not converged:
-        # compute step size
-        rk_rk = (rk * rk).sum()  # (B,)
-        A_pk = A @ pk  # (B,)
-        ak = rk_rk / (pk[None] @ A_pk)
-        # update unknowns
-        xk_1 = xk + ak * pk
-        # compute residuals
-        rk_1 = rk - ak * A_pk
-        # compute new pk
-        bk = (rk_1[None] @ rk_1) / rk_rk
-        pk_1 = rk_1 + bk * pk
-        # update the next stateprint
-        xk = xk_1
-        pk = pk_1
-        rk = rk_1
-
-        k += 1
-        if torch.norm(rk) < tol:
-            converged = True
-
-    if verbose and converged:
-        log.info(f"Converged in {k=} steps with rk={rk.norm()}.")
-    if verbose and not converged:
-        log.info(f"Not converged in {max_iter=} steps with rk={rk.norm()}.")
-
-    return xk
-
-
-def batched_conjugate_gradient(
-    A: torch.Tensor,  # dim (B, N, N)
-    b: torch.Tensor,  # dim (B, N)
-    max_iter: int = 20,
-    verbose: bool = False,
-    tol: float = 1e-08,
-):
-    k = 0
-    B = A.shape[0]
-    converged = torch.zeros(B, device=b.device)
-    xk = torch.zeros_like(b)  # (B, N)
-    A_xk = torch.bmm(A, xk[..., None]).squeeze(-1)  # A @ xk
-    rk = b - A_xk  # column vector (B, N)
-    pk = rk
-
-    # check for convergence
-    residual_norm = torch.norm(rk, dim=-1)
-    converged[residual_norm < tol] = 1.0
-
-    while k < max_iter and not converged.all():
-        # compute step size
-        rk_rk = (rk * rk).sum(dim=-1)  # (B,)
-        A_pk = torch.bmm(A, pk[..., None]).squeeze(-1)  # A @ pk (B, N)
-        pk_A_pk = (pk * A_pk).sum(dim=-1)  # (B,)
-        ak = (rk_rk) / (pk_A_pk)
-        # update unknowns
-        xk_1 = xk + ak[..., None] * pk
-        # compute residuals
-        rk_1 = rk - ak[..., None] * A_pk
-        # compute new pk
-        rk1_rk1 = (rk_1 * rk_1).sum(dim=-1)  # (B,)
-        bk = rk1_rk1 / rk_rk
-        pk_1 = rk_1 + bk[..., None] * pk
-        # update the next stateprint
-        xk = xk_1
-        pk = pk_1
-        rk = rk_1
-
-        k += 1
-
-        residual_norm = torch.norm(rk, dim=-1)
-        converged[residual_norm < tol] = 1.0
-
-    if verbose and converged.all():
-        log.info(f"Converged in {k=} steps with rk={residual_norm.max()}.")
-    if verbose and not converged.all():
-        log.info(f"Not converged in {max_iter=} steps with rk={residual_norm.max()}.")
-
-    return xk
+    return xk_1, info
 
 
 class ConjugateGradient(torch.autograd.Function):
@@ -177,22 +133,22 @@ class ConjugateGradient(torch.autograd.Function):
         b,  # dim (N)
         max_iter=20,
         verbose=False,
-        tol=1e-08,
+        rel_tol=1e-08,
     ):
         ctx.save_for_backward(A)
         ctx.max_iter = max_iter
         ctx.verbose = verbose
-        ctx.tol = tol
-        return conjugate_gradient(
+        ctx.rel_tol = rel_tol
+        return preconditioned_conjugate_gradient(
             A=A,
             b=b,
             max_iter=max_iter,
             verbose=verbose,
-            tol=tol,
+            rel_tol=rel_tol,
         )
 
     @staticmethod
-    def backward(ctx, dX):
+    def backward(ctx, dX, info):
         (A,) = ctx.saved_tensors
 
         # A * grad_b = grad_x
@@ -216,7 +172,7 @@ class LinearSystemSolver(L.LightningModule):
 
 class PytorchSolver(LinearSystemSolver):
     def forward(self, A: torch.Tensor, b: torch.Tensor):
-        return torch.linalg.solve(A, b)
+        return torch.linalg.solve(A, b), {}
 
 
 class PCGSolver(LinearSystemSolver):
@@ -224,9 +180,8 @@ class PCGSolver(LinearSystemSolver):
         self,
         max_iter: int = 20,
         verbose: bool = False,
-        tol: float = 1e-08,
-        mode: str = "identity",
-        gradients: str = "close",  # close, backprop
+        rel_tol: float = 1e-06,
+        gradients: str = "backprop",  # close, backprop
         condition_net: Any = None,
         **kwargs,
     ):
@@ -235,38 +190,46 @@ class PCGSolver(LinearSystemSolver):
 
         self.max_iter = max_iter
         self.verbose = verbose
-        self.tol = tol
-        assert gradients in ["close", "backprop"]
-        self.gradients = gradients
+        self.rel_tol = rel_tol
 
-        if condition_net is None:
-            self.condition_net: ConditionNet = IdentityConditionNet()
-        else:
-            self.condition_net = condition_net
+        # the gradient computation mode
+        assert gradients in ["backprop", "close"]
+        self.gradients = gradients
+        if gradients == "close":
+            log.warning(
+                "Currenlty analytical gradients precompute the preconditioning system!"
+            )
+
+        self.condition_net = condition_net
+        if self.condition_net is None:
+            self.condition_net = IdentityConditionNet()
 
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         # apply the preconditioner
         M = self.condition_net(A)  # (B, N, N) or (N, N)
 
-        M_A = torch.matmul(M, A)  # (B, N, N) or (N, N)
-        M_b = torch.matmul(M, b.unsqueeze(-1)).squeeze(-1)  # (B, N, N) or (N, N)
-
         # evaluate x
         if self.gradients == "close":
-            return ConjugateGradient.apply(
+            M_A = torch.matmul(M, A)  # (B, N, N) or (N, N)
+            M_b = torch.matmul(M, b.unsqueeze(-1)).squeeze(-1)  # (B, N, N) or (N, N)
+            x, info = ConjugateGradient.apply(
                 M_A,
                 M_b,
                 self.max_iter,
                 False,
                 self.tol,
             )
-        return conjugate_gradient(
-            A=M_A,
-            b=M_b,
-            max_iter=self.max_iter,
-            verbose=False,
-            tol=self.tol,
-        )
+        else:
+            x, info = preconditioned_conjugate_gradient(
+                A=A,
+                b=b,
+                M=M,
+                max_iter=self.max_iter,
+                verbose=False,
+                rel_tol=self.rel_tol,
+            )
+
+        return x, info
 
     def compute_matrix_statistics(self, A: torch.Tensor, suffix: str = "A"):
         out = {}
@@ -281,45 +244,41 @@ class PCGSolver(LinearSystemSolver):
             out["max"] = A.max(-1).values.max(-1).values
         return {f"{suffix}_{k}": v for k, v in out.items()}
 
-    def compute_residual_statistics(self, A, x, b, suffix: str = "gt"):
+    def compute_residual_statistics(self, A, x, b, suffix=None):
         out = {}
         A_x = torch.matmul(A, x.unsqueeze(-1)).squeeze(-1)
-        residual = torch.abs(A_x - b)
-        out["residual"] = residual.mean(dim=-1)
+        residual = torch.linalg.vector_norm(A_x - b, dim=-1)
+        out["residual_norm"] = residual.mean(dim=-1)
         out["x_norm"] = torch.linalg.vector_norm(x, dim=-1)
-        out["b_norm"] = torch.linalg.vector_norm(b, dim=-1)
         if self.verbose:
             out["residual_max"] = residual.max(-1).values
             out["residual_min"] = residual.min(-1).values
-        return {f"{suffix}_{k}": v for k, v in out.items()}
+        if suffix is not None:
+            return {f"{suffix}_{k}": v for k, v in out.items()}
+        return out
 
     def model_step(self, batch):
         A = batch["A"]
         b = batch["b"]
         x_gt = batch["x_gt"]
 
-        M = self.condition_net(A)
-        P = torch.matmul(M, A)
-        x = self.forward(A, b)
-        loss = torch.abs(x - x_gt)
+        M = torch.matmul(self.condition_net(A), A)
+        x, info = self.forward(A, b)
+        loss = torch.abs(x - x_gt).mean()
 
         # statistics
         stats_A = self.compute_matrix_statistics(A, "A")
-        stats_P = self.compute_matrix_statistics(P, "P")
+        stats_M = self.compute_matrix_statistics(M, "M")
+        residual_stats = self.compute_residual_statistics(A, x, b)
         residual_stats_gt = self.compute_residual_statistics(A, x_gt, b, "gt")
-        residual_stats_pcg = self.compute_residual_statistics(A, x, b, "pcg")
-
-        stats_M = {}
-        if self.verbose:
-            stats_M = self.compute_matrix_statistics(M, "M")
 
         return dict(
             loss=loss,
+            relres_norm=info["relres_norm"],
+            **residual_stats,
+            **residual_stats_gt,
             **stats_A,
             **stats_M,
-            **stats_P,
-            **residual_stats_gt,
-            **residual_stats_pcg,
         )
 
     def log_step(self, batch: dict, out: dict, mode: str = "train"):
@@ -373,7 +332,10 @@ class PCGSolver(LinearSystemSolver):
 
 class ConditionNet(L.LightningModule):
     def forward(self, A: torch.Tensor):
-        """Can handle either A of dim (N, N) or the batched version (B, N, N)."""
+        """
+        Can handle either A of dim (N, N) or the batched version (B, N, N).
+        The condition net computes a psd matrix M that is invertible.
+        """
         raise NotImplementedError
 
 

@@ -84,7 +84,7 @@ class GaussNewton(NewtonOptimizer):
 
     def solve_delta(self, H: torch.tensor, grad_f: torch.Tensor):
         """Apply the hessian approximation and solve for the delta"""
-        delta = self.lin_solver(A=H, b=grad_f)
+        delta, _ = self.lin_solver(A=H, b=grad_f)
         direction = -delta  # we need to go the negative direction
         self.save_system(A=H, x=delta, b=grad_f)
         return direction
@@ -180,7 +180,7 @@ class LevenbergMarquardt(NewtonOptimizer):
 
         # build the matrix and solve for the delta
         A = H + damping_factor * D
-        delta = self.lin_solver(A=A, b=grad_f)
+        delta, _ = self.lin_solver(A=A, b=grad_f)
         direction = -delta  # we need to go the negative direction
 
         self.save_system(A=A, x=delta, b=grad_f)

@@ -27,15 +27,16 @@ trainer:
   max_epochs: 5000
   # debugging
   overfit_batches: 1
-  log_every_n_steps: 1
+  limit_val_batches: 0  # disable
   check_val_every_n_epoch: 20
   num_sanity_val_steps: 0
+  log_every_n_steps: 1
 
 model:
   _target_: lib.optimizer.pcg.PCGSolver
   max_iter: 1
   gradients: backprop
-  verbose: True
+  verbose: False
   condition_net:
     _target_: lib.optimizer.pcg.DiagonalOffsetConditionNet
     unknowns: 6
