@@ -200,9 +200,10 @@ class PCGSolver(LinearSystemSolver):
                 "Currenlty analytical gradients precompute the preconditioning system!"
             )
 
-        self.condition_net = condition_net
-        if self.condition_net is None:
+        if condition_net is None:
             self.condition_net = IdentityConditionNet()
+        else:
+            self.condition_net = condition_net()
 
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         # apply the preconditioner

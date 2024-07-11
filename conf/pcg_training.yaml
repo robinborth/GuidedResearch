@@ -39,6 +39,7 @@ model:
   verbose: False
   condition_net:
     _target_: lib.optimizer.pcg.DiagonalOffsetConditionNet
+    _partial_: True
     unknowns: 6
     hidden_dim: 36
     num_layers: 1
