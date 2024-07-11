@@ -11,6 +11,14 @@ pcg_sampling:
 	pcg_sampling_trainer.max_iters=1 \
 	pcg_sampling_trainer.max_optims=1 \
 
+pcg:
+	python scripts/pcg_training.py \
+	task_name=pcg \
+	model.optimizer.lr=1e-06 \
+	model.max_iter=1 \
+	data.batch_size=1 \
+	trainer.overfit_batches=1 \
+
 
 ####################################################################################
 # PCG Sampling

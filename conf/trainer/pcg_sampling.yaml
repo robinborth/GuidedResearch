@@ -9,8 +9,8 @@ _target_: lib.trainer.trainer.PCGSamplingTrainer
 # loop settings
 max_samplings: 1000
 init_idxs: [0]
-max_iters: 3
-max_optims: 5
+max_iters: 1
+max_optims: 1
 
 scheduler:
   milestones: [0]

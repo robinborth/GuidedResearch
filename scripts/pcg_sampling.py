@@ -48,7 +48,7 @@ def optimize(cfg: DictConfig) -> None:
     log.info("==> initilizing optimizer ...")
     optimizer = hydra.utils.instantiate(cfg.optimizer)
 
-    assert cfg.get("joint_trainer")
+    assert cfg.get("pcg_sampling_trainer")
     log.info("==> initializing trainer ...")
     trainer: BaseTrainer = hydra.utils.instantiate(
         cfg.pcg_sampling_trainer,

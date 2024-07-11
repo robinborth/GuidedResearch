@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import lightning as L
 import torch
@@ -221,12 +222,12 @@ class PytorchSolver(LinearSystemSolver):
 class PCGSolver(LinearSystemSolver):
     def __init__(
         self,
-        dim: int = 1,
         max_iter: int = 20,
         verbose: bool = False,
         tol: float = 1e-08,
         mode: str = "identity",
         gradients: str = "close",  # close, backprop
+        condition_net: Any = None,
         **kwargs,
     ):
         super().__init__()
@@ -237,20 +238,11 @@ class PCGSolver(LinearSystemSolver):
         self.tol = tol
         assert gradients in ["close", "backprop"]
         self.gradients = gradients
-        if mode == "identity":
+
+        if condition_net is None:
             self.condition_net: ConditionNet = IdentityConditionNet()
-        elif mode == "jaccobi":
-            self.condition_net = JaccobiConditionNet()
-        elif mode == "fix":
-            self.condition_net = FixConditionNet(dim=dim)
-        elif mode == "diagonal_offset":
-            self.condition_net = DiagonalOffsetConditionNet(dim=dim)
-        elif mode == "diagonal":
-            self.condition_net = DiagonalConditionNet(dim=dim)
-        elif mode == "dense":
-            self.condition_net = DenseConditionNet(dim=dim)
         else:
-            raise ValueError(f"The {mode=} is not supported!")
+            self.condition_net = condition_net
 
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         # apply the preconditioner
@@ -265,71 +257,113 @@ class PCGSolver(LinearSystemSolver):
                 M_A,
                 M_b,
                 self.max_iter,
-                self.verbose,
+                False,
                 self.tol,
             )
         return conjugate_gradient(
             A=M_A,
             b=M_b,
             max_iter=self.max_iter,
-            verbose=self.verbose,
+            verbose=False,
             tol=self.tol,
         )
+
+    def compute_matrix_statistics(self, A: torch.Tensor, suffix: str = "A"):
+        out = {}
+        out["cond"] = torch.linalg.cond(A)  # (B,)
+        diag = torch.linalg.diagonal(A)
+        out["norm"] = torch.linalg.matrix_norm(A)
+        out["diag_norm"] = torch.linalg.vector_norm(x=diag, dim=-1)
+        if self.verbose:
+            out["diag_min"] = diag.min(-1).values
+            out["diag_max"] = diag.max(-1).values
+            out["min"] = A.min(-1).values.min(-1).values
+            out["max"] = A.max(-1).values.max(-1).values
+        return {f"{suffix}_{k}": v for k, v in out.items()}
+
+    def compute_residual_statistics(self, A, x, b, suffix: str = "gt"):
+        out = {}
+        A_x = torch.matmul(A, x.unsqueeze(-1)).squeeze(-1)
+        residual = torch.abs(A_x - b)
+        out["residual"] = residual.mean(dim=-1)
+        out["x_norm"] = torch.linalg.vector_norm(x, dim=-1)
+        out["b_norm"] = torch.linalg.vector_norm(b, dim=-1)
+        if self.verbose:
+            out["residual_max"] = residual.max(-1).values
+            out["residual_min"] = residual.min(-1).values
+        return {f"{suffix}_{k}": v for k, v in out.items()}
 
     def model_step(self, batch):
         A = batch["A"]
         b = batch["b"]
+        x_gt = batch["x_gt"]
 
         M = self.condition_net(A)
-        C_m = torch.linalg.cond(M @ A).item()
-        C_a = torch.linalg.cond(A).item()
-
-        x_gt = torch.linalg.solve(A, b)
+        P = torch.matmul(M, A)
         x = self.forward(A, b)
+        loss = torch.abs(x - x_gt)
 
-        loss = torch.abs(x - x_gt).sum()  # l1-loss
+        # statistics
+        stats_A = self.compute_matrix_statistics(A, "A")
+        stats_P = self.compute_matrix_statistics(P, "P")
+        residual_stats_gt = self.compute_residual_statistics(A, x_gt, b, "gt")
+        residual_stats_pcg = self.compute_residual_statistics(A, x, b, "pcg")
 
-        A_x = torch.matmul(A, x.unsqueeze(-1)).squeeze(-1)
-        residual = (A_x - b).norm()
-
-        A_x_gt = torch.matmul(A, x_gt.unsqueeze(-1)).squeeze(-1)
-        residual_gt = (A_x_gt - b).norm()
+        stats_M = {}
+        if self.verbose:
+            stats_M = self.compute_matrix_statistics(M, "M")
 
         return dict(
             loss=loss,
-            residual=residual,
-            residual_gt=residual_gt,
-            A_cond=C_a,
-            M_cond=C_m,
+            **stats_A,
+            **stats_M,
+            **stats_P,
+            **residual_stats_gt,
+            **residual_stats_pcg,
         )
+
+    def log_step(self, batch: dict, out: dict, mode: str = "train"):
+        self.log(f"{mode}/loss", out["loss"].mean(), prog_bar=True)
+        logs = {}
+        for key, value in out.items():
+            if key != "loss":
+                logs[f"{mode}/{key}"] = value.mean()
+            if value.numel() != 1 and self.verbose:
+                for idx, sys_id in enumerate(batch["sys_id"]):
+                    logs[f"{mode}/{key}/{sys_id}"] = value[idx].mean()
+        self.log_dict(logs)
 
     def training_step(self, batch, batch_idx):
         out = self.model_step(batch)
-        self.log("train/loss", out["loss"], prog_bar=True)
-        self.log("train/residual", out["residual"])
-        self.log("train/residual_gt", out["residual_gt"])
-        self.log("train/M_cond", out["M_cond"], prog_bar=True)
-        self.log("train/A_cond", out["A_cond"], prog_bar=True)
-        return out["loss"]
+        self.log_step(batch, out, "train")
+        return out["loss"].sum()
 
     def validation_step(self, batch, batch_idx):
         out = self.model_step(batch)
-        self.log("val/loss", out["loss"])
-        self.log("val/residual", out["residual"])
-        self.log("val/M_cond", out["M_cond"])
-        self.log("val/A_cond", out["A_cond"])
-        return out["loss"]
+        self.log_step(batch, out, "val")
+        return out["loss"].sum()
 
     def test_step(self, batch, batch_idx):
         out = self.model_step(batch)
-        self.log("test/loss", out["loss"])
-        self.log("test/residual", out["residual"])
-        self.log("test/M_cond", out["M_cond"])
-        self.log("test/A_cond", out["A_cond"])
-        return out["loss"]
+        self.log_step(batch, out, "test")
+        return out["loss"].sum()
+
+    def on_before_optimizer_step(self, optimizer):
+        for group in optimizer.param_groups:
+            group["params"][0]
 
     def configure_optimizers(self):
-        return self.hparams["optimizer"](self.parameters())
+        optimizer = self.hparams["optimizer"](self.parameters())
+        if self.hparams["scheduler"] is not None:
+            scheduler = self.hparams["scheduler"](optimizer=optimizer)
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "monitor": self.hparams["monitor"],
+                },
+            }
+        return {"optimizer": optimizer}
 
 
 ####################################################################################
@@ -364,18 +398,40 @@ class FixConditionNet(ConditionNet):
         return self.M.expand(A.shape)
 
 
-class DiagonalConditionNet(ConditionNet):
-    def __init__(self, dim: int = 1):
+class MLP(nn.Module):
+    def __init__(
+        self,
+        in_dim: int = 1,
+        out_dim: int = 1,
+        hidden_dim: int = 1,
+        num_layers: int = 1,
+    ):
         super().__init__()
-        # the number of elements in the triangular matrix
-        N = dim
-        self.N = dim
-        self.M = nn.Sequential(
-            nn.Linear(N * N, N * N),
-            nn.ReLU(),
-            nn.Linear(N * N, N * N),
-            nn.ReLU(),
-            nn.Linear(N * N, N),
+        layers: list[Any] = []
+        # input layers
+        layers.append(nn.Linear(in_dim, hidden_dim))
+        layers.append(nn.ReLU())
+        # hidden layers
+        for _ in range(num_layers):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        # output layer
+        layers.append(nn.Linear(hidden_dim, out_dim))
+
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.mlp(x)
+
+
+class DiagonalConditionNet(ConditionNet):
+    def __init__(self, unknowns: int = 1, hidden_dim: int = 200, num_layers: int = 2):
+        super().__init__()
+        self.M = MLP(
+            in_dim=unknowns * unknowns,
+            out_dim=unknowns,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
         )
         self.apply(self._init_weights)
 
@@ -394,17 +450,14 @@ class DiagonalConditionNet(ConditionNet):
 
 
 class DiagonalOffsetConditionNet(ConditionNet):
-    def __init__(self, dim: int = 1):
+    def __init__(self, unknowns: int = 1, hidden_dim: int = 200, num_layers: int = 2):
         super().__init__()
-        # the number of elements in the triangular matrix
-        N = dim
-        self.N = dim
-        self.M = nn.Sequential(
-            nn.Linear(N * N, N * N),
-            nn.ReLU(),
-            nn.Linear(N * N, N * N),
-            nn.ReLU(),
-            nn.Linear(N * N, N),
+        self.N = unknowns
+        self.M = MLP(
+            in_dim=unknowns * unknowns,
+            out_dim=unknowns,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
         )
         self.apply(self._init_weights)
 

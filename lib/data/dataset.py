@@ -287,12 +287,14 @@ class PCGDataset(Dataset):
         self.data_dir = data_dir
         self.split = split
 
-        paths = list(Path(self.data_dir).iterdir())
+        paths = sorted(list(Path(self.data_dir).iterdir()))
+        # paths = list(Path(self.data_dir).iterdir())
         i, j = self.split_dataset(split, samples, len(paths))
 
         data = []
         for path in paths[i:j]:
             out = torch.load(path)
+            out["sys_id"] = path.stem
             data.append(out)
         self.data = data
 

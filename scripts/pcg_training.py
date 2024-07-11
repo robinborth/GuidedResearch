@@ -18,14 +18,15 @@ def train(cfg: DictConfig) -> None:
     log.info("==> loading config ...")
     cfg = set_configs(cfg)
 
-    log.info("==> initializing logger ...")
-    logger: Logger = hydra.utils.instantiate(cfg.logger)
-
     log.info(f"==> initializing datamodule <{cfg.data._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
 
     log.info(f"==> initializing model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
+
+    log.info("==> initializing logger ...")
+    logger = hydra.utils.instantiate(cfg.logger)
+    logger.watch(model, log="all")
 
     log.info("==> initializing callbacks ...")
     callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))

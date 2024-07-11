@@ -39,7 +39,13 @@ class NewtonOptimizer(BaseOptimizer):
             return
         path = Path(self.output_dir) / f"{self.step_count:07}.pt"
         path.parent.mkdir(exist_ok=True, parents=True)
-        system = {"A": A.detach().cpu(), "x": x.detach().cpu(), "b": b.detach().cpu()}
+        x_gt = torch.linalg.solve(A, b)
+        system = {
+            "A": A.detach().cpu(),
+            "x": x.detach().cpu(),
+            "x_gt": x_gt.detach().cpu(),
+            "b": b.detach().cpu(),
+        }
         torch.save(system, path)
         self.step_count += 1
 

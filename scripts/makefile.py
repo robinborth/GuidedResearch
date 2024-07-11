@@ -122,28 +122,10 @@ def main():
         7e-02,
         8e-02,
         9e-02,
-        1e-01,
-        2e-01,
-        3e-01,
-        4e-01,
-        5e-01,
-        6e-01,
-        7e-01,
-        8e-01,
-        9e-01,
-        1e-00,
-        2e-00,
-        3e-00,
-        4e-00,
-        5e-00,
-        6e-00,
-        7e-00,
-        8e-00,
-        9e-00,
     ]
     prefixs = float_to_scientific(values)
 
-    group_name = "pcg1_lr"
+    group_name = "pcg1_lr_11"
     template_generator = """
     python scripts/pcg_training.py \\
     logger.group={group_name} \\
@@ -152,54 +134,8 @@ def main():
     task_name={task_name} \\
     model.optimizer.lr={value} \\
     model.max_iter=1 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg2_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=2 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg3_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=3 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg4_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=4 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg5_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=5 \\
+    data.batch_size=1 \\
+    trainer.overfit_batches=1 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 

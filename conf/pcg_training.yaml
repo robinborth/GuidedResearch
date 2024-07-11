@@ -21,23 +21,31 @@ data:
 trainer:
   _target_: lightning.pytorch.trainer.Trainer
   default_root_dir: ${paths.output_dir}
+  accelerator: ${device}
+  # training
   min_epochs: 1 
   max_epochs: 5000
-  accelerator: ${device}
-  check_val_every_n_epoch: 1
-  num_sanity_val_steps: 0
-  log_every_n_steps: 1
+  # debugging
   overfit_batches: 1
-  # accumulate_grad_batches: 1
+  log_every_n_steps: 1
+  check_val_every_n_epoch: 20
+  num_sanity_val_steps: 0
 
 model:
   _target_: lib.optimizer.pcg.PCGSolver
-  mode: diagonal_offset
-  gradients: backprop
-  dim: 6
   max_iter: 1
-  verbose: False
+  gradients: backprop
+  verbose: True
+  condition_net:
+    _target_: lib.optimizer.pcg.DiagonalOffsetConditionNet
+    unknowns: 6
+    hidden_dim: 36
+    num_layers: 1
+  # optimization
+  scheduler: null
+  monitor: train/loss
   optimizer:
     _target_: torch.optim.Adam
     _partial_: True
     lr: 1e-06
+  

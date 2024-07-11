@@ -7,7 +7,7 @@ defaults:
   - logger: flame_wandb
   - data: kinect
   - loss: point2plane 
-  - optimizer: levenberg_marquardt
+  - optimizer: gauss_newton
   - trainer: pcg_sampling
   - hydra: default
   - paths: default
@@ -22,7 +22,10 @@ tags:
 # settings
 optimizer:
   store_system: True   # we want to store the linear systems
-joint_trainer:
+pcg_sampling_trainer:
+  max_samplings: 10000
+  max_iters: 1
+  max_optims: 1
   verbose: False # disable logging
 model:
   init_config:
