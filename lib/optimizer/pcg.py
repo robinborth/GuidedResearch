@@ -6,6 +6,8 @@ import lightning as L
 import torch
 from torch import nn
 
+from lib.model.layers import MLP
+
 log = logging.getLogger()
 
 ####################################################################################
@@ -135,7 +137,7 @@ class ConjugateGradient(torch.autograd.Function):
         b,  # dim (N)
         max_iter=20,
         verbose=False,
-        rel_tol=1e-08,
+        rel_tol=1e-06,
         check_convergence=False,
     ):
         ctx.save_for_backward(A)
@@ -165,6 +167,106 @@ class ConjugateGradient(torch.autograd.Function):
 
 
 ####################################################################################
+# Different Losses
+####################################################################################
+
+
+class ResidualLoss(nn.Module):
+    def forward(self, batch: dict, out: dict):
+        return out["residual_norm"].mean()
+
+
+class L1SolutionLoss(nn.Module):
+    def forward(self, batch: dict, out: dict):
+        return out["l1_solution"].mean()
+
+
+class ConditionNumberLoss(nn.Module):
+    def forward(self, batch: dict, out: dict):
+        return out["M_cond"].mean()
+
+
+class FullResidualLoss(nn.Module):
+    def __init__(self, mode: str = "equal"):
+        super().__init__()
+        assert mode in ["equal", "none"]
+        self.mode = mode
+
+    def forward(self, batch: dict, out: dict):
+        if self.mode == "eqal":
+            return torch.stack(out["residual_norms"]).mean()
+        # compute the residual losses for each iteration
+        last_norm = out["residual_norms"][-1].mean()
+        prev_norms = out["residual_norms"][1:-1]
+        prev_norms = [(last_norm / n.mean()).detach() * n.mean() for n in prev_norms]
+        resiudal_loss = torch.stack([last_norm, *prev_norms]).mean()
+        return resiudal_loss
+
+
+class SelfSupervisedLoss(nn.Module):
+    def forward(self, batch: dict, out: dict):
+        # compute the residual losses for each iteration
+        last_norm = out["residual_norms"][-1].mean()
+        prev_norms = out["residual_norms"][1:-1]
+        prev_norms = [(last_norm / n.mean()).detach() * n.mean() for n in prev_norms]
+        resiudal_loss = torch.stack([last_norm, *prev_norms]).mean()
+
+        # compute the l1 solution loss for each iteration
+        # x_gt = out["xs"][-1].detach()  # assume the last is the gt
+        x_gt = batch["x_gt"]
+        l1_solutions = [torch.abs((x - x_gt)).mean() for x in out["xs"]]
+        l1_solution = torch.stack(l1_solutions).mean()
+
+        # weight the losses
+        weight = (resiudal_loss / l1_solution).detach()
+        loss = (resiudal_loss + weight * l1_solution) / 2
+        return loss
+
+
+class ChainLoss(nn.Module):
+    def __init__(
+        self,
+        l1_weight: float = 1.0,
+        residual_weight: float = 1.0,
+        cond_weight: float = 1.0,
+    ):
+        super().__init__()
+        self.l1_weight = l1_weight
+        self.residual_weight = residual_weight
+        self.cond_weight = cond_weight
+
+    def forward(self, batch: dict, out: dict):
+        residual_norm = out["residual_norm"].mean()
+        l1_solution = out["l1_solution"].mean()
+        l1_weight = (residual_norm / l1_solution).detach()
+        M_cond = out["M_cond"].mean()
+        cond_weight = (residual_norm / M_cond).detach()
+        loss = (
+            self.residual_weight * residual_norm
+            + self.l1_weight * l1_solution * l1_weight
+            + self.cond_weight * M_cond * cond_weight
+        )
+        norm_weight = self.l1_weight + self.residual_weight + self.cond_weight
+        return loss / norm_weight
+
+
+class WeightedSolutionResidualLoss(nn.Module):
+    def __init__(self, residual_weight: float = 0.5):
+        super().__init__()
+        self.w = residual_weight
+        assert residual_weight >= 0.0
+        assert residual_weight <= 1.0
+
+    def forward(self, batch: dict, out: dict):
+        l1_solution = out["l1_solution"].mean()
+        residual_norm = out["residual_norm"].mean()
+        # same weight to l1 and residual
+        weight = (residual_norm / l1_solution).detach()
+        # convex combination of the l1 solution and the residual norm
+        return (1 - self.w) * l1_solution * weight + self.w * residual_norm
+
+
+####################################################################################
 # Linear System Solver + Preconditioned Conjugate Gradient
 ####################################################################################
 
@@ -188,6 +290,7 @@ class PCGSolver(LinearSystemSolver):
         check_convergence: bool = False,
         gradients: str = "backprop",  # close, backprop
         condition_net: Any = None,
+        loss: Any = None,
         **kwargs,
     ):
         super().__init__()
@@ -206,10 +309,10 @@ class PCGSolver(LinearSystemSolver):
                 "Currenlty analytical gradients precompute the preconditioning system!"
             )
 
-        if condition_net is None:
-            self.condition_net = IdentityConditionNet()
-        else:
-            self.condition_net = condition_net()
+        self.condition_net = (
+            IdentityConditionNet() if condition_net is None else condition_net()
+        )
+        self.loss = ResidualLoss() if loss is None else loss()
 
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         # apply the preconditioner
@@ -270,22 +373,24 @@ class PCGSolver(LinearSystemSolver):
         b = batch["b"]
         x_gt = batch["x_gt"]
 
+        # compute the solution
         M = torch.matmul(self.condition_net(A), A)
-
         start_time = time.time()
         x, info = self.forward(A, b)
         measure_time = (time.time() - start_time) * 1000  # in ms
 
-        loss = torch.abs(x - x_gt).mean()
-
         # statistics
+        l1_solution = torch.abs(x - x_gt)
+        l2_solution = torch.linalg.vector_norm(x - x_gt, dim=-1)
         stats_A = self.compute_matrix_statistics(A, "A")
         stats_M = self.compute_matrix_statistics(M, "M")
         residual_stats = self.compute_residual_statistics(A, x, b)
         residual_stats_gt = self.compute_residual_statistics(A, x_gt, b, "gt")
 
-        return dict(
-            loss=loss,
+        # combines the information
+        out = dict(
+            l1_solution=l1_solution,
+            l2_solution=l2_solution,
             measure_time=measure_time,
             **info,
             **residual_stats,
@@ -294,8 +399,14 @@ class PCGSolver(LinearSystemSolver):
             **stats_M,
         )
 
+        # compute the loss
+        loss = self.loss(batch, out)
+        out["loss"] = loss
+
+        return out
+
     def log_step(self, batch: dict, out: dict, mode: str = "train"):
-        self.log(f"{mode}/loss", out["loss"].mean(), prog_bar=True)
+        self.log(f"{mode}/loss", out["loss"], prog_bar=True)
         logs = {}
         for key, value in out.items():
             if not isinstance(value, torch.Tensor):
@@ -310,17 +421,17 @@ class PCGSolver(LinearSystemSolver):
     def training_step(self, batch, batch_idx):
         out = self.model_step(batch)
         self.log_step(batch, out, "train")
-        return out["loss"].sum()
+        return out["loss"]
 
     def validation_step(self, batch, batch_idx):
         out = self.model_step(batch)
         self.log_step(batch, out, "val")
-        return out["loss"].sum()
+        return out["loss"]
 
     def test_step(self, batch, batch_idx):
         out = self.model_step(batch)
         self.log_step(batch, out, "val")
-        return out["loss"].sum()
+        return out["loss"]
 
     def predict_step(self, batch, batch_idx):
         out = self.model_step(batch)
@@ -367,8 +478,8 @@ class IdentityConditionNet(ConditionNet):
     name: str = "IdentityConditionNet"
 
     def forward(self, A: torch.Tensor):
-        ones = torch.ones((A.shape[0], A.shape[1]), device=A.device)
-        return torch.diag_embed(ones)
+        ones = torch.eye(A.shape[-1], device=A.device)
+        return ones.expand_as(A)
 
 
 class JaccobiConditionNet(ConditionNet):
@@ -385,64 +496,11 @@ class FixConditionNet(ConditionNet):
         self.M = torch.nn.Parameter(torch.eye(dim), requires_grad=True)
 
     def forward(self, A: torch.Tensor):
-        return self.M.expand(A.shape)
-
-
-class MLP(nn.Module):
-    def __init__(
-        self,
-        in_dim: int = 1,
-        out_dim: int = 1,
-        hidden_dim: int = 1,
-        num_layers: int = 1,
-    ):
-        super().__init__()
-        layers: list[Any] = []
-        # input layers
-        layers.append(nn.Linear(in_dim, hidden_dim))
-        layers.append(nn.ReLU())
-        # hidden layers
-        for _ in range(num_layers):
-            layers.append(nn.Linear(hidden_dim, hidden_dim))
-            layers.append(nn.ReLU())
-        # output layer
-        layers.append(nn.Linear(hidden_dim, out_dim))
-
-        self.mlp = nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.mlp(x)
+        return self.M.expand_as(A)
 
 
 class DiagonalConditionNet(ConditionNet):
     name: str = "DiagonalConditionNet"
-
-    def __init__(self, unknowns: int = 1, hidden_dim: int = 200, num_layers: int = 2):
-        super().__init__()
-        self.M = MLP(
-            in_dim=unknowns * unknowns,
-            out_dim=unknowns,
-            hidden_dim=hidden_dim,
-            num_layers=num_layers,
-        )
-        self.apply(self._init_weights)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            nn.init.normal_(m.weight, mean=0.0, std=1e-02)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0.0)
-
-    def forward(self, A: torch.Tensor):
-        if A.dim() == 2:
-            A = A.view(-1)
-        else:
-            A = A.view(A.shape[0], -1)
-        return torch.diag_embed(self.M(A))
-
-
-class DiagonalOffsetConditionNet(ConditionNet):
-    name: str = "DiagonalOffsetConditionNet"
 
     def __init__(self, unknowns: int = 1, hidden_dim: int = 200, num_layers: int = 2):
         super().__init__()
@@ -463,42 +521,42 @@ class DiagonalOffsetConditionNet(ConditionNet):
 
     def forward(self, A: torch.Tensor):
         if A.dim() == 2:
-            A = A.view(-1)
+            x = A.view(-1)
         else:
-            A = A.view(A.shape[0], -1)
-        Identiy = torch.eye(self.N, device=A.device)
-        D = torch.diag_embed(self.M(A))
-        M = Identiy + D
+            x = A.view(A.shape[0], -1)
+        D = self.M(x)
+        Identiy = torch.ones_like(D)
+        M = torch.diag_embed((D + Identiy) ** 2)
         return M
 
 
 class DenseConditionNet(ConditionNet):
     name: str = "DenseConditionNet"
 
-    def __init__(self, dim: int = 1, diag_treshold: float = 1e-08):
+    def __init__(self, unknowns: int = 1, hidden_dim: int = 200, num_layers: int = 2):
         super().__init__()
         # the number of elements in the triangular matrix
-        N = dim
-        self.N = dim
-        self.diag_threshold = diag_treshold
-        tri_N = ((N * N - N) // 2) + N
-        self.L = nn.Sequential(
-            nn.Linear(N * N, N * N),
-            nn.ReLU(),
-            nn.Linear(N * N, N * N),
-            nn.ReLU(),
-            nn.Linear(N * N, tri_N),
+        self.N = unknowns
+        self.M = MLP(
+            in_dim=unknowns * unknowns,
+            out_dim=unknowns * unknowns,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
         )
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.normal_(m.weight, mean=0.0, std=1e-05)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
 
     def forward(self, A: torch.Tensor):
-        L_flat = self.L(A.view(-1))
-
-        # lower triangular matrix
-        L = torch.zeros((self.N, self.N), device=A.device)
-        tril_indices = torch.tril_indices(row=self.N, col=self.N, offset=0)
-        L[tril_indices[0], tril_indices[1]] = L_flat
-
-        # psd from triangular
-        M = L @ L.T
-
-        return M
+        if A.dim() == 2:
+            x = A.view(-1)
+        else:
+            x = A.view(A.shape[0], -1)
+        D = self.M(x).reshape(A.shape)
+        Identiy = torch.eye(A.shape[-1], device=A.device).expand_as(A)
+        M = D + Identiy
+        return torch.matmul(M.transpose(-2, -1), M)  # M.T @ M to make PSD

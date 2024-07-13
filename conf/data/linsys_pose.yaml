@@ -10,7 +10,7 @@ split: [0.8, 0.1, 0.1]
 batch_size: 1
 num_workers: 0
 pin_memory: False
-drop_last: True
+drop_last: False
 persistent_workers: False 
 shuffle: True
 

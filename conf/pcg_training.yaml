@@ -31,8 +31,6 @@ trainer:
   min_epochs: 1 
   max_epochs: 5000
   # debugging
-  overfit_batches: 1
-  limit_val_batches: 0  # disable
   check_val_every_n_epoch: 20
   num_sanity_val_steps: 0
   log_every_n_steps: 1
@@ -42,12 +40,15 @@ model:
   max_iter: 1
   gradients: backprop
   verbose: False
+  loss:
+    _target_: lib.optimizer.pcg.ConditionResidualLoss
+    _partial_: True
   condition_net:
     _target_: lib.optimizer.pcg.DiagonalOffsetConditionNet
     _partial_: True
     unknowns: 6
-    hidden_dim: 36
-    num_layers: 1
+    hidden_dim: 200
+    num_layers: 2
   # optimization
   scheduler: null
   monitor: train/loss

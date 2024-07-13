@@ -125,7 +125,7 @@ def main():
     ]
     prefixs = float_to_scientific(values)
 
-    group_name = "pcg1_lr_11"
+    group_name = "pcg_residual_lr"
     template_generator = """
     python scripts/pcg_training.py \\
     logger.group={group_name} \\
@@ -133,11 +133,28 @@ def main():
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
     model.optimizer.lr={value} \\
-    model.max_iter=1 \\
-    data.batch_size=1 \\
-    trainer.overfit_batches=1 \\
+    model.max_iter=5 \\
+    model.loss._target_=lib.optimizer.pcg.ResidualLoss \\
+    data.batch_size=1024 \\
+    trainer.max_epochs=3000 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    # group_name = "pcg_residual_norm_lr"
+    # template_generator = """
+    # python scripts/pcg_training.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # model.optimizer.lr={value} \\
+    # model.max_iter=1 \\
+    # model.loss=residual_norm \\
+    # data.batch_size=1024 \\
+    # trainer.max_epochs=40000 \\
+    # +trainer.overfit_batches=1 \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
 
     with open("Makefile.abl", "w") as f:
         f.write(build_makefile(groups))
