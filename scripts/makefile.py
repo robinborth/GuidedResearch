@@ -77,55 +77,42 @@ def main():
     groups = []
 
     values = [
-        1e-06,
-        2e-06,
-        3e-06,
-        4e-06,
-        5e-06,
-        6e-06,
-        7e-06,
-        8e-06,
-        9e-06,
         1e-05,
-        2e-05,
         3e-05,
-        4e-05,
         5e-05,
-        6e-05,
         7e-05,
-        8e-05,
         9e-05,
         1e-04,
-        2e-04,
         3e-04,
-        4e-04,
         5e-04,
-        6e-04,
         7e-04,
-        8e-04,
         9e-04,
         1e-03,
-        2e-03,
         3e-03,
-        4e-03,
         5e-03,
-        6e-03,
         7e-03,
-        8e-03,
         9e-03,
-        1e-02,
-        2e-02,
-        3e-02,
-        4e-02,
-        5e-02,
-        6e-02,
-        7e-02,
-        8e-02,
-        9e-02,
     ]
     prefixs = float_to_scientific(values)
 
-    group_name = "pcg_residual_lr"
+    group_name = "pcg_dense_inverse_lr"
+    template_generator = """
+    python scripts/pcg_training.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    model.optimizer.lr={value} \\
+    model.max_iter=5 \\
+    model.loss._target_=lib.optimizer.pcg.InverseLoss \\
+    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
+    model.condition_net.num_layers=2 \\
+    data.batch_size=1024 \\
+    trainer.max_epochs=2000 \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    group_name = "pcg_dense_residual_lr"
     template_generator = """
     python scripts/pcg_training.py \\
     logger.group={group_name} \\
@@ -135,26 +122,12 @@ def main():
     model.optimizer.lr={value} \\
     model.max_iter=5 \\
     model.loss._target_=lib.optimizer.pcg.ResidualLoss \\
+    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
+    model.condition_net.num_layers=2 \\
     data.batch_size=1024 \\
-    trainer.max_epochs=3000 \\
+    trainer.max_epochs=2000 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    # group_name = "pcg_residual_norm_lr"
-    # template_generator = """
-    # python scripts/pcg_training.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # model.optimizer.lr={value} \\
-    # model.max_iter=1 \\
-    # model.loss=residual_norm \\
-    # data.batch_size=1024 \\
-    # trainer.max_epochs=40000 \\
-    # +trainer.overfit_batches=1 \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
 
     with open("Makefile.abl", "w") as f:
         f.write(build_makefile(groups))

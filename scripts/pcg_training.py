@@ -123,22 +123,25 @@ def train(cfg: DictConfig) -> None:
         log.info("==> start evaluating convergence ...")
         model.max_iter = cfg.eval_max_iter
         datamodule.hparams["batch_size"] = cfg.eval_batch_size
-        outputs = []
-        for condition_net in condition_nets:
-            log.info(f"==> evaluate {condition_net.name} ...")
-            model.condition_net = condition_net  # type: ignore
-            output = trainer.predict(model, datamodule=datamodule)
-            stats = gather_convergence_stats(output, ["relres_norms"])
-            outputs.append(stats)
+        datamodule.setup("all")
+        for split in cfg.eval_splits:
+            outputs = []
+            for condition_net in condition_nets:
+                log.info(f"==> evaluate {condition_net.name} ({split})...")
+                model.condition_net = condition_net  # type: ignore
+                loader = getattr(datamodule, f"{split}_dataloader")
+                output = trainer.predict(model, dataloaders=[loader()])
+                stats = gather_convergence_stats(output, ["relres_norms"])
+                outputs.append(stats)
 
-        path = Path(cfg.paths.output_dir) / "pcg_convergence.png"
-        visuailize_convergence(
-            outputs=outputs,
-            labels=["identity", "jaccobi", "pcg"],
-            markers=["o", "o", "o"],
-            path=path,
-        )
-        wandb.log({"pcg_convergence": wandb.Image(str(path))})
+            path = Path(cfg.paths.output_dir) / f"pcg_convergence_{split}.png"
+            visuailize_convergence(
+                outputs=outputs,
+                labels=["identity", "jaccobi", "pcg"],
+                markers=["o", "o", "o"],
+                path=path,
+            )
+            wandb.log({f"pcg_convergence_{split}": wandb.Image(str(path))})
 
         log.info("==> start evaluating efficiency ...")
         model.max_iter = 50  # pick large enough so we don't converge

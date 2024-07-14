@@ -266,6 +266,13 @@ class WeightedSolutionResidualLoss(nn.Module):
         return (1 - self.w) * l1_solution * weight + self.w * residual_norm
 
 
+class InverseLoss(nn.Module):
+    def forward(self, batch: dict, out: dict):
+        M = batch["M"] 
+        A_inv = batch["A"].inverse()
+        return torch.linalg.matrix_norm(M - A_inv).mean()
+
+
 ####################################################################################
 # Linear System Solver + Preconditioned Conjugate Gradient
 ####################################################################################
@@ -375,6 +382,7 @@ class PCGSolver(LinearSystemSolver):
 
         # compute the solution
         M = torch.matmul(self.condition_net(A), A)
+        batch["M"] = M
         start_time = time.time()
         x, info = self.forward(A, b)
         measure_time = (time.time() - start_time) * 1000  # in ms
@@ -527,6 +535,37 @@ class DiagonalConditionNet(ConditionNet):
         D = self.M(x)
         Identiy = torch.ones_like(D)
         M = torch.diag_embed((D + Identiy) ** 2)
+        return M
+
+
+class DiagonalSigmoidConditionNet(ConditionNet):
+    name: str = "DiagonalSigmoidConditionNet"
+
+    def __init__(self, unknowns: int = 1, hidden_dim: int = 200, num_layers: int = 2):
+        super().__init__()
+        self.N = unknowns
+        self.M = MLP(
+            in_dim=unknowns * unknowns,
+            out_dim=unknowns,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+        )
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.normal_(m.weight, mean=0.0, std=1e-05)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+
+    def forward(self, A: torch.Tensor):
+        if A.dim() == 2:
+            x = A.view(-1)
+        else:
+            x = A.view(A.shape[0], -1)
+        D = self.M(x)
+        Identiy = torch.ones_like(D)
+        M = torch.diag_embed(torch.nn.functional.sigmoid((D + Identiy)))
         return M
 
 

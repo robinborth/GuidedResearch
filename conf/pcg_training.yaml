@@ -14,7 +14,8 @@ device: cuda
 train: True
 eval: True
 eval_max_iter: 15
-eval_batch_size: 32
+eval_batch_size: 1024
+eval_splits: [train,val]
 task_name: pcg_training
 tags: 
   - ${task_name}
@@ -44,7 +45,7 @@ model:
     _target_: lib.optimizer.pcg.ConditionResidualLoss
     _partial_: True
   condition_net:
-    _target_: lib.optimizer.pcg.DiagonalOffsetConditionNet
+    _target_: lib.optimizer.pcg.DiagonalConditionNet
     _partial_: True
     unknowns: 6
     hidden_dim: 200

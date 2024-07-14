@@ -27,7 +27,7 @@
                 "data.batch_size=1024",
                 "trainer.max_epochs=500",
                 // "model.loss._target_=lib.optimizer.pcg.L1SolutionLoss",
-                "model.loss._target_=lib.optimizer.pcg.SelfSupervisedLoss",
+                "model.loss._target_=lib.optimizer.pcg.InverseLoss",
                 // "+model.loss.residual_weight=0.1",
             ],
             "console": "integratedTerminal",
