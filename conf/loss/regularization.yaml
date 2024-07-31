@@ -7,5 +7,5 @@ defaults:
 _target_: lib.model.loss.ChainedLoss
 chain:
   point2plane: 1.0
-  shape_regularization: 1e-07
-  expression_regularization: 1e-07
+  shape_regularization: 1e-04
+  expression_regularization: 1e-04

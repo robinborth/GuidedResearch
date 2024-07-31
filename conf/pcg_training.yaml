@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - data: linsys_pose 
+  - data: linsys_pose
   - callbacks: default
   - logger: wandb
   - hydra: default
@@ -42,10 +42,10 @@ model:
   gradients: backprop
   verbose: False
   loss:
-    _target_: lib.optimizer.pcg.ConditionResidualLoss
+    _target_: lib.optimizer.pcg.ResidualLoss
     _partial_: True
   condition_net:
-    _target_: lib.optimizer.pcg.DiagonalConditionNet
+    _target_: lib.optimizer.pcg.DenseConditionNet
     _partial_: True
     unknowns: 6
     hidden_dim: 200

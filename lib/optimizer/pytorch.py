@@ -8,6 +8,8 @@ from lib.optimizer.base import BaseOptimizer
 class PytorchOptimizer(BaseOptimizer):
     def __init__(self, optimizer):
         self.optimizer_fn = optimizer
+        self.init_step_size = None
+        self.step_size = None
 
     def set_state(self, state):
         self.optimizer.state = state
@@ -23,9 +25,8 @@ class PytorchOptimizer(BaseOptimizer):
         self,
         loss_closure: Callable[[], torch.Tensor],
         jacobian_closure: Callable[[], torch.Tensor],
-    ) -> float:
+    ):
         self.optimizer.zero_grad()
         loss = loss_closure()
         loss.backward()
         self.optimizer.step()
-        return float(loss)

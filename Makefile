@@ -7,9 +7,9 @@ pcg_sampling:
 	task_name=pcg_sampling \
 	optimizer=gauss_newton \
 	loss=point2plane \
-	pcg_sampling_trainer.max_samplings=1000 \
-	pcg_sampling_trainer.max_iters=1 \
-	pcg_sampling_trainer.max_optims=1 \
+	pcg_sampling_trainer.max_samplings=10000 \
+	pcg_sampling_trainer.max_iters=5 \
+	pcg_sampling_trainer.max_optims=3 \
 
 pcg:
 	python scripts/pcg_training.py \
@@ -19,27 +19,83 @@ pcg:
 	data.batch_size=1 \
 	trainer.overfit_batches=1 \
 
+####################################################################################
+# Optimization
+####################################################################################
 
+levenberg-marquardt:
+	python scripts/optimize.py \
+	task_name=levenberg_marquardt \
+	optimizer=levenberg_marquardt \
+	optimizer.store_system=False \
+	optimizer.verbose=False \
+	loss=regularization \
+	loss.chain.shape_regularization=3e-03 \
+	loss.chain.expression_regularization=7e-04 \
+	joint_trainer.max_iters=200 \
+	joint_trainer.max_optims=50 \
+	+joint_trainer.verbose=False \
+	sequential_trainer=null \
+
+gauss_newton:
+	python scripts/optimize.py \
+	task_name=gauss_newton \
+	optimizer=gauss_newton \
+	optimizer.step_size=3e-01 \
+	optimizer.store_system=False \
+	optimizer.verbose=False \
+	loss=regularization \
+	loss.chain.shape_regularization=3e-03 \
+	loss.chain.expression_regularization=7e-04 \
+	joint_trainer.max_iters=200 \
+	joint_trainer.max_optims=1 \
+	joint_trainer.init_idxs=[0] \
+	+joint_trainer.verbose=False \
+	sequential_trainer=null \
+
+gauss_newton1:
+	python scripts/optimize.py \
+	task_name=gauss_newton \
+	optimizer=gauss_newton \
+	optimizer.step_size=3e-01 \
+	optimizer.store_system=False \
+	optimizer.verbose=False \
+	loss=point2plane \
+	joint_trainer.max_iters=200 \
+	joint_trainer.max_optims=10 \
+	joint_trainer.init_idxs=[0] \
+	+joint_trainer.verbose=False \
+	sequential_trainer=null \
+
+landmark2d:
+	python scripts/optimize.py \
+	task_name=landmark2d \
+	optimizer=gauss_newton \
+	optimizer.step_size=1.0 \
+	optimizer.store_system=False \
+	optimizer.verbose=False \
+	loss=landmark2d \
+	joint_trainer.max_iters=200 \
+	joint_trainer.max_optims=10 \
+	joint_trainer.scheduler.milestones=[0,20,40] \
+	joint_trainer.scheduler.params=[[global_pose,transl],[neck_pose],[shape_params,expression_params]] \
+	sequential_trainer=null \
+
+# optimizer.lin_solver._target_=lib.optimizer.pcg.PCGSolver \
+# +optimizer.lin_solver.condition_net._target_=lib.optimizer.pcg.JaccobiConditionNet \
 ####################################################################################
 # PCG Sampling
 ####################################################################################
 
-# gauss_newton:
-# 	python scripts/optimize.py \
-# 	task_name=gauss_newton \
-# 	optimizer=gauss_newton \
-# 	optimizer.optimizer_params.pcg_steps=1 \
-# 	optimizer.optimizer_params.pcg_jacobi=False \
-# 	loss=point2plane \
-# 	joint_trainer.final_video=False \
-# 	joint_trainer.init_idxs=[0] \
-# 	joint_trainer.max_iters=1 \
-# 	joint_trainer.max_optims=1 \
-# 	joint_trainer.scheduler.milestones=[0] \
-# 	joint_trainer.scheduler.params=[[global_pose,transl]] \
-# 	joint_trainer.coarse2fine.milestones=[0] \
-# 	joint_trainer.coarse2fine.scales=[8] \
-# 	sequential_trainer=null \
+lm:
+	python scripts/optimize.py \
+	task_name=levenberg_marquardt \
+	optimizer=levenberg_marquardt \
+	optimizer.store_system=True \
+	loss=regularization \
+	loss.chain.shape_regularization=4e-03 \
+	loss.chain.expression_regularization=7e-04 \
+	sequential_trainer=null \
 
 ####################################################################################
 # Reg Tests 
@@ -194,3 +250,22 @@ pcg_lr:
 	python scripts/pcg_training.py --multirun \
 	task_name=pcg_lr \
 	model.optimizer.lr=1e-06,2e-05,5e-05,8e-05,1e-04,3e-04,5e-04,8e-04,1e-03,4e-03,7e-03,9e-03,2e-02,5e-02,8e-02,1e-02,4e-01,8e-01,1.0 \
+
+
+
+pcg_scheduler:
+	python scripts/pcg_training.py \
+	logger.group=pcg_scheduler \
+	logger.name=pcg_scheduler \
+	logger.tags=[pcg_scheduler,pcg_scheduler] \
+	task_name=pcg_scheduler \
+	model.optimizer.lr=1e-03 \
+	model.max_iter=5 \
+	model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \
+	model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \
+	model.condition_net.num_layers=2 \
+	+model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \
+	+model.scheduler._partial_=True \
+	+model.scheduler.gamma=0.999 \
+	data.batch_size=1024 \
+	trainer.max_epochs=10000 \

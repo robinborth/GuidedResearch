@@ -5,6 +5,7 @@ from typing import Any
 import lightning as L
 import torch
 from torch import nn
+from torch.optim.optimizer import Optimizer
 
 from lib.model.layers import MLP
 
@@ -176,6 +177,25 @@ class ResidualLoss(nn.Module):
         return out["residual_norm"].mean()
 
 
+class NoiseResidualLoss(nn.Module):
+    def __init__(self, sigma: float = 0.0):
+        super().__init__()
+        self.sigma = sigma
+
+    def forward(self, batch: dict, out: dict):
+        A = batch["A"]
+        b = batch["b"]
+        x = batch["x"]
+
+        # add random noise to the loss
+        eps = torch.randn_like(x) * self.sigma
+        x_noise = x + eps
+
+        A_x = torch.matmul(A, x_noise.unsqueeze(-1)).squeeze(-1)
+        residual_norm = torch.linalg.vector_norm(A_x - b, dim=-1)
+        return residual_norm.mean()
+
+
 class L1SolutionLoss(nn.Module):
     def forward(self, batch: dict, out: dict):
         return out["l1_solution"].mean()
@@ -268,7 +288,7 @@ class WeightedSolutionResidualLoss(nn.Module):
 
 class InverseLoss(nn.Module):
     def forward(self, batch: dict, out: dict):
-        M = batch["M"] 
+        M = batch["M"]
         A_inv = batch["A"].inverse()
         return torch.linalg.matrix_norm(M - A_inv).mean()
 
@@ -382,7 +402,6 @@ class PCGSolver(LinearSystemSolver):
 
         # compute the solution
         M = torch.matmul(self.condition_net(A), A)
-        batch["M"] = M
         start_time = time.time()
         x, info = self.forward(A, b)
         measure_time = (time.time() - start_time) * 1000  # in ms
@@ -394,6 +413,10 @@ class PCGSolver(LinearSystemSolver):
         stats_M = self.compute_matrix_statistics(M, "M")
         residual_stats = self.compute_residual_statistics(A, x, b)
         residual_stats_gt = self.compute_residual_statistics(A, x_gt, b, "gt")
+
+        # augment the betch for the loss
+        batch["M"] = M
+        batch["x"] = x
 
         # combines the information
         out = dict(
@@ -451,6 +474,10 @@ class PCGSolver(LinearSystemSolver):
             "measure_time": torch.tensor([out["measure_time"]]),
             "iters": torch.tensor([float(out["k"])]),
         }
+
+    def on_before_optimizer_step(self, optimizer: Optimizer) -> None:
+        for group in optimizer.param_groups:
+            group["params"]
 
     def configure_optimizers(self):
         optimizer = self.hparams["optimizer"](self.parameters())

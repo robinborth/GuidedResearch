@@ -1,0 +1,23 @@
+# @package data
+_target_: lib.data.datamodule.PCGDataModule
+
+# dataset settings
+dataset_name: linsys_pose_full
+data_dir: ${paths.data_dir}/${data.dataset_name}
+split: [0.98, 0.01, 0.01]
+
+# training settings
+batch_size: 1
+num_workers: 0
+pin_memory: False
+drop_last: False
+persistent_workers: False
+shuffle: True
+
+# dataset settings
+dataset:
+  _target_: lib.data.dataset.PCGDataset
+  _partial_: True
+  data_dir: ${data.data_dir}
+  split: ???
+  samples: ${data.split}

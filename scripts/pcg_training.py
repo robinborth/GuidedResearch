@@ -164,6 +164,12 @@ def train(cfg: DictConfig) -> None:
         table = wandb.Table(columns=columns, data=data)
         wandb.log({"pcg_efficiency": table})
 
+        columns = ["cond", "iters", "measure_time"]
+        for stat in stats:
+            if model.condition_net.name == stat["name"]:
+                metrics = {f"pcg_{k}": v for k, v in stat.items()}
+                wandb.log(metrics)
+
     # closing wandb
     wandb.finish()
 

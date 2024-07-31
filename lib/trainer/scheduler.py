@@ -141,8 +141,6 @@ class OptimizerScheduler(Scheduler):
         # adjust learning rate
         if not self.skip(iter_step):
             optimizer.step_size = optimizer.init_step_size
-        # else:
-        #     optimizer.step_size = optimizer.step_size * 0.9
 
     def update_model(self, model: FLAME, batch: dict):
         for p_name, group in self.state.items():

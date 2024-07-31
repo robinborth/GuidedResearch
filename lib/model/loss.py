@@ -148,6 +148,7 @@ class BaseLoss(nn.Module):
             strategy="forward-mode",
             vectorize=True,
         )
+
         J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
         F = self._residual_step(model, batch, correspondences, params, p_names)
         return J, F

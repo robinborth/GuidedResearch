@@ -5,3 +5,4 @@ optimizer:
   _target_: torch.optim.adam.Adam
   _partial_: True
   lr: 1e-02
+  differentiable: True

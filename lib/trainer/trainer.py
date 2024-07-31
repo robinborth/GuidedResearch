@@ -35,11 +35,6 @@ class BaseTrainer:
         # logging settings
         save_interval: int = 1,
         final_video: bool = True,
-        # convergence tests
-        check_convergence: bool = False,
-        convergence_threshold: float = 1e-10,
-        min_tracker_steps: int = 2,
-        max_tracker_steps: int = 5,
         verbose: bool = True,
         **kwargs,
     ):
@@ -57,12 +52,6 @@ class BaseTrainer:
         # loop settings
         self.max_iters = max_iters
         self.max_optims = max_optims
-
-        # convergence settings
-        self.check_convergence = check_convergence
-        self.convergence_threshold = convergence_threshold
-        self.min_tracker_steps = min_tracker_steps
-        self.max_tracker_steps = max_tracker_steps
 
         # debug settings
         self.save_interval = save_interval
@@ -309,3 +298,99 @@ class PCGSamplingTrainer(BaseTrainer):
             sampling_progress.update(1)
 
         self.close_progress([sampling_progress, outer_progress, inner_progress])
+
+
+class WeightingTrainer(BaseTrainer):
+    def optimize_loop(self, outer_progress, inner_progress):
+        # state
+        logger = self.logger
+        model = self.model
+        optimizer = self.optimizer
+        datamodule = self.datamodule
+
+        # schedulers
+        converged = False
+        coarse2fine = self.coarse2fine
+        scheduler = self.scheduler
+
+        # outer optimization loop
+        for iter_step in range(self.max_iters):
+            # prepare logging
+            self.reset_progress(inner_progress, self.max_optims)
+            logger.iter_step = iter_step
+
+            # fetch single batch
+            coarse2fine.schedule(
+                datamodule=datamodule,
+                iter_step=iter_step,
+            )
+            batch = datamodule.fetch()
+
+            # setup optimizer
+            scheduler.configure_optimizer(
+                optimizer=optimizer,
+                model=model,
+                batch=batch,
+                iter_step=iter_step,
+            )
+            outer_progress.set_postfix({"params": optimizer._p_names})
+
+            # find correspondences
+            with torch.no_grad():
+                correspondences = model.correspondence_step(batch)
+
+            # setup loss
+            L = self.loss(
+                model=model,
+                batch=batch,
+                correspondences=correspondences,
+                params=optimizer._params,
+                p_names=optimizer._p_names,
+            )
+            loss_closure = L.loss_closure()
+            jacobian_closure = L.jacobian_closure()
+            logger.log_loss(L.loss_step())
+
+            # inner optimization loop
+            for optim_step in range(self.max_optims):
+                # update logger state
+                logger.optim_step = optim_step
+                logger.global_step = iter_step * self.max_optims + optim_step + 1
+                logger.optimizer = optimizer
+
+                # optimize step
+                optimizer.step(loss_closure, jacobian_closure)
+                scheduler.update_model(model, batch)
+
+                # metrics and loss logging
+                if self.verbose:
+                    logger.log_gradients(verbose=False)
+                    logger.log_metrics(batch=batch, model=L.model_step())
+                loss = logger.log_loss(L.loss_step())
+                inner_progress.set_postfix({"loss": loss})
+
+                # finish the inner loop
+                inner_progress.update(1)
+
+            # progress logging
+            if (iter_step % self.save_interval) == 0 and self.verbose:
+                logger.log_3d_points(batch=batch, model=correspondences)
+                logger.log_render(batch=batch, model=correspondences)
+                logger.log_input_batch(batch=batch, model=correspondences)
+                logger.log_error(batch=batch, model=correspondences)
+                logger.log_params(batch=batch)
+
+            # finish the outer loop
+            outer_progress.update(1)
+
+        # final metric logging
+        if self.verbose:
+            logger.mode = f"final/{self.mode}"
+            logger.log_metrics(
+                batch=batch,
+                model=L.model_step(),
+                verbose=False,
+            )
+
+    def optimize(self):
+        raise NotImplementedError

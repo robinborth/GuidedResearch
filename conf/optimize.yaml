@@ -4,7 +4,7 @@ defaults:
   - model: flame 
   - logger: flame_wandb 
   - data: kinect
-  - loss: point2plane 
+  - loss: regularization 
   - optimizer: levenberg_marquardt
   - trainer:
     - joint
