@@ -22,6 +22,7 @@ from lib.model.loss import (
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
+from lib.trainer.timer import TimeTracker
 from lib.utils.logger import create_video
 
 
@@ -35,6 +36,7 @@ class FlameLogger:
         tags: str,
         max_loss: float = 1e-02,
         mode: str = "",
+        name: str | None = None,
     ):
         # settings
         self.save_dir = save_dir
@@ -43,6 +45,7 @@ class FlameLogger:
         self.group = group
         self.tags = tags
         self.max_loss = max_loss
+        self.name = name
         # state
         self.iter_step = 0
         self.optim_step = 0
@@ -50,6 +53,8 @@ class FlameLogger:
         self.mode = mode
         self.capture_video = False
         self.optimizer: Any = None
+
+        self.time_tracker = TimeTracker()
 
     def init_logger(self, model: FLAME, cfg: DictConfig):
         config: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
@@ -59,6 +64,7 @@ class FlameLogger:
             entity=self.entity,
             group=self.group,
             tags=self.tags,
+            name=self.name,
             config=config,
         )
         self.model = model
@@ -351,3 +357,7 @@ class FlameLogger:
         video_dir = str(_video_dir.resolve())
         video_path = str((Path(self.save_dir) / "video" / f"{name}.mp4").resolve())
         create_video(video_dir=video_dir, video_path=video_path, framerate=framerate)
+
+    def log_tracker(self):
+        statistics = self.time_tracker.compute_statistics()
+        self.log_dict({f"{self.mode}/{k}": v["mean"] for k, v in statistics.items()})

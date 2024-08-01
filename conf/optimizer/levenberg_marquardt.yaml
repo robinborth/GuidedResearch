@@ -27,4 +27,4 @@ eps_energy: 1e-10
 # store linear system
 store_system: False
 output_dir: ${paths.output_dir}/linsys
-verbose: True
+verbose: False 

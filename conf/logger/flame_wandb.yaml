@@ -7,3 +7,4 @@ entity: robinborth
 group: ${task_name}
 tags: ${tags}
 mode: ""
+name: null

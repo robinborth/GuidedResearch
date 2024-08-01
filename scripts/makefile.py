@@ -77,195 +77,56 @@ def main():
     groups = []
 
     values = [
-        1e-06,
-        3e-06,
-        5e-06,
-        7e-06,
-        9e-06,
-        1e-05,
-        3e-05,
-        5e-05,
-        7e-05,
-        9e-05,
-        1e-04,
-        3e-04,
-        5e-04,
-        7e-04,
-        9e-04,
-        1e-03,
-        3e-03,
-        5e-03,
-        8e-03,
-        7e-03,
-        9e-03,
+        "[0]",
+        "[0,20]",
+        "[0,20,35]",
+        "[0,20,35,55]",
+        "[0,20,35,55,65]",
+        "[0,20,35,55,65,95]",
+        "[0,20,35,55,65,95,110]",
+        "[0,20,35,55,65,95,110,115]",
     ]
-    prefixs = float_to_scientific(values)
+    prefixs = [1, 2, 3, 4, 5, 6, 7, 8]
+    # values = ["v1", "v2"]
+    # prefixs = values
 
-    group_name = "pcg_full_scheduler1_lr"
+    # group_name = "timer_gn_p2p_v1"
+    # template_generator = """
+    # python scripts/optimize.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # model=[flame,dphm_christoph_mouthmove] \\
+    # optimizer=gauss_newton \\
+    # loss=point2plane \\
+    # +loss.jacobian_fn=v1 \\
+    # joint_trainer.init_idxs={value} \\
+    # joint_trainer.scheduler.milestones=[0] \\
+    # joint_trainer.max_iters=50 \\
+    # joint_trainer.max_optims=10 \\
+    # joint_trainer.scheduler.params=[[global_pose,transl,neck_pose,shape_params,expression_params]] \\
+    # sequential_trainer=null \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    group_name = "timer_gn_p2p_v2_no_shape_single_step"
     template_generator = """
-    python scripts/pcg_training.py \\
+    python scripts/optimize.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=1 \\
-    model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \\
-    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
-    model.condition_net.num_layers=2 \\
-    +model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \\
-    +model.scheduler._partial_=True \\
-    +model.scheduler.gamma=0.99 \\
-    data=linsys_pose_full \\
-    data.batch_size=1024 \\
-    trainer.max_epochs=500 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg_full_scheduler2_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=2 \\
-    model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \\
-    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
-    model.condition_net.num_layers=2 \\
-    +model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \\
-    +model.scheduler._partial_=True \\
-    +model.scheduler.gamma=0.99 \\
-    data=linsys_pose_full \\
-    data.batch_size=1024 \\
-    trainer.max_epochs=500 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg_full_scheduler3_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=3 \\
-    model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \\
-    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
-    model.condition_net.num_layers=2 \\
-    +model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \\
-    +model.scheduler._partial_=True \\
-    +model.scheduler.gamma=0.99 \\
-    data=linsys_pose_full \\
-    data.batch_size=1024 \\
-    trainer.max_epochs=500 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg_full_scheduler4_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=4 \\
-    model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \\
-    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
-    model.condition_net.num_layers=2 \\
-    +model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \\
-    +model.scheduler._partial_=True \\
-    +model.scheduler.gamma=0.99 \\
-    data=linsys_pose_full \\
-    data.batch_size=1024 \\
-    trainer.max_epochs=500 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg_full_scheduler5_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=5 \\
-    model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \\
-    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
-    model.condition_net.num_layers=2 \\
-    +model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \\
-    +model.scheduler._partial_=True \\
-    +model.scheduler.gamma=0.99 \\
-    data=linsys_pose_full \\
-    data.batch_size=1024 \\
-    trainer.max_epochs=500 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg_full_scheduler6_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=6 \\
-    model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \\
-    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
-    model.condition_net.num_layers=2 \\
-    +model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \\
-    +model.scheduler._partial_=True \\
-    +model.scheduler.gamma=0.99 \\
-    data=linsys_pose_full \\
-    data.batch_size=1024 \\
-    trainer.max_epochs=500 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg_full_scheduler7_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=7 \\
-    model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \\
-    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
-    model.condition_net.num_layers=2 \\
-    +model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \\
-    +model.scheduler._partial_=True \\
-    +model.scheduler.gamma=0.99 \\
-    data=linsys_pose_full \\
-    data.batch_size=1024 \\
-    trainer.max_epochs=500 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "pcg_full_scheduler8_lr"
-    template_generator = """
-    python scripts/pcg_training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model.optimizer.lr={value} \\
-    model.max_iter=8 \\
-    model.loss._target_=lib.optimizer.pcg.L1SolutionLoss \\
-    model.condition_net._target_=lib.optimizer.pcg.DenseConditionNet \\
-    model.condition_net.num_layers=2 \\
-    +model.scheduler._target_=torch.optim.lr_scheduler.ExponentialLR \\
-    +model.scheduler._partial_=True \\
-    +model.scheduler.gamma=0.99 \\
-    data=linsys_pose_full \\
-    data.batch_size=1024 \\
-    trainer.max_epochs=500 \\
+    model=[flame,dphm_christoph_mouthmove] \\
+	optimizer=gauss_newton \\
+	loss=point2plane \\
+    +loss.jacobian_fn=v2 \\
+	joint_trainer.init_idxs={value} \\
+    joint_trainer.scheduler.milestones=[0] \\
+    joint_trainer.max_iters=50 \\
+	joint_trainer.max_optims=1 \\
+    joint_trainer.scheduler.params=[[global_pose,transl,neck_pose,expression_params]] \\
+	sequential_trainer=null \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 

@@ -33,11 +33,9 @@ def optimize(cfg: DictConfig):
 
     log.info(f"==> initializing model <{cfg.model._target_}>")
     model: FLAME = hydra.utils.instantiate(cfg.model).to(cfg.device)
-    model.init_renderer(camera=camera, rasterizer=rasterizer)
 
     log.info("==> initializing logger ...")
     logger: FlameLogger = hydra.utils.instantiate(cfg.logger)
-    logger.init_logger(model=model, cfg=cfg)
 
     log.info("==> initializing datamodule ...")
     datamodule = hydra.utils.instantiate(cfg.data, devie=cfg.device)
@@ -47,6 +45,12 @@ def optimize(cfg: DictConfig):
 
     log.info("==> initilizing optimizer ...")
     optimizer = hydra.utils.instantiate(cfg.optimizer)
+
+    # allow access from different classes
+    model.init_renderer(camera=camera, rasterizer=rasterizer)
+    model.init_logger(logger=logger)
+    logger.init_logger(model=model, cfg=cfg)
+    optimizer.init_logger(logger=logger)
 
     if cfg.get("joint_trainer"):
         log.info("==> initializing joint trainer ...")

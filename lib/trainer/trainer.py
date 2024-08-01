@@ -72,19 +72,24 @@ class BaseTrainer:
         scheduler = self.scheduler
 
         # outer optimization loop
+        logger.time_tracker.start("outer_loop")
         for iter_step in range(self.max_iters):
+            logger.time_tracker.start("outer_step")
             # prepare logging
             self.reset_progress(inner_progress, self.max_optims)
             logger.iter_step = iter_step
 
             # fetch single batch
+            logger.time_tracker.start("fetch_batch")
             coarse2fine.schedule(
                 datamodule=datamodule,
                 iter_step=iter_step,
             )
             batch = datamodule.fetch()
+            logger.time_tracker.stop("fetch_batch")
 
             # setup optimizer
+            logger.time_tracker.start("setup_optimizer")
             scheduler.configure_optimizer(
                 optimizer=optimizer,
                 model=model,
@@ -92,6 +97,7 @@ class BaseTrainer:
                 iter_step=iter_step,
             )
             outer_progress.set_postfix({"params": optimizer._p_names})
+            logger.time_tracker.stop("setup_optimizer")
 
             # resets convergence when changin the energy
             energy_change = scheduler.dirty or coarse2fine.dirty
@@ -99,36 +105,48 @@ class BaseTrainer:
                 converged = False
             if converged:
                 outer_progress.update(1)
+                logger.time_tracker.stop("outer_step")
                 continue
 
             # find correspondences
+            logger.time_tracker.start("find_correspondences")
             with torch.no_grad():
                 correspondences = model.correspondence_step(batch)
+            logger.time_tracker.stop("find_correspondences")
 
             # setup loss
+            logger.time_tracker.start("setup_loss")
             L = self.loss(
                 model=model,
                 batch=batch,
                 correspondences=correspondences,
                 params=optimizer._params,
                 p_names=optimizer._p_names,
+                logger=logger,
             )
             loss_closure = L.loss_closure()
             jacobian_closure = L.jacobian_closure()
             logger.log_loss(L.loss_step())
+            logger.time_tracker.stop("setup_loss")
 
             # inner optimization loop
+            logger.time_tracker.start("inner_loop")
             for optim_step in range(self.max_optims):
+                logger.time_tracker.start("inner_step")
                 # update logger state
                 logger.optim_step = optim_step
                 logger.global_step = iter_step * self.max_optims + optim_step + 1
                 logger.optimizer = optimizer
 
                 # optimize step
+                logger.time_tracker.start("optimizer_step")
                 optimizer.step(loss_closure, jacobian_closure)
+                logger.time_tracker.start("update_model", stop=True)
                 scheduler.update_model(model, batch)
+                logger.time_tracker.stop()
 
                 # metrics and loss logging
+                logger.time_tracker.start("inner_logging")
                 if self.verbose:
                     logger.log_gradients(verbose=False)
                     logger.log_metrics(batch=batch, model=L.model_step())
@@ -137,23 +155,33 @@ class BaseTrainer:
 
                 # finish the inner loop
                 inner_progress.update(1)
+                logger.time_tracker.stop("inner_logging")
 
                 if optimizer.converged:
                     converged = optim_step == 0  # outer convergence
+                    logger.time_tracker.stop("inner_step")
                     break  # skip the next inner loops
+                logger.time_tracker.stop("inner_step")
+            logger.time_tracker.stop("inner_loop")
 
             # progress logging
+            logger.time_tracker.start("outer_logging")
             if (iter_step % self.save_interval) == 0 and self.verbose:
                 logger.log_3d_points(batch=batch, model=correspondences)
                 logger.log_render(batch=batch, model=correspondences)
                 logger.log_input_batch(batch=batch, model=correspondences)
                 logger.log_error(batch=batch, model=correspondences)
                 logger.log_params(batch=batch)
+            logger.time_tracker.stop("outer_logging")
 
             # finish the outer loop
             outer_progress.update(1)
+            logger.time_tracker.stop("outer_step")
+        logger.time_tracker.stop("outer_loop")
 
         # final metric logging
+        logger.time_tracker.print_summary()
+        logger.log_tracker()
         if self.verbose:
             logger.mode = f"final/{self.mode}"
             logger.log_metrics(
@@ -194,6 +222,7 @@ class JointTrainer(BaseTrainer):
         outer_progress = self.outer_progress()
         inner_progress = self.inner_progress()
 
+        self.model.init_params_with_config(self.model.init_config)
         self.scheduler.freeze(self.model)
 
         self.logger.mode = self.mode
@@ -254,6 +283,7 @@ class SequentialTrainer(BaseTrainer):
         frame_progress = self.frame_progress()
         outer_progress = self.outer_progress()
         inner_progress = self.inner_progress()
+        self.model.init_params_with_config(self.model.init_config)
         self.scheduler.freeze(self.model)
         for frame_idxs in self.frame_idxs_iter():
             self.reset_progress(outer_progress, self.max_iters)

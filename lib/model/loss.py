@@ -1,5 +1,10 @@
+import time
+from typing import Any
+
 import torch
 from torch import nn
+from torch.autograd.functional import jacobian
+from torch.func import jacfwd, jacrev, vmap
 
 from lib.model.flame import FLAME
 
@@ -77,6 +82,8 @@ class BaseLoss(nn.Module):
         correspondences: dict,
         params: list[torch.Tensor],
         p_names: list[str],
+        logger: Any,
+        jacobian_fn: str = "v3",
         weight: float = 1.0,
         **kwargs,
     ):
@@ -87,6 +94,8 @@ class BaseLoss(nn.Module):
         self.params = params
         self.p_names = p_names
         self.weight = weight
+        self.logger = logger
+        self.jacobian_fn = jacobian_fn
 
     ####################################################################################
     # Loss and Jacobian Computation
@@ -110,8 +119,11 @@ class BaseLoss(nn.Module):
         params: list[torch.Tensor],
         p_names: list[str],
     ):
+        self.logger.time_tracker.start("model_step")
         out = model.model_step(batch, correspondences, params, p_names)
+        self.logger.time_tracker.start("loss_step", stop=True)
         loss = self.weight * self.forward(out)  # (C,)
+        self.logger.time_tracker.stop()
         return loss.reshape(-1)  # (C,)
 
     def loss_step(self):
@@ -130,7 +142,7 @@ class BaseLoss(nn.Module):
         loss = residuals**2
         return {"loss": loss, self.name: loss}
 
-    def _jacobian_step(
+    def _jacobian_stepv1(
         self,
         model: FLAME,
         batch: dict,
@@ -153,14 +165,92 @@ class BaseLoss(nn.Module):
         F = self._residual_step(model, batch, correspondences, params, p_names)
         return J, F
 
+    def _jacobian_stepv2(
+        self,
+        model: FLAME,
+        batch: dict,
+        correspondences: dict,
+        params: list[torch.Tensor],
+        p_names: list[str],
+    ):
+        def closure(*args):
+            F = self._residual_step(model, batch, correspondences, args, p_names)
+            return F, F
+
+        with torch.enable_grad():
+            jacobian_fn = jacfwd(
+                func=closure,
+                argnums=tuple(range(len(params))),
+                has_aux=True,
+            )
+            jacobians, F = jacobian_fn(*params)
+        J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
+        return J, F
+
+    def _residual_stepv3(
+        self,
+        model: FLAME,
+        batch: dict,
+        correspondences: dict,
+        params: torch.Tensor,
+        p_names: list[str],
+    ):
+        self.logger.time_tracker.start("model_step")
+        out = model.model_stepv3(batch, correspondences, params, p_names)
+        self.logger.time_tracker.start("loss_step", stop=True)
+        loss = self.weight * self.forward(out)  # (C,)
+        self.logger.time_tracker.stop()
+        return loss.reshape(-1)  # (C,)
+
+    def _jacobian_stepv3(
+        self,
+        model: FLAME,
+        batch: dict,
+        correspondences: dict,
+        params: list[torch.Tensor],
+        p_names: list[str],
+    ):
+        def closure(arg):
+            F = self._residual_stepv3(model, batch, correspondences, arg, p_names).sum()
+            return F, F
+        with torch.enable_grad():
+            jacobian_fn = jacfwd(func=closure, has_aux=True)
+            J, F = jacobian_fn(_params)
+        _params = torch.cat([p.flatten(-2) for p in params], dim=-1)  # (M, N)
+        with torch.enable_grad():
+            jacobian_fn = jacfwd(func=closure, has_aux=True)
+            for _ in range(10):
+                s = time.time()
+                J, F = jacobian_fn(_params)
+                print((time.time() - s) * 1000)
+        return J, F
+
     def jacobian_step(self):
-        return self._jacobian_step(
-            model=self.model,
-            batch=self.batch,
-            correspondences=self.correspondences,
-            params=self.params,
-            p_names=self.p_names,
-        )
+        if self.jacobian_fn == "v1":
+            return self._jacobian_stepv1(
+                model=self.model,
+                batch=self.batch,
+                correspondences=self.correspondences,
+                params=self.params,
+                p_names=self.p_names,
+            )
+        elif self.jacobian_fn == "v2":
+            return self._jacobian_stepv2(
+                model=self.model,
+                batch=self.batch,
+                correspondences=self.correspondences,
+                params=self.params,
+                p_names=self.p_names,
+            )
+        elif self.jacobian_fn == "v3":
+            return self._jacobian_stepv3(
+                model=self.model,
+                batch=self.batch,
+                correspondences=self.correspondences,
+                params=self.params,
+                p_names=self.p_names,
+            )
+        raise ValueError("No jacobian_fn version that matches!")
 
     ####################################################################################
     # Closures

@@ -14,6 +14,9 @@ class BaseOptimizer(nn.Module):
         self._numel_cache = None
         self.converged = False
 
+    def init_logger(self, logger):
+        self.logger = logger
+
     def reset(self):
         self._numel_cache = None
         self.converged = False

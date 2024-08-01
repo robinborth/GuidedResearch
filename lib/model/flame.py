@@ -194,11 +194,14 @@ class FLAME(nn.Module):
         return {"vertices": vertices, "lm_3d_camera": landmarks, "lm_2d_ndc": lm_2d_ndc}
 
     def correspondence_step(self, batch: dict):
+        self.logger.time_tracker.start("model_forward")
         model = self.forward(**self.flame_input_dict(batch))
+        self.logger.time_tracker.start("renderer", stop=True)
         render = self.renderer.render_full(
             vertices=model["vertices"],  # (B, V, 3)
             faces=self.masked_faces,  # (F, 3)
         )  # (B, H', W')
+        self.logger.time_tracker.start("mask", stop=True)
         # per pixel distance in 3d, just the length
         dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
         # calculate the forground mask
@@ -211,6 +214,7 @@ class FLAME(nn.Module):
         # final loss mask of silhouette, depth and normal threshold
         final_mask = d_mask & f_mask & n_mask
         assert final_mask.sum()  # we have some overlap
+        self.logger.time_tracker.stop()
         mask = {
             "mask": final_mask,
             "f_mask": f_mask,
@@ -233,6 +237,57 @@ class FLAME(nn.Module):
             flame_params[p_name] = param.expand(B, -1)
         for p_name, param in zip(p_names, params):
             flame_params[p_name] = param.expand(B, -1)
+
+        mask = correspondences["mask"]
+        out = self.forward(**flame_params)
+        point = self.renderer.mask_interpolate(
+            vertices_idx=correspondences["vertices_idx"],
+            bary_coords=correspondences["bary_coords"],
+            attributes=out["vertices"],
+            mask=mask,
+        )  # (C, 3)
+
+        # set the params for regularization
+        shape_params = None
+        expression_params = None
+        for p_name, param in zip(p_names, params):
+            if p_name == "shape_params":
+                shape_params = param
+            if p_name == "expression_params":
+                expression_params = param
+
+        return {
+            "mask": mask,
+            "point": point,
+            "normal": correspondences["normal"][mask],  # (C, 3)
+            "point_gt": batch["point"][mask],  # (C, 3)
+            "normal_gt": batch["normal"][mask],  # (C, 3)
+            "shape_params": shape_params,  # (B, 100)
+            "expression_params": expression_params,  # (B, 100)
+            "lm_3d_camera": out["lm_3d_camera"],
+            "lm_2d_ndc": out["lm_2d_ndc"],
+            "lm_3d_camera_gt": self.extract_landmarks(batch["lm_3d_camera"]),
+            "lm_2d_ndc_gt": self.extract_landmarks(batch["lm_2d_ndc"]),
+        }
+
+    def model_stepv3(
+        self,
+        batch: dict,
+        correspondences: dict,
+        params: torch.Tensor,
+        p_names: list[str],
+    ):
+        B = batch["frame_idx"].shape[0]
+        flame_input = self.flame_input_dict(batch)
+        flame_params = {}
+        for p_name, param in flame_input.items():
+            flame_params[p_name] = param.expand(B, -1)
+
+        idx = 0
+        for p_name in p_names:
+            offset = flame_input[p_name].numel()
+            flame_params[p_name] = params[idx : idx + offset].expand(B, -1)
+            idx += offset
 
         mask = correspondences["mask"]
         out = self.forward(**flame_params)
@@ -315,6 +370,10 @@ class FLAME(nn.Module):
         for p_name in self.frame_p_names:
             module = getattr(self, p_name)
             module.weight[target_idx] = module.weight[source_idx].detach()
+
+    def init_logger(self, logger):
+        self.logger = logger
+        self.renderer.init_logger(logger)
 
     def reset_frame(self, frame_idx: int):
         for p_name in self.frame_p_names:

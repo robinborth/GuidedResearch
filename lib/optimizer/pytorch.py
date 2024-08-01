@@ -1,3 +1,4 @@
+import time
 from typing import Any, Callable
 
 import torch
@@ -26,7 +27,15 @@ class PytorchOptimizer(BaseOptimizer):
         loss_closure: Callable[[], torch.Tensor],
         jacobian_closure: Callable[[], torch.Tensor],
     ):
+        self.logger.time_tracker.start("zero_grad")
         self.optimizer.zero_grad()
+
+        self.logger.time_tracker.start("loss_closure", stop=True)
         loss = loss_closure()
+
+        self.logger.time_tracker.start("backward", stop=True)
         loss.backward()
+
+        self.logger.time_tracker.start("step", stop=True)
         self.optimizer.step()
+        self.logger.time_tracker.stop()

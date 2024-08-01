@@ -23,6 +23,7 @@ dependencies = [
   "opencv-python",
   "chumpy==0.70",
   "numpy==1.23.4",
+  "prettytable",
 
   # test
   "black",

@@ -6,10 +6,10 @@ lin_solver:
   _target_: lib.optimizer.pcg.PytorchSolver
 
 # step size
-step_size: 1.0
+step_size: 1e-03  # 3e-01
 line_search_fn: null
 
 # store linear system
-store_system: True
+store_system: False 
 output_dir: ${paths.output_dir}/linsys
-verbose: True
+verbose: False

@@ -32,40 +32,35 @@ levenberg-marquardt:
 	loss=regularization \
 	loss.chain.shape_regularization=3e-03 \
 	loss.chain.expression_regularization=7e-04 \
-	joint_trainer.max_iters=200 \
-	joint_trainer.max_optims=50 \
-	+joint_trainer.verbose=False \
+	joint_trainer.init_idxs=[0] \
+	joint_trainer.verbose=False \
 	sequential_trainer=null \
 
 gauss_newton:
 	python scripts/optimize.py \
+	model=[flame, dphm_christoph_mouthmove] \
 	task_name=gauss_newton \
 	optimizer=gauss_newton \
-	optimizer.step_size=3e-01 \
-	optimizer.store_system=False \
-	optimizer.verbose=False \
 	loss=regularization \
-	loss.chain.shape_regularization=3e-03 \
-	loss.chain.expression_regularization=7e-04 \
-	joint_trainer.max_iters=200 \
+	joint_trainer.max_iters=1 \
 	joint_trainer.max_optims=1 \
 	joint_trainer.init_idxs=[0] \
-	+joint_trainer.verbose=False \
 	sequential_trainer=null \
 
-gauss_newton1:
+adam:
 	python scripts/optimize.py \
-	task_name=gauss_newton \
-	optimizer=gauss_newton \
-	optimizer.step_size=3e-01 \
-	optimizer.store_system=False \
-	optimizer.verbose=False \
+	task_name=adam \
+	optimizer=adam \
 	loss=point2plane \
-	joint_trainer.max_iters=200 \
+	joint_trainer.scheduler.copy_optimizer_state=True \
+	joint_trainer.scheduler.milestones=[0,10,20] \
+	joint_trainer.scheduler.params=[[global_pose,transl],[neck_pose,eye_pose],[shape_params,expression_params]] \
+	joint_trainer.max_iters=100 \
 	joint_trainer.max_optims=10 \
 	joint_trainer.init_idxs=[0] \
-	+joint_trainer.verbose=False \
+	joint_trainer.verbose=True \
 	sequential_trainer=null \
+
 
 landmark2d:
 	python scripts/optimize.py \
