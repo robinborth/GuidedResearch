@@ -1,12 +1,15 @@
 import itertools
 import logging
+from typing import Any
 
 import torch
+import wandb
 from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import FLAME
 from lib.model.loss import BaseLoss
+from lib.model.residual_weight import ResidualWeightModule
 from lib.optimizer.base import BaseOptimizer
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
@@ -58,6 +61,7 @@ class BaseTrainer:
         self.final_video = final_video
         self.verbose = verbose
         self.frames: list[int] = []
+        self.residual_weight: Any = None
 
     def optimize_loop(self, outer_progress, inner_progress):
         # state
@@ -114,12 +118,27 @@ class BaseTrainer:
                 correspondences = model.correspondence_step(batch)
             logger.time_tracker.stop("find_correspondences")
 
+            # compute weight mask
+            logger.time_tracker.start("compute_weight")
+            if self.residual_weight is not None:
+                b_depth = batch["point"][..., 2:]  # (B, H, W, 1)
+                c_depth = correspondences["point"][..., 2:]  # (B, H, W, 1)
+                c_normal = correspondences["normal"]  # (B, H, W, 3)
+                rw_input = torch.cat([b_depth, c_depth, c_normal], dim=-1)
+                rw_input = rw_input.permute(0, 3, 1, 2)  # (B, 5, H, W)
+                weight_map = self.residual_weight(rw_input)
+            else:
+                mask = correspondences["mask"]
+                weight_map = torch.ones_like(mask)
+            logger.time_tracker.stop("compute_weight")
+
             # setup loss
             logger.time_tracker.start("setup_loss")
             L = self.loss(
                 model=model,
                 batch=batch,
                 correspondences=correspondences,
+                weight_map=weight_map,
                 params=optimizer._params,
                 p_names=optimizer._p_names,
                 logger=logger,
@@ -172,6 +191,17 @@ class BaseTrainer:
                 logger.log_input_batch(batch=batch, model=correspondences)
                 logger.log_error(batch=batch, model=correspondences)
                 logger.log_params(batch=batch)
+                # weight debugging
+                logger.logger.log({"weight_image": wandb.Image(weight_map)})
+                logger.logger.log(
+                    {
+                        "weight_max": weight_map.max(),
+                        "weight_min": weight_map.min(),
+                        "weight_mean": weight_map.mean(),
+                    }
+                )
+                # overlay image wandb
+                mask = correspondences["r_mask"]
             logger.time_tracker.stop("outer_logging")
 
             # finish the outer loop
@@ -179,8 +209,20 @@ class BaseTrainer:
             logger.time_tracker.stop("outer_step")
         logger.time_tracker.stop("outer_loop")
 
+        # final logging of the updated correspondences
+        with torch.no_grad():
+            logger.iter_step += 1
+            batch = datamodule.fetch()
+            correspondences = model.correspondence_step(batch)
+            logger.log_render(batch=batch, model=correspondences)
+            batch = datamodule.fetch()
+            render_merged = batch["color"].clone()
+            render_merged[mask] = correspondences["color"][mask]
+            img = wandb.Image(render_merged.detach().cpu().numpy())
+            logger.logger.log({"merged_image": img})
+
         # final metric logging
-        logger.time_tracker.print_summary()
+        # logger.time_tracker.print_summary()
         logger.log_tracker()
         if self.verbose:
             logger.mode = f"final/{self.mode}"
@@ -331,96 +373,67 @@ class PCGSamplingTrainer(BaseTrainer):
 
 
 class WeightingTrainer(BaseTrainer):
-    def optimize_loop(self, outer_progress, inner_progress):
-        # state
-        logger = self.logger
-        model = self.model
-        optimizer = self.optimizer
-        datamodule = self.datamodule
+    def __init__(
+        self,
+        init_idxs: list[int] = [],
+        train_steps: int = 100,
+        lr: float = 1e-03,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.mode = "weight"
+        assert len(init_idxs) > 0
+        self.init_idxs = init_idxs
+        self.frames = init_idxs
+        self.train_steps = train_steps
 
-        # schedulers
-        converged = False
-        coarse2fine = self.coarse2fine
-        scheduler = self.scheduler
+        log.info("==> initilizing weighting")
+        self.residual_weight = ResidualWeightModule(
+            in_channels=5,
+            hidden_channels=100,
+            num_layers=2,
+            kernal_size=3,
+        ).to(self.model.device)
 
-        # outer optimization loop
-        for iter_step in range(self.max_iters):
-            # prepare logging
-            self.reset_progress(inner_progress, self.max_optims)
-            logger.iter_step = iter_step
+        self.weight_optimizer = torch.optim.Adam(
+            params=self.residual_weight.parameters(), lr=lr
+        )
 
-            # fetch single batch
-            coarse2fine.schedule(
-                datamodule=datamodule,
-                iter_step=iter_step,
-            )
-            batch = datamodule.fetch()
-
-            # setup optimizer
-            scheduler.configure_optimizer(
-                optimizer=optimizer,
-                model=model,
-                batch=batch,
-                iter_step=iter_step,
-            )
-            outer_progress.set_postfix({"params": optimizer._p_names})
-
-            # find correspondences
-            with torch.no_grad():
-                correspondences = model.correspondence_step(batch)
-
-            # setup loss
-            L = self.loss(
-                model=model,
-                batch=batch,
-                correspondences=correspondences,
-                params=optimizer._params,
-                p_names=optimizer._p_names,
-            )
-            loss_closure = L.loss_closure()
-            jacobian_closure = L.jacobian_closure()
-            logger.log_loss(L.loss_step())
-
-            # inner optimization loop
-            for optim_step in range(self.max_optims):
-                # update logger state
-                logger.optim_step = optim_step
-                logger.global_step = iter_step * self.max_optims + optim_step + 1
-                logger.optimizer = optimizer
-
-                # optimize step
-                optimizer.step(loss_closure, jacobian_closure)
-                scheduler.update_model(model, batch)
-
-                # metrics and loss logging
-                if self.verbose:
-                    logger.log_gradients(verbose=False)
-                    logger.log_metrics(batch=batch, model=L.model_step())
-                loss = logger.log_loss(L.loss_step())
-                inner_progress.set_postfix({"loss": loss})
-
-                # finish the inner loop
-                inner_progress.update(1)
-
-            # progress logging
-            if (iter_step % self.save_interval) == 0 and self.verbose:
-                logger.log_3d_points(batch=batch, model=correspondences)
-                logger.log_render(batch=batch, model=correspondences)
-                logger.log_input_batch(batch=batch, model=correspondences)
-                logger.log_error(batch=batch, model=correspondences)
-                logger.log_params(batch=batch)
-
-            # finish the outer loop
-            outer_progress.update(1)
-
-        # final metric logging
-        if self.verbose:
-            logger.mode = f"final/{self.mode}"
-            logger.log_metrics(
-                batch=batch,
-                model=L.model_step(),
-                verbose=False,
-            )
+    def train_progress(self):
+        return tqdm(total=self.train_steps, desc="Train Loop", position=0)
 
     def optimize(self):
-        raise NotImplementedError
+        train_progress = self.train_progress()
+        outer_progress = self.outer_progress()
+        inner_progress = self.inner_progress()
+
+        for train_step in range(self.train_steps):
+            # setup training
+            self.logger.mode = f"{self.mode}/{train_step:04}"
+            self.model.init_params_with_config(self.model.init_config)
+            self.scheduler.freeze(self.model)
+            self.scheduler.reset()
+            self.coarse2fine.reset()
+            self.datamodule.update_idxs(self.init_idxs)
+
+            # clear the gradients
+            self.weight_optimizer.zero_grad()
+
+            # perform the optimization loop
+            self.optimize_loop(outer_progress, inner_progress)
+
+            # compute the loss
+            loss = []
+            for params, p_names in zip(self.optimizer._params, self.optimizer._p_names):
+                gt_params = self.model.init_config.get(p_names, None)
+                if gt_params is not None:
+                    l1_loss = torch.abs(params - torch.tensor(gt_params).to(params))
+                    loss.append(l1_loss)
+            loss = torch.stack(loss).mean()
+            self.logger.log("optim_loss", loss)
+
+            # perform optimization step
+            loss.backward()
+            self.weight_optimizer.step()
+
+        self.close_progress([train_progress, outer_progress, inner_progress])

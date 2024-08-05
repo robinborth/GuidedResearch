@@ -75,6 +75,17 @@ class BaseOptimizer(nn.Module):
             offset += numel
         assert offset == self._numel
 
+    def _add_directionv2(self, step_size, direction):
+        offset = 0
+        ps = []
+        for _p in self._params:
+            numel = _p.numel()
+            p = _p + step_size * direction[offset : offset + numel].view_as(_p)
+            ps.append(p)
+            offset += numel
+        self._params = ps  # override the current params
+        assert offset == self._numel
+
     def _sub_direction(self, step_size, direction):
         offset = 0
         for p in self._params:

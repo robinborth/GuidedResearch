@@ -93,7 +93,6 @@ class GaussNewton(NewtonOptimizer):
         self.save_system(A=H, x=delta, b=grad_f)
         return direction
 
-    @torch.no_grad()
     def step(
         self,
         loss_closure: Callable[[], torch.Tensor],
@@ -120,7 +119,7 @@ class GaussNewton(NewtonOptimizer):
                 direction=direction,
                 line_search_fn=self.line_search_fn,
             )
-        self._add_direction(step_size, direction)
+        self._add_directionv2(step_size, direction)
         self._store_flat_grad(grad_f)
         self.logger.time_tracker.stop()
 

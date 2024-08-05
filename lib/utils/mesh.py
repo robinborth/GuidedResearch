@@ -46,8 +46,6 @@ def face_angles(vertices: torch.Tensor, faces: torch.Tensor):
     Returns:
         (torch.Tensor): Returns the angles of the edges of the faces of dim (B, F, 3).
     """
-    assert vertices.device == faces.device
-
     B = vertices.shape[0]
     F = faces.shape[0]
 
@@ -72,8 +70,6 @@ def vertex_normals(vertices: torch.Tensor, faces: torch.Tensor):
     Returns:
         (torch.Tensor): Returns the normals of the vertices of dim (B, V, 3).
     """
-    assert vertices.device == faces.device
-
     B, V, _ = vertices.shape
     F = faces.shape[0]
 

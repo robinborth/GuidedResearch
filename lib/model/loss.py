@@ -79,17 +79,19 @@ class BaseLoss(nn.Module):
         self,
         model: FLAME,
         batch: dict,
+        weight_map: torch.Tensor,
         correspondences: dict,
         params: list[torch.Tensor],
         p_names: list[str],
         logger: Any,
-        jacobian_fn: str = "v3",
+        jacobian_fn: str = "v2",
         weight: float = 1.0,
         **kwargs,
     ):
         super().__init__()
         self.model = model
         self.batch = batch
+        self.weight_map = weight_map
         self.correspondences = correspondences
         self.params = params
         self.p_names = p_names
@@ -165,25 +167,49 @@ class BaseLoss(nn.Module):
         F = self._residual_step(model, batch, correspondences, params, p_names)
         return J, F
 
+    def _residual_stepv2(
+        self,
+        model: FLAME,
+        batch: dict,
+        weight_map: torch.Tensor,
+        correspondences: dict,
+        params: list[torch.Tensor],
+        p_names: list[str],
+    ):
+        self.logger.time_tracker.start("model_step")
+        out = model.model_step(batch, correspondences, params, p_names)
+        self.logger.time_tracker.start("loss_step", stop=True)
+        w_map = weight_map[correspondences["mask"]]
+        loss = w_map * self.weight * self.forward(out)  # (C,)
+        self.logger.time_tracker.stop()
+        return loss.reshape(-1)  # (C,)
+
     def _jacobian_stepv2(
         self,
         model: FLAME,
         batch: dict,
+        weight_map: torch.Tensor,
         correspondences: dict,
         params: list[torch.Tensor],
         p_names: list[str],
     ):
         def closure(*args):
-            F = self._residual_step(model, batch, correspondences, args, p_names)
+            F = self._residual_stepv2(
+                model,
+                batch,
+                weight_map,
+                correspondences,
+                args,
+                p_names,
+            )
             return F, F
 
-        with torch.enable_grad():
-            jacobian_fn = jacfwd(
-                func=closure,
-                argnums=tuple(range(len(params))),
-                has_aux=True,
-            )
-            jacobians, F = jacobian_fn(*params)
+        jacobian_fn = jacfwd(
+            func=closure,
+            argnums=tuple(range(len(params))),
+            has_aux=True,
+        )
+        jacobians, F = jacobian_fn(*params)
         J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
         return J, F
 
@@ -213,16 +239,10 @@ class BaseLoss(nn.Module):
         def closure(arg):
             F = self._residual_stepv3(model, batch, correspondences, arg, p_names).sum()
             return F, F
-        with torch.enable_grad():
-            jacobian_fn = jacfwd(func=closure, has_aux=True)
-            J, F = jacobian_fn(_params)
+
         _params = torch.cat([p.flatten(-2) for p in params], dim=-1)  # (M, N)
-        with torch.enable_grad():
-            jacobian_fn = jacfwd(func=closure, has_aux=True)
-            for _ in range(10):
-                s = time.time()
-                J, F = jacobian_fn(_params)
-                print((time.time() - s) * 1000)
+        jacobian_fn = jacfwd(func=closure, has_aux=True)
+        J, F = jacobian_fn(_params)
         return J, F
 
     def jacobian_step(self):
@@ -239,6 +259,7 @@ class BaseLoss(nn.Module):
                 model=self.model,
                 batch=self.batch,
                 correspondences=self.correspondences,
+                weight_map=self.weight_map,
                 params=self.params,
                 p_names=self.p_names,
             )

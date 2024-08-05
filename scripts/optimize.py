@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
 from lib.model.flame import FLAME
+from lib.model.residual_weight import ResidualWeightModule
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger
@@ -80,6 +81,21 @@ def optimize(cfg: DictConfig):
             rasterizer=rasterizer,
         )
         log.info("==> sequential optimization ...")
+        trainer.optimize()
+
+    if cfg.get("weight_trainer"):
+        log.info("==> initializing weight trainer ...")
+        trainer = hydra.utils.instantiate(
+            cfg.weight_trainer,
+            model=model,
+            loss=loss,
+            optimizer=optimizer,
+            logger=logger,
+            datamodule=datamodule,
+            camera=camera,
+            rasterizer=rasterizer,
+        )
+        log.info("==> joint optimization ...")
         trainer.optimize()
 
     # final full screen image

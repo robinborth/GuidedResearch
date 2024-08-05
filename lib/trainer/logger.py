@@ -171,7 +171,7 @@ class FlameLogger:
             lm_2d_screen = self.camera.xy_ndc_to_screen(model["lm_2d_ndc"])
             x_idx = lm_2d_screen[b_idx, :, 0].to(torch.int32)
             y_idx = lm_2d_screen[b_idx, :, 1].to(torch.int32)
-            color_image = model["color"][b_idx]
+            color_image = model["color"].clone()[b_idx]
             color_image[y_idx, x_idx, :] = 255
             self.save_image(file_name, color_image)
 

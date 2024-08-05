@@ -76,21 +76,83 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    values = [
-        "[0]",
-        "[0,20]",
-        "[0,20,35]",
-        "[0,20,35,55]",
-        "[0,20,35,55,65]",
-        "[0,20,35,55,65,95]",
-        "[0,20,35,55,65,95,110]",
-        "[0,20,35,55,65,95,110,115]",
-    ]
-    prefixs = [1, 2, 3, 4, 5, 6, 7, 8]
+    # values = [
+    #     "[0]",
+    #     "[0,20]",
+    #     "[0,20,35]",
+    #     "[0,20,35,55]",
+    #     "[0,20,35,55,65]",
+    #     "[0,20,35,55,65,95]",
+    #     "[0,20,35,55,65,95,110]",
+    #     "[0,20,35,55,65,95,110,115]",
+    # ]
+    # prefixs = [1, 2, 3, 4, 5, 6, 7, 8]
     # values = ["v1", "v2"]
     # prefixs = values
+    values = [1, 2, 3]
+    prefixs = values
 
-    # group_name = "timer_gn_p2p_v1"
+    group_name = "train_optims1_iters"
+    template_generator = """
+    python scripts/optimize.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    model=[flame,dphm_christoph_mouthmove_train] \\
+    optimizer=gauss_newton \\
+    loss=point2plane \\
+    weight_trainer.init_idxs=[0] \\
+    weight_trainer.max_iters={value} \\
+    weight_trainer.max_optims=1 \\
+    weight_trainer.scheduler.milestones=[0] \\
+    weight_trainer.scheduler.params=[[global_pose,transl]] \\
+    joint_trainer=null \\
+    sequential_trainer=null \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    group_name = "train_optims2_iters"
+    template_generator = """
+    python scripts/optimize.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    model=[flame,dphm_christoph_mouthmove_train] \\
+    optimizer=gauss_newton \\
+    loss=point2plane \\
+    weight_trainer.init_idxs=[0] \\
+    weight_trainer.max_iters={value} \\
+    weight_trainer.max_optims=2 \\
+    weight_trainer.scheduler.milestones=[0] \\
+    weight_trainer.scheduler.params=[[global_pose,transl]] \\
+    joint_trainer=null \\
+    sequential_trainer=null \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    group_name = "train_optims3_iters"
+    template_generator = """
+    python scripts/optimize.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    model=[flame,dphm_christoph_mouthmove_train] \\
+    optimizer=gauss_newton \\
+    loss=point2plane \\
+    weight_trainer.init_idxs=[0] \\
+    weight_trainer.max_iters={value} \\
+    weight_trainer.max_optims=3 \\
+    weight_trainer.scheduler.milestones=[0] \\
+    weight_trainer.scheduler.params=[[global_pose,transl]] \\
+    joint_trainer=null \\
+    sequential_trainer=null \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    # group_name = "timer_gn_p2p_v2_no_shape_single_step"
     # template_generator = """
     # python scripts/optimize.py \\
     # logger.group={group_name} \\
@@ -100,35 +162,15 @@ def main():
     # model=[flame,dphm_christoph_mouthmove] \\
     # optimizer=gauss_newton \\
     # loss=point2plane \\
-    # +loss.jacobian_fn=v1 \\
+    # +loss.jacobian_fn=v2 \\
     # joint_trainer.init_idxs={value} \\
     # joint_trainer.scheduler.milestones=[0] \\
     # joint_trainer.max_iters=50 \\
-    # joint_trainer.max_optims=10 \\
-    # joint_trainer.scheduler.params=[[global_pose,transl,neck_pose,shape_params,expression_params]] \\
+    # joint_trainer.max_optims=1 \\
+    # joint_trainer.scheduler.params=[[global_pose,transl,neck_pose,expression_params]] \\
     # sequential_trainer=null \\
     # """
     # groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "timer_gn_p2p_v2_no_shape_single_step"
-    template_generator = """
-    python scripts/optimize.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    model=[flame,dphm_christoph_mouthmove] \\
-	optimizer=gauss_newton \\
-	loss=point2plane \\
-    +loss.jacobian_fn=v2 \\
-	joint_trainer.init_idxs={value} \\
-    joint_trainer.scheduler.milestones=[0] \\
-    joint_trainer.max_iters=50 \\
-	joint_trainer.max_optims=1 \\
-    joint_trainer.scheduler.params=[[global_pose,transl,neck_pose,expression_params]] \\
-	sequential_trainer=null \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
 
     with open("Makefile.abl", "w") as f:
         f.write(build_makefile(groups))

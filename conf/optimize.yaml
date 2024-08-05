@@ -9,6 +9,7 @@ defaults:
   - trainer:
     - joint
     - sequential
+    - weight_trainer
   - hydra: default
   - paths: default
   - _self_
