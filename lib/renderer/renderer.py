@@ -2,6 +2,7 @@ import torch
 
 from lib.rasterizer import Fragments, Rasterizer
 from lib.renderer.camera import Camera
+from lib.trainer.timer import TimeTracker
 from lib.utils.mesh import vertex_normals
 
 
@@ -35,8 +36,7 @@ class Renderer:
         self.specular = torch.tensor(specular, device=device)
         self.light = torch.tensor(light, device=device)
 
-    def init_logger(self, logger):
-        self.logger = logger
+        self.time_tracker = TimeTracker()
 
     def to(self, device: str = "cpu"):
         self.camera = self.camera.to(device)
@@ -214,19 +214,19 @@ class Renderer:
     def render_full(self, vertices: torch.Tensor, faces: torch.Tensor):
         """Render all images."""
         # rasterize one time
-        self.logger.time_tracker.start("rasterize")
-        fragments = self.rasterize(vertices, faces)
+        self.time_tracker.start("rasterize")
+        fragments = self.rasterize(vertices.detach(), faces)
         # depth based
-        self.logger.time_tracker.start("depth_based", stop=True)
+        self.time_tracker.start("depth_based", stop=True)
         point, _ = self.render_point(vertices, faces, fragments)
         depth = self.point_to_depth(point)
         depth_image = self.depth_to_depth_image(depth)
         # normal based
-        self.logger.time_tracker.start("normal_based", stop=True)
+        self.time_tracker.start("normal_based", stop=True)
         normal, mask = self.render_normal(vertices, faces, fragments)
         normal_image = self.normal_to_normal_image(normal, mask)
         color_image = self.normal_to_color_image(normal, mask)
-        self.logger.time_tracker.stop()
+        self.time_tracker.stop()
         return {
             "r_mask": mask,
             "vertices_idx": fragments.vertices_idx,

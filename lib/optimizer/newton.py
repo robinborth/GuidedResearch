@@ -50,14 +50,14 @@ class NewtonOptimizer(BaseOptimizer):
         self.step_count += 1
 
     def apply_jacobian(self, jacobian_closure: Callable[[], torch.Tensor]):
-        self.logger.time_tracker.start("jacobian_closure")
+        self.time_tracker.start("jacobian_closure")
         J, F = jacobian_closure()  # (M, N)
         assert J.shape[1] == self._numel
-        self.logger.time_tracker.start("H", stop=True)
+        self.time_tracker.start("H", stop=True)
         H = 2 * J.T @ J  # (N, N)
-        self.logger.time_tracker.start("grad_f", stop=True)
+        self.time_tracker.start("grad_f", stop=True)
         grad_f = 2 * J.T @ F
-        self.logger.time_tracker.stop()
+        self.time_tracker.stop()
         return J, F, H, grad_f
 
 
@@ -99,18 +99,18 @@ class GaussNewton(NewtonOptimizer):
         jacobian_closure: Callable[[], torch.Tensor],
     ):
         # prepare the init delta vectors
-        self.logger.time_tracker.start("apply_jacobian")
+        self.time_tracker.start("apply_jacobian")
         J, F, H, grad_f = self.apply_jacobian(jacobian_closure)
 
-        self.logger.time_tracker.start("clone_param", stop=True)
+        self.time_tracker.start("clone_param", stop=True)
         x_init = self._clone_param()
 
         # solve for the direction
-        self.logger.time_tracker.start("solve_delta", stop=True)
+        self.time_tracker.start("solve_delta", stop=True)
         direction = self.solve_delta(H, grad_f)
 
         # determine the step size and possible perform linesearch
-        self.logger.time_tracker.start("update_params", stop=True)
+        self.time_tracker.start("update_params", stop=True)
         step_size = self.step_size
         if self.line_search_fn is not None:
             step_size = self.linesearch(
@@ -121,7 +121,7 @@ class GaussNewton(NewtonOptimizer):
             )
         self._add_directionv2(step_size, direction)
         self._store_flat_grad(grad_f)
-        self.logger.time_tracker.stop()
+        self.time_tracker.stop()
 
 
 class LevenbergMarquardt(NewtonOptimizer):
@@ -182,7 +182,7 @@ class LevenbergMarquardt(NewtonOptimizer):
 
     def solve_delta(self, H: torch.tensor, grad_f: torch.Tensor, damping_factor: float):
         """Apply the hessian approximation and solve for the delta"""
-        self.logger.time_tracker.start("solve_delta")
+        self.time_tracker.start("solve_delta")
         D = torch.diag(torch.ones_like(torch.diag(H)))
         if not self.levenberg:
             D = torch.diag(torch.diag(H))
@@ -191,7 +191,7 @@ class LevenbergMarquardt(NewtonOptimizer):
         A = H + damping_factor * D
         delta, _ = self.lin_solver(A=A, b=grad_f)
         direction = -delta  # we need to go the negative direction
-        self.logger.time_tracker.stop("solve_delta")
+        self.time_tracker.stop("solve_delta")
 
         self.save_system(A=A, x=delta, b=grad_f)
         return direction
@@ -203,17 +203,17 @@ class LevenbergMarquardt(NewtonOptimizer):
         jacobian_closure: Callable[[], torch.Tensor],
     ):
         # prepare the init delta vectors
-        self.logger.time_tracker.start("apply_jacobian")
+        self.time_tracker.start("apply_jacobian")
         J, F, H, grad_f = self.apply_jacobian(jacobian_closure)
         M, N = J.shape
 
         # prepare the init delta vectors
-        self.logger.time_tracker.start("clone_param", stop=True)
+        self.time_tracker.start("clone_param", stop=True)
         self._store_flat_grad(grad_f)
         x_flat = self._gather_flat_param()
         x_init = self._clone_param()
 
-        self.logger.time_tracker.start("compute_direction", stop=True)
+        self.time_tracker.start("compute_direction", stop=True)
         loss_init = loss_closure()  # sum of squared residuals
 
         # current damping factor
@@ -247,7 +247,7 @@ class LevenbergMarquardt(NewtonOptimizer):
             loss = loss_df
 
         # different convergence criterias
-        self.logger.time_tracker.start("check_convergence", stop=True)
+        self.time_tracker.start("check_convergence", stop=True)
         if (eps := (loss_init - loss) / M) < self.eps_step:
             self.converged = True
             if self.verbose:
@@ -267,4 +267,4 @@ class LevenbergMarquardt(NewtonOptimizer):
 
         if not self.converged:
             self._add_direction(self.step_size, direction)
-        self.logger.time_tracker.stop()
+        self.time_tracker.stop()

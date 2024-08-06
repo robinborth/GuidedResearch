@@ -6,6 +6,7 @@ import torch
 from torch import nn
 
 from lib.optimizer.utils import ternary_search
+from lib.trainer.timer import TimeTracker
 
 
 class BaseOptimizer(nn.Module):
@@ -13,9 +14,7 @@ class BaseOptimizer(nn.Module):
         super().__init__()
         self._numel_cache = None
         self.converged = False
-
-    def init_logger(self, logger):
-        self.logger = logger
+        self.time_tracker = TimeTracker()
 
     def reset(self):
         self._numel_cache = None
