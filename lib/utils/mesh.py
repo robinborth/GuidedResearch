@@ -89,3 +89,28 @@ def vertex_normals(vertices: torch.Tensor, faces: torch.Tensor):
     v_normals = v_normals / torch.norm(v_normals, dim=-1).unsqueeze(-1)  # (V, 3)
 
     return v_normals
+
+
+def compute_normal_map(vertex_map, mask):
+    # prepare the vertex map
+    v_in = vertex_map.clone()
+    v_in[~mask] = torch.nan
+
+    # Compute the differences along the x and y axes
+    dx = torch.diff(v_in, dim=2)
+    dy = torch.diff(v_in, dim=1)
+
+    # Pad the differences to match the original array size
+    dx = torch.nn.functional.pad(dx, (0, 0, 0, 1), mode="replicate")
+    dy = torch.nn.functional.pad(dy, (0, 0, 0, 0, 0, 1), mode="replicate")
+
+    # Compute the normal vectors using the cross product
+    normals = torch.cross(dy, dx, dim=3)
+
+    # Normalize the normal vectors
+    norm = torch.norm(normals, dim=3, keepdim=True)
+    normal_map = normals / norm
+
+    normal_map = normal_map.nan_to_num(0.0)
+
+    return normal_map

@@ -11,9 +11,8 @@ from lib.data.loader import (
     load_mediapipe_landmark_3d,
     load_normal,
 )
-from lib.model.flame import FLAME
-from lib.rasterizer import Rasterizer
-from lib.renderer.camera import Camera
+from lib.model.flame import Flame
+from lib.renderer import Camera, Rasterizer, Renderer
 
 
 class DPHMDataset(Dataset):
@@ -195,85 +194,39 @@ class DPHMPointDataset(DPHMDataset):
         }
 
 
-class FLAMEDataset(DPHMDataset):
+class FlameDataset(Dataset):
     def __init__(
         self,
-        rasterizer: Rasterizer,
-        flame_dir: str = "/flame",
-        num_shape_params: int = 100,
-        num_expression_params: int = 50,
-        optimize_frames: int = 1,
-        optimize_shapes: int = 1,
-        vertices_mask: str = "face",
-        **kwargs,
+        renderer: Renderer,
+        flame: Flame,
+        params: dict[str, torch.Tensor],
     ):
-        super().__init__(**kwargs, optimize_frames=optimize_frames)
 
-        self.shape_idx = 0
-        self.frame_idx = 0
+        super().__init__()
 
-        flame = FLAME(
-            flame_dir=flame_dir,
-            num_shape_params=num_shape_params,
-            num_expression_params=num_expression_params,
-            optimize_frames=optimize_frames,
-            optimize_shapes=optimize_shapes,
-            vertices_mask=vertices_mask,
-        ).to("cuda")
-        flame.init_params_flame(0.0)
-        flame.init_renderer(
-            camera=self.camera,
-            rasterizer=rasterizer,
-            diffuse=[0.6, 0.0, 0.0],
-            specular=[0.5, 0.0, 0.0],
-        )
-        batch = {
-            "frame_idx": torch.tensor([self.frame_idx], device=flame.device),
-            "shape_idx": torch.tensor([self.shape_idx], device=flame.device),
-        }
-        model = flame(batch)
-        vertices = model["vertices"]
-        lm_2d_ndc = model["lm_2d_ndc"]
-        lm_3d_camera = model["lm_3d_camera"]
+        m_out = flame(**params)
+        r_out = renderer.render_full(m_out["vertices"], faces=flame.faces)
 
-        render = flame.renderer.render_full(vertices, flame.masked_faces)
-        self.mask = render["mask"][0].detach().cpu().numpy()
-        self.point = render["point"][0].detach().cpu().numpy()
-        self.normal = render["normal"][0].detach().cpu().numpy()
-        self.color = render["color"][0].detach().cpu().numpy()
-        self.color[~self.mask, :] = 255
-        self.lm_3d_camera = lm_3d_camera[0].detach().cpu().numpy()
-        self.lm_2d_ndc = lm_2d_ndc[0].detach().cpu().numpy()
+        self.params = {k: p.squeeze(0) for k, p in params.items()}
+        self.mask = r_out["mask"][0].detach().cpu().numpy()
+        self.point = r_out["point"][0].detach().cpu().numpy()
+        self.normal = r_out["normal"][0].detach().cpu().numpy()
+        self.color = r_out["color"][0].detach().cpu().numpy()
+        self.vertices = m_out["vertices"][0].detach().cpu().numpy()
 
-        self.shape_params = flame.shape_params.weight[self.shape_idx]
-        self.expression_params = flame.expression_params.weight[self.frame_idx]
-        self.global_pose = flame.global_pose.weight[self.frame_idx]
-        self.neck_pose = flame.neck_pose.weight[self.frame_idx]
-        self.jaw_pose = flame.jaw_pose.weight[self.frame_idx]
-        self.eye_pose = flame.eye_pose.weight[self.frame_idx]
-        self.transl = flame.transl.weight[self.frame_idx]
-        self.scale = flame.scale.weight[self.frame_idx]
+    def __len__(self):
+        return 1
 
     def __getitem__(self, idx: int):
         return {
             # data params
-            "shape_idx": self.shape_idx,
-            "frame_idx": self.frame_idx,
             "mask": self.mask,
             "point": self.point,
             "normal": self.normal,
             "color": self.color,
-            "lm_2d_ndc": self.lm_2d_ndc,
-            "lm_3d_camera": self.lm_3d_camera,
+            "vertices": self.vertices,
             # flame params
-            "shape_params": self.shape_params,
-            "expression_params": self.expression_params,
-            "global_pose": self.global_pose,
-            "neck_pose": self.neck_pose,
-            "jaw_pose": self.jaw_pose,
-            "eye_pose": self.eye_pose,
-            "transl": self.transl,
-            "scale": self.scale,
+            **self.params,
         }
 
 

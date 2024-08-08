@@ -5,8 +5,8 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
-from lib.model.flame import FLAME
-from lib.model.residual_weight import ResidualWeightModule
+from lib.model.flame.flame import FLAME
+from lib.model.weighting import ResidualWeightModule
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger
@@ -49,9 +49,9 @@ def optimize(cfg: DictConfig):
 
     # allow access from different classes
     model.init_renderer(camera=camera, rasterizer=rasterizer)
-    model.init_logger(logger=logger)
+    # model.init_logger(logger=logger)
     logger.init_logger(model=model, cfg=cfg)
-    optimizer.init_logger(logger=logger)
+    # optimizer.init_logger(logger=logger)
 
     if cfg.get("joint_trainer"):
         log.info("==> initializing joint trainer ...")

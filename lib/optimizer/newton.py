@@ -1,11 +1,11 @@
 import logging
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import torch
 
 from lib.optimizer.base import BaseOptimizer
-from lib.optimizer.pcg import LinearSystemSolver
+from lib.optimizer.solver import LinearSystemSolver
 
 log = logging.getLogger()
 
@@ -49,9 +49,9 @@ class NewtonOptimizer(BaseOptimizer):
         torch.save(system, path)
         self.step_count += 1
 
-    def apply_jacobian(self, jacobian_closure: Callable[[], torch.Tensor]):
+    def apply_jacobian(self, closure: Callable[..., torch.Tensor]):
         self.time_tracker.start("jacobian_closure")
-        J, F = jacobian_closure()  # (M, N)
+        J, F = self.jacobian_step(closure)  # (M, N)
         assert J.shape[1] == self._numel
         self.time_tracker.start("H", stop=True)
         H = 2 * J.T @ J  # (N, N)
@@ -93,14 +93,10 @@ class GaussNewton(NewtonOptimizer):
         self.save_system(A=H, x=delta, b=grad_f)
         return direction
 
-    def step(
-        self,
-        loss_closure: Callable[[], torch.Tensor],
-        jacobian_closure: Callable[[], torch.Tensor],
-    ):
+    def step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
         # prepare the init delta vectors
         self.time_tracker.start("apply_jacobian")
-        J, F, H, grad_f = self.apply_jacobian(jacobian_closure)
+        J, F, H, grad_f = self.apply_jacobian(closure)
 
         self.time_tracker.start("clone_param", stop=True)
         x_init = self._clone_param()
@@ -114,12 +110,12 @@ class GaussNewton(NewtonOptimizer):
         step_size = self.step_size
         if self.line_search_fn is not None:
             step_size = self.linesearch(
-                loss_closure=loss_closure,
+                closure=closure,
                 x_init=x_init,
                 direction=direction,
                 line_search_fn=self.line_search_fn,
             )
-        self._add_directionv2(step_size, direction)
+        self._add_direction(step_size, direction)
         self._store_flat_grad(grad_f)
         self.time_tracker.stop()
 
@@ -197,14 +193,10 @@ class LevenbergMarquardt(NewtonOptimizer):
         return direction
 
     @torch.no_grad()
-    def step(
-        self,
-        loss_closure: Callable[[], torch.Tensor],
-        jacobian_closure: Callable[[], torch.Tensor],
-    ):
+    def step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
         # prepare the init delta vectors
         self.time_tracker.start("apply_jacobian")
-        J, F, H, grad_f = self.apply_jacobian(jacobian_closure)
+        J, F, H, grad_f = self.apply_jacobian(closure)
         M, N = J.shape
 
         # prepare the init delta vectors
@@ -214,16 +206,16 @@ class LevenbergMarquardt(NewtonOptimizer):
         x_init = self._clone_param()
 
         self.time_tracker.start("compute_direction", stop=True)
-        loss_init = loss_closure()  # sum of squared residuals
+        loss_init = self.loss_step(closure)  # sum of squared residuals
 
         # current damping factor
         dx = self.solve_delta(H, grad_f, self.damping_factor)
-        loss_df = self._evaluate(loss_closure, x_init, self.step_size, dx)
+        loss_df = self._evaluate(closure, x_init, self.step_size, dx)
 
         # lower damping factor
         df_factor = max(self.damping_factor / self.df_down, self.df_lower)
         dx_factor = self.solve_delta(H, grad_f, df_factor)
-        loss_df_factor = self._evaluate(loss_closure, x_init, self.step_size, dx_factor)
+        loss_df_factor = self._evaluate(closure, x_init, self.step_size, dx_factor)
 
         # both are worse -> increase damping factor until improvement
         if loss_df >= loss_init and loss_df_factor >= loss_init:
@@ -231,7 +223,7 @@ class LevenbergMarquardt(NewtonOptimizer):
                 df = self.damping_factor * self.df_up
                 self.damping_factor = min(df, self.df_upper)
                 direction = self.solve_delta(H, grad_f, self.damping_factor)
-                loss = self._evaluate(loss_closure, x_init, self.step_size, direction)
+                loss = self._evaluate(closure, x_init, self.step_size, direction)
                 if loss < loss_init:
                     break
 

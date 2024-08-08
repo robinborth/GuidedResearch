@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from lib.data.datamodule import DPHMDataModule
-from lib.model.flame import FLAME
+from lib.model.flame.flame import FLAME
 from lib.optimizer.base import BaseOptimizer
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
@@ -91,11 +91,6 @@ class OptimizerScheduler(Scheduler):
         self.prev_optimizer_state = None
         self.copy_optimizer_state = copy_optimizer_state
 
-    def freeze(self, module: FLAME):
-        for param in module.parameters():
-            param.detach_()
-            param.requires_grad_(False)
-
     def param_groups(self, model: FLAME, batch: dict, iter_step: int = 0):
         p_names = self.get_attribute(self.params, iter_step=iter_step)
         for p_name in p_names:
@@ -142,9 +137,8 @@ class OptimizerScheduler(Scheduler):
         if not self.skip(iter_step):
             optimizer.step_size = optimizer.init_step_size
 
-    def update_model(self, model: FLAME, batch: dict):
-        for p_name, group in self.state.items():
-            params = group["params"][0]
+    def update_model(self, model: FLAME, batch: dict, optimizer):
+        for params, p_name in zip(optimizer._params, optimizer._p_names):
             module = getattr(model, p_name)
             if p_name in model.shape_p_names:
                 shape_idx = batch["shape_idx"][:1]

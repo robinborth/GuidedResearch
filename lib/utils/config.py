@@ -1,3 +1,4 @@
+import logging
 from typing import List
 
 import lightning as L
@@ -7,9 +8,7 @@ from hydra.utils import instantiate
 from lightning import Callback
 from omegaconf import DictConfig, OmegaConf
 
-from lib.utils.logger import create_logger
-
-log = create_logger("config")
+log = logging.getLogger()
 
 
 def instantiate_callbacks(callbacks_cfg: DictConfig | dict) -> List[Callback]:

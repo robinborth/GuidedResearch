@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch.optim.optimizer import Optimizer
 
-from lib.model.layers import MLP
+from lib.model.common import MLP
 
 log = logging.getLogger()
 

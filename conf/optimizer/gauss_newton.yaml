@@ -6,7 +6,7 @@ lin_solver:
   _target_: lib.optimizer.pcg.PytorchSolver
 
 # step size
-step_size: 1e-03  # 3e-01
+step_size: 3e-01  # 3e-01
 line_search_fn: null
 
 # store linear system

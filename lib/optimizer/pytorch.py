@@ -7,7 +7,7 @@ from lib.optimizer.base import BaseOptimizer
 
 
 class PytorchOptimizer(BaseOptimizer):
-    def __init__(self, optimizer):
+    def __init__(self, optimizer: Callable[..., torch.optim.Optimizer]):
         self.optimizer_fn = optimizer
         self.init_step_size = None
         self.step_size = None
@@ -18,24 +18,13 @@ class PytorchOptimizer(BaseOptimizer):
     def get_state(self):
         return self.optimizer.state
 
-    def set_param_groups(self, param_groups: list[dict[str, Any]]):
-        super().set_param_groups(param_groups)
+    def set_params(self, params: dict[str, Any]):
+        super().set_params(params)
+        param_groups = [{"params": p} for p in params.values()]
         self.optimizer = self.optimizer_fn(param_groups)
 
-    def step(
-        self,
-        loss_closure: Callable[[], torch.Tensor],
-        jacobian_closure: Callable[[], torch.Tensor],
-    ):
-        self.logger.time_tracker.start("zero_grad")
+    def step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
         self.optimizer.zero_grad()
-
-        self.logger.time_tracker.start("loss_closure", stop=True)
-        loss = loss_closure()
-
-        self.logger.time_tracker.start("backward", stop=True)
+        loss = self.loss_step(closure)
         loss.backward()
-
-        self.logger.time_tracker.start("step", stop=True)
         self.optimizer.step()
-        self.logger.time_tracker.stop()

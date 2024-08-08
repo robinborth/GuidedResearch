@@ -1,49 +1,60 @@
 # https://pytorch.org/docs/stable/_modules/torch/optim/lbfgs.html#LBFGS
 
-from typing import Any, Callable, Tuple
+import logging
+from typing import Any, Callable
 
 import torch
 from torch import nn
+from torch.func import jacfwd, jacrev
 
-from lib.optimizer.utils import ternary_search
 from lib.trainer.timer import TimeTracker
+
+log = logging.getLogger()
 
 
 class BaseOptimizer(nn.Module):
     def __init__(self):
         super().__init__()
         self._numel_cache = None
-        self.converged = False
+        self._params = None
+        self._converged = False
         self.time_tracker = TimeTracker()
 
-    def reset(self):
-        self._numel_cache = None
-        self.converged = False
+    ####################################################################################
+    # Access to the FLAME parameters and State
+    ####################################################################################
 
-    def set_param_groups(self, param_groups: list[dict[str, Any]]):
-        # we only have one param group per optimization, where in params we have
-        # multiple parameters which we optimize
-        self._params = []
-        self._p_names = []
-        for group in param_groups:
-            assert len(group["params"]) == 1
-            self._params.append(group["params"][0])
-            self._p_names.append(group["p_name"])
-        # we need to ensure that the params only contains the ones that we want to
-        # optimize for, hence for all we gather gradients and could compute the jacobian
-        for param in self._params:
-            if not param.requires_grad:
-                raise ValueError("All params in the params_group should require grads.")
+    def set_params(self, params: dict[str, Any]):
+        self._params = {k: p.requires_grad_(True) for k, p in params.items()}
+
+    def get_params(self):
+        return self._params
+
+    def set_state(self, state: Any):
+        for key, value in state.items():
+            setattr(self, key, value)
+
+    def get_state(self):
+        raise NotImplementedError
+
+    ####################################################################################
+    # Utils
+    ####################################################################################
+
+    def _reset(self):
+        self._numel_cache = None
+        self._params = None
+        self._converged = False
 
     @property
     def _numel(self):
         if self._numel_cache is None:
-            self._numel_cache = sum(p.numel() for p in self._params)
+            self._numel_cache = sum(p.numel() for p in self._params.values())
         return self._numel_cache
 
     def _gather_flat_grad(self):
         views = []
-        for p in self._params:
+        for p in self._params.values():
             if p.grad is None:
                 view = p.new(p.numel()).zero_()
             else:
@@ -53,14 +64,14 @@ class BaseOptimizer(nn.Module):
 
     def _gather_flat_param(self):
         views = []
-        for p in self._params:
+        for p in self._params.values():
             view = p.view(-1)
             views.append(view)
         return torch.cat(views, dim=0)
 
     def _store_flat_grad(self, grad_f: torch.Tensor):
         offset = 0
-        for p in self._params:
+        for p in self._params.values():
             numel = p.numel()
             p.grad = grad_f[offset : offset + numel].view_as(p)
             offset += numel
@@ -68,98 +79,97 @@ class BaseOptimizer(nn.Module):
 
     def _add_direction(self, step_size, direction):
         offset = 0
-        for p in self._params:
+        for k, p in self._params.items():
             numel = p.numel()
-            p.add_(direction[offset : offset + numel].view_as(p), alpha=step_size)
-            offset += numel
-        assert offset == self._numel
-
-    def _add_directionv2(self, step_size, direction):
-        offset = 0
-        ps = []
-        for _p in self._params:
-            numel = _p.numel()
-            p = _p + step_size * direction[offset : offset + numel].view_as(_p)
-            ps.append(p)
-            offset += numel
-        self._params = ps  # override the current params
-        assert offset == self._numel
-
-    def _sub_direction(self, step_size, direction):
-        offset = 0
-        for p in self._params:
-            numel = p.numel()
-            p.sub_(direction[offset : offset + numel].view_as(p), alpha=step_size)
+            param = p + step_size * direction[offset : offset + numel].view_as(p)
+            self._params[k] = param  # override the current params
             offset += numel
         assert offset == self._numel
 
     def _clone_param(self):
-        return [p.clone(memory_format=torch.contiguous_format) for p in self._params]
+        return [
+            p.clone(memory_format=torch.contiguous_format)
+            for p in self._params.values()
+        ]
 
     def _set_param(self, params_data):
-        for p, pdata in zip(self._params, params_data):
+        for p, pdata in zip(self._params.values(), params_data):
             p.copy_(pdata)  # inplace copy
 
     def _zero_grad(self):
-        for p in self._params:
+        for p in self._params.values():
             p.grad = None
 
-    def _evaluate(
-        self,
-        loss_closure: Callable[[], torch.Tensor],  # does not modify the grad
-        x_init: list[torch.Tensor],
-        step_size: float,
-        direction: torch.Tensor,
-    ) -> float:
-        self._add_direction(step_size=step_size, direction=direction)
-        loss = loss_closure()
-        self._set_param(x_init)
-        return float(loss)
+    ####################################################################################
+    # Convergence Tests
+    ####################################################################################
 
-    def _evaluate_closure(
+    # @property
+    # def check_convergence(self):
+    #     # different convergence criterias
+    #     if (eps := (loss_init - loss) / M) < self.eps_step:
+    #         self.converged = True
+    #         if self.verbose:
+    #             log.info(f"Convergence in relative step improvement: {eps=}")
+    #     if (eps := torch.max(torch.abs(grad_f / M))) < self.eps_grad:
+    #         self.converged = True
+    #         if self.verbose:
+    #             log.info(f"Convergence in gradient: {eps=}")
+    #     if (eps := torch.max(torch.abs(direction / x_flat))) < self.eps_params:
+    #         self.converged = True
+    #         if self.verbose:
+    #             log.info(f"Convergence in params: {eps=}")
+    #     if (eps := loss / M) < self.eps_params:
+    #         self.converged = True
+    #         if self.verbose:
+    #             log.info(f"Convergence in absolute loss: {eps=}")
+
+    ####################################################################################
+    # Optimization Evaluation Steps
+    ####################################################################################
+
+    def residual_params(self, *args):
+        return {k: v for k, v in zip(self._params.keys(), *args)}
+
+    def evaluate_closure(
         self,
-        loss_closure: Callable[[], torch.Tensor],
+        closure: Callable[[dict[str, torch.Tensor]], torch.Tensor],
         x_init: list[torch.Tensor],
         direction: torch.Tensor,
-    ):
-        return lambda step_size: self._evaluate(
-            loss_closure=loss_closure,
+    ) -> Callable[[float], float]:
+        return lambda step_size: self.evaluate_step(
+            closure=closure,
             x_init=x_init,
             step_size=step_size,
             direction=direction,
         )
 
-    def linesearch(
+    def evaluate_step(
         self,
-        loss_closure: Callable[[], torch.Tensor],
+        closure: Callable[[dict[str, torch.Tensor]], torch.Tensor],
         x_init: list[torch.Tensor],
+        step_size: float,
         direction: torch.Tensor,
-        line_search_fn: str | None = None,
     ) -> float:
-        if line_search_fn is None:
-            raise ValueError("Currently no line search selected.")
+        self._add_direction(step_size=step_size, direction=direction)
+        loss = self.loss_step(closure)  # not modify the grad
+        self._set_param(x_init)
+        return float(loss)
 
-        evaluate_closure = self._evaluate_closure(
-            loss_closure=loss_closure,
-            x_init=x_init,
-            direction=direction,
+    def loss_step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
+        F, _ = closure(self._params)
+        return (F**2).sum()
+
+    def jacobian_step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
+        jacobian_fn = jacrev(
+            func=closure,
+            argnums=tuple(range(len(self._params))),
+            has_aux=True,
         )
-        if line_search_fn == "ternary_search":
-            return ternary_search(evaluate_closure=evaluate_closure)
+        jacobians, F = jacobian_fn(*self._params.values())
+        J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
+        return J, F
 
-        raise ValueError(f"The current {line_search_fn=} is not supported.")
-
-    def set_state(self, state: Any):
-        for key, value in state.items():
-            setattr(self, key, value)
-
-    def get_state(self):
-        raise NotImplementedError
-
-    def step(
-        self,
-        loss_closure: Callable[[], torch.Tensor],
-        jacobian_closure: Callable[[], torch.Tensor],
-    ):
+    def step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
         """After the step the converged property is set."""
         raise NotImplementedError

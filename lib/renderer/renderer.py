@@ -58,14 +58,23 @@ class Renderer:
     ):
         # access the vertex attributes
         B, H, W, _ = vertices_idx.shape  # (B, H, W, 3)
-        _, _, D = attributes.shape  # (B, V, D)
-        v_idx = vertices_idx.reshape(B, -1)  # (B, *)
-        b_idx = torch.arange(v_idx.size(0)).unsqueeze(1).to(v_idx)
-        vertex_attribute = attributes[b_idx, v_idx]  # (B, *, D)
-        vertex_attribute = vertex_attribute.reshape(B, H, W, 3, D)  # (B, H, W, 3, D)
+        _, V, D = attributes.shape  # (B, V, D)
 
+        # Flatten the vertices_idx and bary_coords to reduce unnecessary operations
+        flat_vertices_idx = vertices_idx.view(B, -1)  # (B, H*W*3)
+
+        # Efficiently gather the vertex attributes in one step
+        vertex_attributes = attributes.gather(
+            1, flat_vertices_idx.unsqueeze(-1).expand(-1, -1, D)
+        )  # (B, H*W*3, D)
+
+        # Reshape gathered attributes to (B, H, W, 3, D) directly
+        vertex_attributes = vertex_attributes.view(B, H, W, 3, D)
+
+        # Perform the weighted sum using barycentric coordinates
         bary_coords = bary_coords.unsqueeze(-1)  # (B, H, W, 3, 1)
-        attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
+        attributes = (bary_coords * vertex_attributes).sum(dim=-2)  # (B, H, W, D)
+
         return attributes
 
     def mask_interpolate(
@@ -75,16 +84,16 @@ class Renderer:
         attributes: torch.Tensor,  # (B, V, D)
         mask: torch.Tensor,  # (B, H, W, 3)
     ):
-        # shapes dimensions
-        B, V, D = attributes.shape  # (B, V, D)
         # access the vertex attributes
-        b_coords = bary_coords[mask].unsqueeze(-1)  # (C, 3, 1)
+        B, V, D = attributes.shape  # (B, V, D)
         vertices_offset = V * torch.arange(B, device=vertices_idx.device)
         v_idx = vertices_idx.clone()
         v_idx += vertices_offset.view(B, 1, 1, 1)  # (B, H, W, 3)
         v_idx = v_idx[mask]  # (C, 3)
         vertex_attribute = attributes.reshape(-1, D)[v_idx]  # (C, 3, D)
-        attributes = (b_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
+
+        bary_coords = bary_coords[mask].unsqueeze(-1)  # (C, 3, 1)
+        attributes = (bary_coords * vertex_attribute).sum(-2)  # (B, H, W, D)
         return attributes
 
     def render(
@@ -228,7 +237,7 @@ class Renderer:
         color_image = self.normal_to_color_image(normal, mask)
         self.time_tracker.stop()
         return {
-            "r_mask": mask,
+            "mask": mask,
             "vertices_idx": fragments.vertices_idx,
             "bary_coords": fragments.bary_coords,
             "pix_to_face": fragments.pix_to_face,
@@ -269,6 +278,6 @@ class Renderer:
 
         color = specular + diffuse
         color = (torch.clip(color, 0, 1) * 255).to(torch.uint8)
-        color[~mask] = 0
+        color[~mask] = 255
 
         return color

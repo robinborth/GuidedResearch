@@ -7,10 +7,10 @@ import wandb
 from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
-from lib.model.flame import FLAME
-from lib.model.loss import BaseLoss
-from lib.model.residual_weight import ResidualWeightModule
+from lib.model.flame.flame import FLAME
+from lib.model.weighting import ResidualWeightModule
 from lib.optimizer.base import BaseOptimizer
+from lib.optimizer.residuals import BaseLoss
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger
@@ -141,7 +141,6 @@ class BaseTrainer:
                 weight_map=weight_map,
                 params=optimizer._params,
                 p_names=optimizer._p_names,
-                logger=logger,
             )
             loss_closure = L.loss_closure()
             jacobian_closure = L.jacobian_closure()
@@ -161,7 +160,7 @@ class BaseTrainer:
                 logger.time_tracker.start("optimizer_step")
                 optimizer.step(loss_closure, jacobian_closure)
                 logger.time_tracker.start("update_model", stop=True)
-                scheduler.update_model(model, batch)
+                scheduler.update_model(model, batch, optimizer)
                 logger.time_tracker.stop()
 
                 # metrics and loss logging
@@ -192,16 +191,16 @@ class BaseTrainer:
                 logger.log_error(batch=batch, model=correspondences)
                 logger.log_params(batch=batch)
                 # weight debugging
-                logger.logger.log({"weight_image": wandb.Image(weight_map)})
-                logger.logger.log(
-                    {
-                        "weight_max": weight_map.max(),
-                        "weight_min": weight_map.min(),
-                        "weight_mean": weight_map.mean(),
-                    }
-                )
-                # overlay image wandb
-                mask = correspondences["r_mask"]
+                # logger.logger.log({"weight_image": wandb.Image(weight_map)})
+                # logger.logger.log(
+                #     {
+                #         "weight_max": weight_map.max(),
+                #         "weight_min": weight_map.min(),
+                #         "weight_mean": weight_map.mean(),
+                #     }
+                # )
+                # # overlay image wandb
+                # mask = correspondences["r_mask"]
             logger.time_tracker.stop("outer_logging")
 
             # finish the outer loop
@@ -210,16 +209,16 @@ class BaseTrainer:
         logger.time_tracker.stop("outer_loop")
 
         # final logging of the updated correspondences
-        with torch.no_grad():
-            logger.iter_step += 1
-            batch = datamodule.fetch()
-            correspondences = model.correspondence_step(batch)
-            logger.log_render(batch=batch, model=correspondences)
-            batch = datamodule.fetch()
-            render_merged = batch["color"].clone()
-            render_merged[mask] = correspondences["color"][mask]
-            img = wandb.Image(render_merged.detach().cpu().numpy())
-            logger.logger.log({"merged_image": img})
+        # with torch.no_grad():
+        #     logger.iter_step += 1
+        #     batch = datamodule.fetch()
+        #     correspondences = model.correspondence_step(batch)
+        #     logger.log_render(batch=batch, model=correspondences)
+        #     batch = datamodule.fetch()
+        #     render_merged = batch["color"].clone()
+        #     render_merged[mask] = correspondences["color"][mask]
+        #     img = wandb.Image(render_merged.detach().cpu().numpy())
+        #     logger.logger.log({"merged_image": img})
 
         # final metric logging
         # logger.time_tracker.print_summary()
@@ -271,8 +270,8 @@ class JointTrainer(BaseTrainer):
         self.scheduler.reset()
         self.coarse2fine.reset()
         self.datamodule.update_idxs(self.init_idxs)
-
-        self.optimize_loop(outer_progress, inner_progress)
+        with torch.no_grad():
+            self.optimize_loop(outer_progress, inner_progress)
         self.close_progress([outer_progress, inner_progress])
 
 

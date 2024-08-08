@@ -5,7 +5,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
-from lib.model.flame import FLAME
+from lib.model.flame.flame import FLAME
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.trainer.logger import FlameLogger

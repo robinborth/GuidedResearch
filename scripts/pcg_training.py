@@ -12,7 +12,7 @@ from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
 
-from lib.optimizer.pcg import (
+from lib.optimizer.solver import (
     ConditionNet,
     IdentityConditionNet,
     JaccobiConditionNet,

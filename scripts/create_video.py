@@ -1,14 +1,12 @@
-import os
-import shutil
-import tempfile
+import logging
 from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
 
-from lib.utils.logger import create_logger, create_video
+from lib.utils.video import create_video
 
-log = create_logger("create_video")
+log = logging.getLogger()
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="optimize")

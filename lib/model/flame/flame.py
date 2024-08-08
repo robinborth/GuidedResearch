@@ -1,15 +1,19 @@
+import lightning as L
 import numpy as np
 import torch
 import torch.nn as nn
 
-from lib.data.loader import load_flame, load_flame_masks, load_static_landmark_embedding
-from lib.model.lbs import lbs
-from lib.rasterizer import Rasterizer
-from lib.renderer.camera import Camera
-from lib.renderer.renderer import Renderer
+from lib.model.flame.lbs import lbs
+from lib.model.flame.utils import (
+    load_flame,
+    load_flame_masks,
+    load_static_landmark_embedding,
+)
+from lib.renderer import Camera, Rasterizer, Renderer
+from lib.trainer.timer import TimeTracker
 
 
-class Flame(nn.Module):
+class Flame(L.LightningModule):
     def __init__(
         self,
         flame_dir: str = "/flame",
@@ -24,10 +28,11 @@ class Flame(nn.Module):
         flame_model = load_flame(flame_dir=flame_dir, return_tensors="pt")
 
         # load the faces
-        self.faces = nn.Parameter(flame_model["f"], requires_grad=False)  # (9976, 3)
+        full_faces = flame_model["f"]
+        self.full_faces = nn.Parameter(full_faces, requires_grad=False)  # (9976,3)
         face_mask = load_flame_masks(flame_dir, return_tensors="pt")[vertices_mask]
         masked_faces = self.mask_faces(flame_model["f"], face_mask)
-        self.masked_faces = torch.nn.Parameter(masked_faces, requires_grad=False)
+        self.faces = torch.nn.Parameter(masked_faces, requires_grad=False)
 
         # load the mean vertices and pca bases
         self.v_template = nn.Parameter(flame_model["v_template"])  # (5023, 3)
@@ -57,34 +62,12 @@ class Flame(nn.Module):
         lm_idx = lms["lm_mediapipe_idx"]  # (105,)
         self.lm_mediapipe_idx = torch.nn.Parameter(lm_idx, requires_grad=False)
 
-        # shape parameters
-        self.shape_params = shape_params
-        self.zero_shape = self.default_param(300 - shape_params)
-        self.default_shape_params = self.default_param(shape_params)
-        # expression parameters
-        self.expression_params = expression_params
-        self.zero_expression = self.default_param(100 - expression_params)
-        self.default_expression_params = self.default_param(expression_params)
-        # pose parameters
-        self.default_global_pose = self.default_param(3)
-        self.default_neck_pose = self.default_param(3)
-        self.default_jaw_pose = self.default_param(3)
-        self.default_eye_pose = self.default_param(6)
-        # translation and scale pose
-        self.default_transl = self.default_param(3)
-        self.default_scale = self.default_param(1, value=1.0)
-
-        # set optimization parameters
-        self.global_p_names = ["shape_params", "scale"]
-        self.local_p_names = [
-            "global_pose",
-            "transl",
-            "jaw_pose",
-            "neck_pose",
-            "eye_pose",
-            "expression_params",
-        ]
-        self.full_p_names = self.global_p_names + self.local_p_names
+        # set default optimization parameters
+        self.n_shape_params = shape_params
+        self.n_expression_params = expression_params
+        self.zero_shape = nn.Parameter(torch.zeros(300 - shape_params))
+        self.zero_expression = nn.Parameter(torch.zeros(100 - expression_params))
+        self.params = nn.ParameterDict(self.generate_default_params())
 
         # move to cuda
         self.to(device=device)
@@ -93,7 +76,7 @@ class Flame(nn.Module):
     # Core
     ####################################################################################
 
-    def model_step(
+    def forward(
         self,
         shape_params=None,
         expression_params=None,
@@ -138,15 +121,15 @@ class Flame(nn.Module):
         B = 1
         for p_name, param in params.items():
             if param is None:
-                params[p_name] = getattr(self, f"default_{p_name}")
+                params[p_name] = self.params[p_name]
             elif param.dim() == 2:  # override the batch_size
                 B = max(param.shape[0], B)
 
         # check that the shape and expression params are correct
-        if params["shape_params"].shape[-1] != self.shape_params:
-            raise ValueError(f"Size of shape_params is: {self.shape_params}")
-        if params["expression_params"].shape[-1] != self.expression_params:
-            raise ValueError(f"Size of expression_params is: {self.expression_params}")
+        if params["shape_params"].shape[-1] != self.n_shape_params:
+            raise ValueError(f"Size of shape_params: {self.n_shape_params}")
+        if params["expression_params"].shape[-1] != self.n_expression_params:
+            raise ValueError(f"Size of expression_params: {self.n_expression_params}")
 
         # expand the params
         shape_params = params["shape_params"].expand(B, -1)
@@ -185,54 +168,18 @@ class Flame(nn.Module):
         vertices += transl[:, None, :]  # (B, V, 3)
         vertices *= scale[:, None, :]  # (B, V, 3)
 
-        return dict(vertices=vertices)
+        # landmarks
+        lm_vertices = vertices[:, self.lm_faces]  # (B, F, 3, D)
+        lm_bary_coods = self.lm_bary_coords.expand(B, -1, -1).unsqueeze(-1)
+        landmarks = (lm_bary_coods * lm_vertices).sum(-2)  # (B, 105, D)
 
-    def render_step(self, renderer: Renderer, vertices: torch.Tensor):
-        return renderer.render_full(
-            vertices=vertices,  # (B, V, 3)
-            faces=self.masked_faces,  # (F, 3)
-        )  # (B, H', W')
-
-    def correspondence_step(
-        self,
-        s_point: torch.Tensor,
-        s_normal: torch.Tensor,
-        s_mask: torch.Tensor,
-        t_point: torch.Tensor,
-        t_normal: torch.Tensor,
-        t_mask: torch.Tensor,
-        d_threshold: float = 0.1,
-        n_threshold: float = 0.9,
-    ):
-        # per pixel distance in 3d, just the length
-        dist = torch.norm(t_point - s_point, dim=-1)  # (B, W, H)
-        # calculate the forground mask
-        f_mask = s_mask & t_mask  # (B, W, H)
-        # the depth mask based on some epsilon of distance 10cm
-        d_mask = dist < d_threshold  # (B, W, H)
-        # dot product, e.g. coresponds to an angle
-        normal_dot = (s_normal * t_normal).sum(-1)
-        n_mask = normal_dot > n_threshold  # (B, W, H)
-        # final loss mask of silhouette, depth and normal threshold
-        final_mask = d_mask & f_mask & n_mask
-        assert final_mask.sum()  # we have some overlap
-        mask = {
-            "mask": final_mask,
-            "f_mask": f_mask,
-            "n_mask": n_mask,
-            "d_mask": d_mask,
-        }
-        return mask
+        return {"vertices": vertices, "landmarks": landmarks}
 
     ####################################################################################
     # Model Utils
     ####################################################################################
 
-    def default_param(self, size: int, value: float = 0.0):
-        data = torch.full((size,), value)
-        return nn.Parameter(data, requires_grad=False)
-
-    def init_params(self, **kwargs):
+    def set_params(self, **kwargs):
         """Initilize the params of the FLAME model.
 
         Args:
@@ -242,25 +189,27 @@ class Flame(nn.Module):
                 the nn.Embedding table (B, D).
         """
         for key, value in kwargs.items():
-            param = self.__getattr__(f"default_{key}")
             if isinstance(value, list):
                 value = torch.Tensor(value)
-            value = value.expand(param.weight.shape).to(self.device)
-            param.weight = torch.nn.Parameter(value, requires_grad=True)
+            value = value.to(self.device)
+            self.params[key] = torch.nn.Parameter(value)
 
-    def init_params_with_config(self, init_config: dict):
-        seed = init_config.get("seed")
-        sigma = init_config.get("sigma")
-        assert sigma is not None
-        params = {}
-        for p_name in self.full_p_names:
-            if param := init_config.get(p_name):
-                np.random.seed(seed)
-                delta = np.random.normal(0, sigma, len(param))
-                params[p_name] = [p + d for p, d in zip(param, delta)]
-        self.init_params(**params)
+    def generate_default_params(self):
+        shape_params = self.n_shape_params
+        expression_params = self.n_expression_params
+        params = {
+            "global_pose": torch.zeros(3, device=self.device),
+            "transl": torch.zeros(3, device=self.device),
+            "jaw_pose": torch.zeros(3, device=self.device),
+            "neck_pose": torch.zeros(3, device=self.device),
+            "eye_pose": torch.zeros(6, device=self.device),
+            "scale": torch.ones(1, device=self.device),
+            "shape_params": torch.zeros(shape_params, device=self.device),
+            "expression_params": torch.zeros(expression_params, device=self.device),
+        }
+        return {k: nn.Parameter(p.unsqueeze(0)) for k, p in params.items()}
 
-    def mask_faces(self, faces: torch.Tensor, vertices_mask: torch.Tensor):
+    def mask_faces(self, faces: torch.Tensor, vertices_mask: torch.Tensor | None):
         """Calculates the triangular faces mask based on the masked vertices."""
         if vertices_mask is None:
             return faces
@@ -272,10 +221,6 @@ class Flame(nn.Module):
         if landmarks.shape[1] != 105:
             return landmarks[:, self.lm_mediapipe_idx]
         return landmarks
-
-    @property
-    def device(self):
-        return self.shape_params.weight.device
 
 
 class FLAME(nn.Module):
@@ -371,6 +316,8 @@ class FLAME(nn.Module):
         self.init_config = init_config
         self.init_params_with_config(init_config=init_config)
 
+        self.time_tracker = TimeTracker()
+
     ####################################################################################
     # Core
     ####################################################################################
@@ -463,14 +410,14 @@ class FLAME(nn.Module):
         return {"vertices": vertices, "lm_3d_camera": landmarks, "lm_2d_ndc": lm_2d_ndc}
 
     def correspondence_step(self, batch: dict):
-        self.logger.time_tracker.start("model_forward")
+        self.time_tracker.start("model_forward")
         model = self.forward(**self.flame_input_dict(batch))
-        self.logger.time_tracker.start("renderer", stop=True)
+        self.time_tracker.start("renderer", stop=True)
         render = self.renderer.render_full(
             vertices=model["vertices"],  # (B, V, 3)
             faces=self.masked_faces,  # (F, 3)
         )  # (B, H', W')
-        self.logger.time_tracker.start("mask", stop=True)
+        self.time_tracker.start("mask", stop=True)
         # per pixel distance in 3d, just the length
         dist = torch.norm(render["point"] - batch["point"], dim=-1)  # (B, W, H)
         # calculate the forground mask
@@ -483,7 +430,7 @@ class FLAME(nn.Module):
         # final loss mask of silhouette, depth and normal threshold
         final_mask = d_mask & f_mask & n_mask
         assert final_mask.sum()  # we have some overlap
-        self.logger.time_tracker.stop()
+        self.time_tracker.stop()
         mask = {
             "mask": final_mask,
             "f_mask": f_mask,
@@ -506,57 +453,6 @@ class FLAME(nn.Module):
             flame_params[p_name] = param.expand(B, -1)
         for p_name, param in zip(p_names, params):
             flame_params[p_name] = param.expand(B, -1)
-
-        mask = correspondences["mask"]
-        out = self.forward(**flame_params)
-        point = self.renderer.mask_interpolate(
-            vertices_idx=correspondences["vertices_idx"],
-            bary_coords=correspondences["bary_coords"],
-            attributes=out["vertices"],
-            mask=mask,
-        )  # (C, 3)
-
-        # set the params for regularization
-        shape_params = None
-        expression_params = None
-        for p_name, param in zip(p_names, params):
-            if p_name == "shape_params":
-                shape_params = param
-            if p_name == "expression_params":
-                expression_params = param
-
-        return {
-            "mask": mask,
-            "point": point,
-            "normal": correspondences["normal"][mask],  # (C, 3)
-            "point_gt": batch["point"][mask],  # (C, 3)
-            "normal_gt": batch["normal"][mask],  # (C, 3)
-            "shape_params": shape_params,  # (B, 100)
-            "expression_params": expression_params,  # (B, 100)
-            "lm_3d_camera": out["lm_3d_camera"],
-            "lm_2d_ndc": out["lm_2d_ndc"],
-            "lm_3d_camera_gt": self.extract_landmarks(batch["lm_3d_camera"]),
-            "lm_2d_ndc_gt": self.extract_landmarks(batch["lm_2d_ndc"]),
-        }
-
-    def model_stepv3(
-        self,
-        batch: dict,
-        correspondences: dict,
-        params: torch.Tensor,
-        p_names: list[str],
-    ):
-        B = batch["frame_idx"].shape[0]
-        flame_input = self.flame_input_dict(batch)
-        flame_params = {}
-        for p_name, param in flame_input.items():
-            flame_params[p_name] = param.expand(B, -1)
-
-        idx = 0
-        for p_name in p_names:
-            offset = flame_input[p_name].numel()
-            flame_params[p_name] = params[idx : idx + offset].expand(B, -1)
-            idx += offset
 
         mask = correspondences["mask"]
         out = self.forward(**flame_params)

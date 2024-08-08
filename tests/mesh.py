@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 from torchvision.transforms import v2
 
-from lib.model.flame import FLAME
+from lib.model.flame.flame import FLAME
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import FoVCamera
 from lib.renderer.renderer import Renderer

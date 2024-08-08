@@ -11,19 +11,19 @@ from omegaconf import DictConfig, OmegaConf
 from PIL import Image
 
 from lib.data.datamodule import DPHMDataModule
-from lib.model.flame import FLAME
-from lib.model.loss import (
+from lib.model.flame.flame import FLAME
+from lib.rasterizer import Rasterizer
+from lib.renderer.camera import Camera
+from lib.renderer.renderer import Renderer
+from lib.trainer.timer import TimeTracker
+from lib.utils.distance import (
     landmark_2d_distance,
     landmark_3d_distance,
     point2plane_distance,
     point2point_distance,
     regularization_distance,
 )
-from lib.rasterizer import Rasterizer
-from lib.renderer.camera import Camera
-from lib.renderer.renderer import Renderer
-from lib.trainer.timer import TimeTracker
-from lib.utils.logger import create_video
+from lib.utils.video import create_video
 
 
 class FlameLogger:
