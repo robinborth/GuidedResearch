@@ -160,8 +160,13 @@ class BaseOptimizer(nn.Module):
         F, _ = closure(self._params)
         return (F**2).sum()
 
-    def jacobian_step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
-        jacobian_fn = jacrev(
+    def jacobian_step(
+        self,
+        closure: Callable[[dict[str, torch.Tensor]], torch.Tensor],
+        strategy: str = "forward-mode",
+    ):
+        fn = jacfwd if strategy == "forward-mode" else jacrev
+        jacobian_fn = fn(
             func=closure,
             argnums=tuple(range(len(self._params))),
             has_aux=True,

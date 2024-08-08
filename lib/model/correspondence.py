@@ -33,17 +33,58 @@ class OpticalFlowCorrespondenceModule(nn.Module):
         grid = grid + s_delta
         return grid
 
-    def sample_grid(self, grid: torch.Tensor, value: torch.Tensor):
-        value = value.permute(0, 3, 1, 2)
-        samples = torch.nn.functional.grid_sample(
-            input=value,
-            grid=grid,
-            mode="bilinear",
-            align_corners=False,
-            padding_mode="zeros",
+    def sample_grid(self, value: torch.Tensor, grid: torch.Tensor):
+        B, H, W, C = value.shape
+
+        # scale grid values from [-1, 1] to [0, W-1] for x and [0, H-1] for y
+        x = ((grid[..., 0] + 1) * (W - 1)) / 2
+        y = ((grid[..., 1] + 1) * (H - 1)) / 2
+
+        # get the integer part of the coordinates
+        x0 = torch.floor(x).long()
+        x1 = x0 + 1
+        y0 = torch.floor(y).long()
+        y1 = y0 + 1
+
+        # create masks for values that need clamping
+        x0_clamp_mask = (x0 < 0) | (x0 >= W)
+        x1_clamp_mask = (x1 < 0) | (x1 >= W)
+        y0_clamp_mask = (y0 < 0) | (y0 >= H)
+        y1_clamp_mask = (y1 < 0) | (y1 >= H)
+        clamp_mask = x0_clamp_mask | x1_clamp_mask | y0_clamp_mask | y1_clamp_mask
+
+        # clamp the values
+        x0 = torch.clamp(x0, 0, W - 1)  # (B, H, W)
+        x1 = torch.clamp(x1, 0, W - 1)  # (B, H, W)
+        y0 = torch.clamp(y0, 0, H - 1)  # (B, H, W)
+        y1 = torch.clamp(y1, 0, H - 1)  # (B, H, W)
+
+        # gather pixel values at the corners
+        batch_indices = torch.arange(B, device=value.device).view(-1, 1, 1)
+        Ia = value[batch_indices, y0, x0, :]  # top-left
+        Ib = value[batch_indices, y1, x0, :]  # bottom-left
+        Ic = value[batch_indices, y0, x1, :]  # top-right
+        Id = value[batch_indices, y1, x1, :]  # bottom-right
+
+        # get the fractional part of the coordinates
+        wa = (x1.float() - x) * (y1.float() - y)
+        wb = (x1.float() - x) * (y - y0.float())
+        wc = (x - x0.float()) * (y1.float() - y)
+        wd = (x - x0.float()) * (y - y0.float())
+
+        # bilinear interpolate the cornes
+        interpolated_values = (
+            wa.unsqueeze(-1) * Ia
+            + wb.unsqueeze(-1) * Ib
+            + wc.unsqueeze(-1) * Ic
+            + wd.unsqueeze(-1) * Id
         )
-        samples = samples.permute(0, 2, 3, 1)
-        return samples
+
+        # zero out the where we need to clamp
+        zero_tensor = torch.zeros_like(interpolated_values)
+        interpolated_values[clamp_mask] = zero_tensor[clamp_mask]
+
+        return interpolated_values
 
     def predict(self, s_point: torch.Tensor, t_point: torch.Tensor, **kwargs):
         x = torch.cat([s_point, t_point], dim=-1)  # (B, H, W, 6)
