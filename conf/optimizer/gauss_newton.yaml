@@ -1,14 +1,10 @@
 # @package optimizer
 
 _target_: lib.optimizer.newton.GaussNewton
-
 lin_solver:
-  _target_: lib.optimizer.pcg.PytorchSolver
-
-# step size
-step_size: 3e-01  # 3e-01
+  _target_: lib.optimizer.solver.PytorchSolver
+step_size: 1.0  # 3e-01
 line_search_fn: null
-
 # store linear system
 store_system: False 
 output_dir: ${paths.output_dir}/linsys

@@ -1,4 +1,3 @@
-# %%
 import logging
 import time
 from collections import defaultdict
@@ -110,24 +109,3 @@ class TimeTracker:
             summary += table_text
             log.info(table_text)
         return summary
-
-
-# # Example usage:
-# tracker = TimeTracker()
-
-# for _ in range(2):
-#     tracker.start("outer")
-#     time.sleep(0.1)
-#     for _ in range(10):
-#         tracker.start("inner1")
-#         time.sleep(0.01)
-#         tracker.start("inner2", stop=True)
-#         time.sleep(0.01)
-#         tracker.start("innerinner")
-#         tracker.stop()
-#         tracker.stop()
-#     tracker.stop()
-
-# # Retrieve all tracked durations
-# tracker.print_summary()
-# %%

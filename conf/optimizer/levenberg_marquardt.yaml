@@ -5,7 +5,7 @@ _target_: lib.optimizer.newton.LevenbergMarquardt
 # solver
 levenberg: False
 lin_solver:
-  _target_: lib.optimizer.pcg.PytorchSolver
+  _target_: lib.optimizer.solver.PytorchSolver
 
 # building the matrix A
 max_df_steps: 20

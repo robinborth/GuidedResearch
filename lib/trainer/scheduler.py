@@ -2,10 +2,8 @@ import logging
 from typing import Any
 
 from lib.data.datamodule import DPHMDataModule
-from lib.model.flame.flame import FLAME
 from lib.optimizer.base import DifferentiableOptimizer
-from lib.rasterizer import Rasterizer
-from lib.renderer.camera import Camera
+from lib.renderer import Renderer
 
 log = logging.getLogger()
 
@@ -34,9 +32,6 @@ class Scheduler:
     def check_milestones(self, milestones):
         assert len(milestones) >= 1 and milestones[0] == 0
 
-    def reset(self):
-        pass
-
 
 class CoarseToFineScheduler(Scheduler):
     """Changes the data of the optimization."""
@@ -49,21 +44,21 @@ class CoarseToFineScheduler(Scheduler):
         for scale in self.scales:
             assert isinstance(scale, int)
             assert scale >= 1
-        self.prev_scale = 1
 
-    def init_scheduler(self, camera: Camera, rasterizer: Rasterizer):
-        self.camera = camera
-        self.rasterizer = rasterizer
-
-    def schedule(self, datamodule: DPHMDataModule, iter_step: int):
+    def schedule(self, datamodule: DPHMDataModule, renderer: Renderer, iter_step: int):
         self.set_dirty(iter_step)
         if self.skip(iter_step):
             return
         scale = self.get_attribute(self.scales, iter_step)
-        self.prev_scale = scale
-        self.camera.update(scale=scale)
-        self.rasterizer.update(width=self.camera.width, height=self.camera.height)
-        datamodule.update_dataset(camera=self.camera, rasterizer=self.rasterizer)
+        renderer.camera.update(scale=scale)
+        renderer.rasterizer.update(
+            width=renderer.camera.width,
+            height=renderer.camera.height,
+        )
+        datamodule.update_dataset(
+            camera=renderer.camera,
+            rasterizer=renderer.rasterizer,
+        )
 
 
 class OptimizerScheduler(Scheduler):
@@ -87,66 +82,21 @@ class OptimizerScheduler(Scheduler):
         self.params = params
         self.check_attribute(params)
 
-        self.state: dict[str, Any] = {}
+        self.state: list[str] = []
         self.prev_optimizer_state = None
         self.copy_optimizer_state = copy_optimizer_state
 
-    def param_groups(self, model: FLAME, batch: dict, iter_step: int = 0):
+    def p_names(self, iter_step: int = 0):
         p_names = self.get_attribute(self.params, iter_step=iter_step)
         for p_name in p_names:
             if p_name not in self.state:
-                module = getattr(model, p_name)
+                self.state.append(p_name)
+        return self.state
 
-                if p_name in model.shape_p_names:
-                    shape_idx = batch["shape_idx"][:1]
-                    params = module(shape_idx)
-                else:
-                    frame_idx = batch["frame_idx"]
-                    params = module(frame_idx)
-                params.detach_()
-                params.requires_grad_()
-
-                self.state[p_name] = {
-                    "params": [params],
-                    "p_name": p_name,
-                }
-        return list(self.state.values())
-
-    def configure_optimizer(
-        self,
-        optimizer: DifferentiableOptimizer,
-        model: FLAME,
-        batch: dict,
-        iter_step: int,
-    ):
+    def configure_optimizer(self, optimizer: DifferentiableOptimizer, iter_step: int):
         self.set_dirty(iter_step)
-
-        # reset the optimizer
-        optimizer.reset()
-
-        # set the parameters
-        param_groups = self.param_groups(model, batch, iter_step)
-        optimizer.set_param_groups(param_groups)
-
-        # copy from previous iterations
-        if self.copy_optimizer_state and self.prev_optimizer_state is not None:
-            optimizer.set_state(self.prev_optimizer_state)
-        self.prev_optimizer_state = optimizer.get_state()
-
-        # adjust learning rate
-        if not self.skip(iter_step):
-            optimizer.step_size = optimizer.init_step_size
-
-    def update_model(self, model: FLAME, batch: dict, optimizer):
-        for params, p_name in zip(optimizer._params, optimizer._p_names):
-            module = getattr(model, p_name)
-            if p_name in model.shape_p_names:
-                shape_idx = batch["shape_idx"][:1]
-                module.weight[shape_idx] = params
-            else:
-                frame_idx = batch["frame_idx"]
-                module.weight[frame_idx] = params
-
-    def reset(self):
-        self.state = {}
-        self.prev_optimizer_state = None
+        p_names = self.p_names(iter_step=iter_step)
+        for key, param in optimizer._params.items():
+            param = param.detach()
+            param.requires_grad_(key in p_names)
+            optimizer._params[key] = param

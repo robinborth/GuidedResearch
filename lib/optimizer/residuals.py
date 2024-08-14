@@ -40,36 +40,39 @@ class Point2PlaneResiduals(Residuals):
     name: str = "point2plane"
 
     def forward(self, **kwargs):
-        weights = kwargs["weights"]
         s_point = kwargs["s_point"]
         t_point = kwargs["t_point"]
         t_normal = kwargs["t_normal"]
         residuals = ((s_point - t_point) * t_normal).sum(-1)
-        return residuals * weights
+        if weights := kwargs.get("weights"):
+            return residuals * weights
+        return residuals
 
 
 class Point2PointResiduals(Residuals):
     name: str = "point2point"
 
     def forward(self, **kwargs):
-        weights = kwargs["weights"]
         s_point = kwargs["s_point"]
         t_point = kwargs["t_point"]
         residuals = s_point - t_point
-        return residuals * weights
+        if weights := kwargs.get("weights"):
+            return residuals * weights
+        return residuals
 
 
 class SymmetricICPResiduals(Residuals):
     name: str = "symmetricICP"
 
     def forward(self, **kwargs):
-        weights = kwargs["weights"]
         s_point = kwargs["s_point"]
         t_point = kwargs["t_point"]
         s_normal = kwargs["s_normal"]
         t_normal = kwargs["t_normal"]
         residuals = ((s_point - t_point) * (s_normal + t_normal)).sum(-1)
-        return residuals * weights
+        if weights := kwargs.get("weights"):
+            return residuals * weights
+        return residuals
 
 
 ####################################################################################

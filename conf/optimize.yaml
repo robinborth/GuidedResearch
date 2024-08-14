@@ -4,12 +4,11 @@ defaults:
   - model: flame 
   - logger: flame_wandb 
   - data: kinect
-  - loss: regularization 
-  - optimizer: levenberg_marquardt
-  - trainer:
-    - joint
-    - sequential
-    - weight_trainer
+  - residuals: regularization 
+  - optimizer: gauss_newton
+  - framework : icp 
+  - correspondence: projective 
+  - trainer: joint
   - hydra: default
   - paths: default
   - _self_

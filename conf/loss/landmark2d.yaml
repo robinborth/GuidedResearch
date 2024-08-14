@@ -1,7 +1,0 @@
-# @package loss
-
-defaults:
-  - base
-  - _self_
-
-_target_: lib.model.loss.Landmark2DLoss

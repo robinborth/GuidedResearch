@@ -11,8 +11,7 @@ from lib.data.loader import (
     load_mediapipe_landmark_3d,
     load_normal,
 )
-from lib.model.flame import Flame
-from lib.renderer import Camera, Rasterizer, Renderer
+from lib.renderer import Camera
 
 
 class DPHMDataset(Dataset):
@@ -168,8 +167,6 @@ class DPHMPointDataset(DPHMDataset):
         super().__init__(**kwargs)
         self.load_point()
         self.load_normal()
-        self.load_lm_2d_ndc()
-        self.load_lm_3d_camera()
         self.load_color()
         self.frame_idxs = list(self.iter_frame_idx())
 
@@ -179,18 +176,13 @@ class DPHMPointDataset(DPHMDataset):
         point = self.point[idx]
         normal = self.normal[idx]
         color = self.color[idx]
-        lm_2d_ndc = self.lm_2d_ndc[idx]
-        lm_3d_camera = self.lm_3d_camera[idx]
         frame_idx = self.frame_idxs[idx]
         return {
-            "shape_idx": 0,
             "frame_idx": frame_idx,
             "mask": mask,
             "point": point,
             "normal": normal,
             "color": color,
-            "lm_2d_ndc": lm_2d_ndc,
-            "lm_3d_camera": lm_3d_camera,
         }
 
 

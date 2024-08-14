@@ -11,6 +11,15 @@
             "justMyCode": false,
         },
         {
+            "name": "Debug: Optimize",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/optimize.py",
+            "args": [],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
             "name": "Debug: Generate",
             "type": "debugpy",
             "request": "launch",

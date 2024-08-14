@@ -1,15 +1,6 @@
 # base settings
-model: ???
 datamodule: ???
-logger: ???
 optimizer: ???
-loss: ???
-camera: ???
-rasterizer: ???
-
-# logging settings
-save_interval: 1
-final_video: True
 
 scheduler:
   _target_: lib.trainer.scheduler.OptimizerScheduler

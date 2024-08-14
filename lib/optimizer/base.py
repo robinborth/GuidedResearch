@@ -4,7 +4,6 @@ import logging
 from typing import Any, Callable
 
 import torch
-from torch import nn
 from torch.func import jacfwd, jacrev
 
 from lib.trainer.timer import TimeTracker
@@ -12,10 +11,8 @@ from lib.trainer.timer import TimeTracker
 log = logging.getLogger()
 
 
-class DifferentiableOptimizer(nn.Module):
+class DifferentiableOptimizer:
     def __init__(self):
-        super().__init__()
-        self._numel_cache = None
         self._params = None
         self._converged = False
         self.time_tracker = TimeTracker()
@@ -42,19 +39,24 @@ class DifferentiableOptimizer(nn.Module):
     ####################################################################################
 
     def _reset(self):
-        self._numel_cache = None
         self._params = None
         self._converged = False
 
     @property
+    def _aktive_params(self):
+        return {k: v for k, v in self._params.items() if v.requires_grad}
+
+    @property
+    def _default_params(self):
+        return {k: v for k, v in self._params.items() if not v.requires_grad}
+
+    @property
     def _numel(self):
-        if self._numel_cache is None:
-            self._numel_cache = sum(p.numel() for p in self._params.values())
-        return self._numel_cache
+        return sum(p.numel() for p in self._aktive_params.values())
 
     def _gather_flat_grad(self):
         views = []
-        for p in self._params.values():
+        for p in self._aktive_params.values():
             if p.grad is None:
                 view = p.new(p.numel()).zero_()
             else:
@@ -64,14 +66,14 @@ class DifferentiableOptimizer(nn.Module):
 
     def _gather_flat_param(self):
         views = []
-        for p in self._params.values():
+        for p in self._aktive_params.values():
             view = p.view(-1)
             views.append(view)
         return torch.cat(views, dim=0)
 
     def _store_flat_grad(self, grad_f: torch.Tensor):
         offset = 0
-        for p in self._params.values():
+        for p in self._aktive_params.values():
             numel = p.numel()
             p.grad = grad_f[offset : offset + numel].view_as(p)
             offset += numel
@@ -79,7 +81,7 @@ class DifferentiableOptimizer(nn.Module):
 
     def _add_direction(self, step_size, direction):
         offset = 0
-        for k, p in self._params.items():
+        for k, p in self._aktive_params.items():
             numel = p.numel()
             param = p + step_size * direction[offset : offset + numel].view_as(p)
             self._params[k] = param  # override the current params
@@ -89,15 +91,15 @@ class DifferentiableOptimizer(nn.Module):
     def _clone_param(self):
         return [
             p.clone(memory_format=torch.contiguous_format)
-            for p in self._params.values()
+            for p in self._aktive_params.values()
         ]
 
     def _set_param(self, params_data):
-        for p, pdata in zip(self._params.values(), params_data):
+        for p, pdata in zip(self._aktive_params.values(), params_data):
             p.copy_(pdata)  # inplace copy
 
     def _zero_grad(self):
-        for p in self._params.values():
+        for p in self._aktive_params.values():
             p.grad = None
 
     ####################################################################################
@@ -129,7 +131,12 @@ class DifferentiableOptimizer(nn.Module):
     ####################################################################################
 
     def residual_params(self, *args):
-        return {k: v for k, v in zip(self._params.keys(), *args)}
+        out = {}
+        for p_name, param in zip(self._aktive_params.keys(), *args):
+            out[p_name] = param
+        for p_name, param in self._default_params.items():
+            out[p_name] = param
+        return out
 
     def evaluate_closure(
         self,
@@ -157,7 +164,7 @@ class DifferentiableOptimizer(nn.Module):
         return float(loss)
 
     def loss_step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
-        F, _ = closure(*self._params.values())
+        F, _ = closure(*self._aktive_params.values())
         return (F**2).sum()
 
     def jacobian_step(
@@ -168,10 +175,10 @@ class DifferentiableOptimizer(nn.Module):
         fn = jacfwd if strategy == "forward-mode" else jacrev
         jacobian_fn = fn(
             func=closure,
-            argnums=tuple(range(len(self._params))),
+            argnums=tuple(range(len(self._aktive_params))),
             has_aux=True,
         )
-        jacobians, F = jacobian_fn(*self._params.values())
+        jacobians, F = jacobian_fn(*self._aktive_params.values())
         J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
         return J, F
 

@@ -1,18 +1,6 @@
 # @package model
-_target_: lib.model.flame.FLAME
-
-# model settings
+_target_: lib.model.flame.Flame
 flame_dir: ${paths.root_dir}/checkpoints/flame2023_no_jaw
-num_shape_params: 100
-num_expression_params: 50
-# optimization settings
-optimize_frames: ${data.sequence_length}
-optimize_shapes: 1
+shape_params: 100
+expression_params: 50
 vertices_mask: full
-n_threshold: 0.9
-d_threshold: 0.1
-init_config:
-  seed: 1
-  sigma: 0.01
-  transl: [0.0, 0.0, -0.5]
-  global_pose: [0.0, 0.0, 0.0] 

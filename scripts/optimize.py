@@ -2,12 +2,10 @@ import logging
 
 import hydra
 from omegaconf import DictConfig
-from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
-from lib.model.flame.flame import FLAME
-from lib.rasterizer import Rasterizer
-from lib.renderer.camera import Camera
+from lib.model import Flame
+from lib.renderer import Camera, Rasterizer, Renderer
 from lib.trainer.logger import FlameLogger
 from lib.utils.config import set_configs
 
@@ -29,88 +27,46 @@ def optimize(cfg: DictConfig):
         far=cfg.data.far,
     )
     rasterizer = Rasterizer(width=camera.width, height=camera.height)
+    renderer = Renderer(camera=camera, rasterizer=rasterizer)
 
-    log.info(f"==> initializing model <{cfg.model._target_}>")
-    model: FLAME = hydra.utils.instantiate(cfg.model).to(cfg.device)
+    log.info(f"==> initializing model <{cfg.model._target_}> ...")
+    flame: Flame = hydra.utils.instantiate(cfg.model)
 
-    log.info("==> initializing logger ...")
+    log.info(f"==> initializing logger <{cfg.logger._target_}> ...")
     logger: FlameLogger = hydra.utils.instantiate(cfg.logger)
 
-    log.info("==> initializing datamodule ...")
-    datamodule = hydra.utils.instantiate(cfg.data, devie=cfg.device)
+    log.info(f"==> initializing datamodule <{cfg.data._target_}> ...")
+    datamodule = hydra.utils.instantiate(cfg.data)
 
-    log.info("==> initilizing loss ...")
-    loss = hydra.utils.instantiate(cfg.loss, _partial_=True)
+    log.info(f"==> initializing correspondence <{cfg.correspondence._target_}> ...")
+    correspondence = hydra.utils.instantiate(cfg.correspondence)
 
-    log.info("==> initilizing optimizer ...")
+    log.info(f"==> initializing residuals <{cfg.residuals._target_}> ...")
+    residuals = hydra.utils.instantiate(cfg.residuals)
+
+    log.info(f"==> initializing optimizer <{cfg.optimizer._target_}> ...")
     optimizer = hydra.utils.instantiate(cfg.optimizer)
 
-    # allow access from different classes
-    model.init_renderer(camera=camera, rasterizer=rasterizer)
-    # model.init_logger(logger=logger)
-    logger.init_logger(model=model, cfg=cfg)
-    # optimizer.init_logger(logger=logger)
+    log.info(f"==> initializing framework <{cfg.framework}> ...")
+    framework = hydra.utils.instantiate(
+        cfg.framework,
+        flame=flame,
+        logger=logger,
+        renderer=renderer,
+        correspondence=correspondence,
+        residuals=residuals,
+        optimizer=optimizer,
+    )
 
-    if cfg.get("joint_trainer"):
-        log.info("==> initializing joint trainer ...")
-        trainer = hydra.utils.instantiate(
-            cfg.joint_trainer,
-            model=model,
-            loss=loss,
-            optimizer=optimizer,
-            logger=logger,
-            datamodule=datamodule,
-            camera=camera,
-            rasterizer=rasterizer,
-        )
-        log.info("==> joint optimization ...")
-        trainer.optimize()
+    log.info("==> initializing trainer ...")
+    trainer = hydra.utils.instantiate(
+        cfg.joint_trainer,
+        optimizer=framework,
+        datamodule=datamodule,
+    )
 
-    if cfg.get("sequential_trainer"):
-        log.info("==> initializing sequential trainer ...")
-        trainer = hydra.utils.instantiate(
-            cfg.sequential_trainer,
-            model=model,
-            loss=loss,
-            optimizer=optimizer,
-            logger=logger,
-            datamodule=datamodule,
-            camera=camera,
-            rasterizer=rasterizer,
-        )
-        log.info("==> sequential optimization ...")
-        trainer.optimize()
-
-    if cfg.get("weight_trainer"):
-        log.info("==> initializing weight trainer ...")
-        trainer = hydra.utils.instantiate(
-            cfg.weight_trainer,
-            model=model,
-            loss=loss,
-            optimizer=optimizer,
-            logger=logger,
-            datamodule=datamodule,
-            camera=camera,
-            rasterizer=rasterizer,
-        )
-        log.info("==> joint optimization ...")
-        trainer.optimize()
-
-    # final full screen image
-    if trainer.final_video:
-        log.info("==> log final result ...")
-        for frame_idx in tqdm(trainer.frames):
-            logger.capture_screen(
-                camera=camera,
-                rasterizer=rasterizer,
-                datamodule=datamodule,
-                model=model,
-                idx=frame_idx,
-            )
-        logger.log_video("render_normal", framerate=20)
-        logger.log_video("render_merged", framerate=20)
-        logger.log_video("error_point_to_plane", framerate=20)
-        logger.log_video("batch_color", framerate=20)
+    log.info("==> start optimization ...")
+    trainer.optimize()
 
 
 if __name__ == "__main__":

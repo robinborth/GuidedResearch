@@ -8,9 +8,8 @@ _target_: lib.trainer.trainer.JointTrainer
 
 # loop settings
 init_idxs: [0,20,35,55,65,95,110,115]
-max_iters: 100 # 200
-max_optims: 20  # 50
-verbose: True
+max_iters: 100
+max_optims: 3 
 
 scheduler:
   milestones: [0,20,40]
@@ -19,3 +18,6 @@ scheduler:
 coarse2fine:
   milestones: [0]
   scales: [8]
+
+default_params:
+  transl: [0.0,0.0,-0.5]

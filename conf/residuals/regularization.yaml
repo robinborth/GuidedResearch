@@ -1,0 +1,14 @@
+# @package residuals
+
+defaults:
+  - base
+  - _self_
+
+_target_: lib.optimizer.residuals.ChainedResiduals
+chain:
+  - _target_: lib.optimizer.residuals.Point2PlaneResiduals
+    weight: 1.0
+  - _target_: lib.optimizer.residuals.ShapeRegularizationResiduals
+    weight: 1e-03
+  - _target_: lib.optimizer.residuals.ExpressionRegularizationResiduals
+    weight: 1e-03

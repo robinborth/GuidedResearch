@@ -60,6 +60,7 @@ def optimize(cfg: DictConfig):
 
         # params
         data = dict(
+            default_params={},
             params={k: v.detach().cpu() for k, v in params.items()},
             gt_params={k: v.detach().cpu() for k, v in gt_params.items()},
             mask=r_out["mask"].detach().cpu(),
