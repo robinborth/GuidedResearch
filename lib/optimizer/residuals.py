@@ -40,11 +40,10 @@ class Point2PlaneResiduals(Residuals):
     name: str = "point2plane"
 
     def forward(self, **kwargs):
-        mask = kwargs["mask"]
-        weights = kwargs["weights"][mask]
-        s_point = kwargs["s_point"][mask]
-        t_point = kwargs["t_point"][mask]
-        t_normal = kwargs["t_normal"][mask]
+        weights = kwargs["weights"]
+        s_point = kwargs["s_point"]
+        t_point = kwargs["t_point"]
+        t_normal = kwargs["t_normal"]
         residuals = ((s_point - t_point) * t_normal).sum(-1)
         return residuals * weights
 
@@ -53,10 +52,9 @@ class Point2PointResiduals(Residuals):
     name: str = "point2point"
 
     def forward(self, **kwargs):
-        mask = kwargs["mask"]
-        weights = kwargs["weights"][mask]
-        s_point = kwargs["s_point"][mask]
-        t_point = kwargs["t_point"][mask]
+        weights = kwargs["weights"]
+        s_point = kwargs["s_point"]
+        t_point = kwargs["t_point"]
         residuals = s_point - t_point
         return residuals * weights
 
@@ -65,12 +63,11 @@ class SymmetricICPResiduals(Residuals):
     name: str = "symmetricICP"
 
     def forward(self, **kwargs):
-        mask = kwargs["mask"]
-        weights = kwargs["weights"][mask]
-        s_point = kwargs["s_point"][mask]
-        t_point = kwargs["t_point"][mask]
-        s_normal = kwargs["s_normal"][mask]
-        t_normal = kwargs["t_normal"][mask]
+        weights = kwargs["weights"]
+        s_point = kwargs["s_point"]
+        t_point = kwargs["t_point"]
+        s_normal = kwargs["s_normal"]
+        t_normal = kwargs["t_normal"]
         residuals = ((s_point - t_point) * (s_normal + t_normal)).sum(-1)
         return residuals * weights
 
@@ -128,4 +125,18 @@ class VertexResiduals(Residuals):
     def forward(self, **kwargs):
         t_vertices = kwargs["t_vertices"]
         s_vertices = kwargs["s_vertices"]
+        return t_vertices - s_vertices
+
+
+####################################################################################
+# Deep Features
+####################################################################################
+
+
+class FeatureResiduals(Residuals):
+    name: str = "feature"
+
+    def forward(self, **kwargs):
+        t_vertices = kwargs["t_feature"]
+        s_vertices = kwargs["s_feature"]
         return t_vertices - s_vertices

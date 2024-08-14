@@ -9,7 +9,7 @@ from tqdm import tqdm
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame.flame import FLAME
 from lib.model.weighting import ResidualWeightModule
-from lib.optimizer.base import BaseOptimizer
+from lib.optimizer.base import DifferentiableOptimizer
 from lib.optimizer.residuals import BaseLoss
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
@@ -26,7 +26,7 @@ class BaseTrainer:
         loss: BaseLoss,
         logger: FlameLogger,
         datamodule: DPHMDataModule,
-        optimizer: BaseOptimizer,
+        optimizer: DifferentiableOptimizer,
         scheduler: OptimizerScheduler,
         coarse2fine: CoarseToFineScheduler,
         # camera settings
@@ -369,70 +369,3 @@ class PCGSamplingTrainer(BaseTrainer):
             sampling_progress.update(1)
 
         self.close_progress([sampling_progress, outer_progress, inner_progress])
-
-
-class WeightingTrainer(BaseTrainer):
-    def __init__(
-        self,
-        init_idxs: list[int] = [],
-        train_steps: int = 100,
-        lr: float = 1e-03,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.mode = "weight"
-        assert len(init_idxs) > 0
-        self.init_idxs = init_idxs
-        self.frames = init_idxs
-        self.train_steps = train_steps
-
-        log.info("==> initilizing weighting")
-        self.residual_weight = ResidualWeightModule(
-            in_channels=5,
-            hidden_channels=100,
-            num_layers=2,
-            kernal_size=3,
-        ).to(self.model.device)
-
-        self.weight_optimizer = torch.optim.Adam(
-            params=self.residual_weight.parameters(), lr=lr
-        )
-
-    def train_progress(self):
-        return tqdm(total=self.train_steps, desc="Train Loop", position=0)
-
-    def optimize(self):
-        train_progress = self.train_progress()
-        outer_progress = self.outer_progress()
-        inner_progress = self.inner_progress()
-
-        for train_step in range(self.train_steps):
-            # setup training
-            self.logger.mode = f"{self.mode}/{train_step:04}"
-            self.model.init_params_with_config(self.model.init_config)
-            self.scheduler.freeze(self.model)
-            self.scheduler.reset()
-            self.coarse2fine.reset()
-            self.datamodule.update_idxs(self.init_idxs)
-
-            # clear the gradients
-            self.weight_optimizer.zero_grad()
-
-            # perform the optimization loop
-            self.optimize_loop(outer_progress, inner_progress)
-
-            # compute the loss
-            loss = []
-            for params, p_names in zip(self.optimizer._params, self.optimizer._p_names):
-                gt_params = self.model.init_config.get(p_names, None)
-                if gt_params is not None:
-                    l1_loss = torch.abs(params - torch.tensor(gt_params).to(params))
-                    loss.append(l1_loss)
-            loss = torch.stack(loss).mean()
-            self.logger.log("optim_loss", loss)
-
-            # perform optimization step
-            loss.backward()
-            self.weight_optimizer.step()
-
-        self.close_progress([train_progress, outer_progress, inner_progress])

@@ -194,43 +194,7 @@ class DPHMPointDataset(DPHMDataset):
         }
 
 
-class FlameDataset(Dataset):
-    def __init__(
-        self,
-        renderer: Renderer,
-        flame: Flame,
-        params: dict[str, torch.Tensor],
-    ):
-
-        super().__init__()
-
-        m_out = flame(**params)
-        r_out = renderer.render_full(m_out["vertices"], faces=flame.faces)
-
-        self.params = {k: p.squeeze(0) for k, p in params.items()}
-        self.mask = r_out["mask"][0].detach().cpu().numpy()
-        self.point = r_out["point"][0].detach().cpu().numpy()
-        self.normal = r_out["normal"][0].detach().cpu().numpy()
-        self.color = r_out["color"][0].detach().cpu().numpy()
-        self.vertices = m_out["vertices"][0].detach().cpu().numpy()
-
-    def __len__(self):
-        return 1
-
-    def __getitem__(self, idx: int):
-        return {
-            # data params
-            "mask": self.mask,
-            "point": self.point,
-            "normal": self.normal,
-            "color": self.color,
-            "vertices": self.vertices,
-            # flame params
-            **self.params,
-        }
-
-
-class PCGDataset(Dataset):
+class SplitDataset(Dataset):
     def __init__(
         self,
         data_dir: str = "/flame",
@@ -241,13 +205,12 @@ class PCGDataset(Dataset):
         self.split = split
 
         paths = sorted(list(Path(self.data_dir).iterdir()))
-        # paths = list(Path(self.data_dir).iterdir())
         i, j = self.split_dataset(split, samples, len(paths))
 
         data = []
         for path in paths[i:j]:
             out = torch.load(path)
-            out["sys_id"] = path.stem
+            out["sample_id"] = path.stem
             data.append(out)
         self.data = data
 

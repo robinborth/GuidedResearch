@@ -69,6 +69,16 @@ class Flame(L.LightningModule):
         self.zero_expression = nn.Parameter(torch.zeros(100 - expression_params))
         self.params = nn.ParameterDict(self.generate_default_params())
 
+        self.global_params = ["shape_params", "scale"]
+        self.local_params = [
+            "expression_params",
+            "global_pose",
+            "transl",
+            "neck_pose",
+            "jaw_pose",
+            "eye_pose",
+        ]
+
         # move to cuda
         self.to(device=device)
 
@@ -221,6 +231,14 @@ class Flame(L.LightningModule):
         if landmarks.shape[1] != 105:
             return landmarks[:, self.lm_mediapipe_idx]
         return landmarks
+
+    def render(self, renderer: Renderer, params: dict):
+        m_out = self.forward(**params)
+        r_out = renderer.render_full(
+            vertices=m_out["vertices"],  # (B, V, 3)
+            faces=self.faces,  # (F, 3)
+        )
+        return r_out
 
 
 class FLAME(nn.Module):

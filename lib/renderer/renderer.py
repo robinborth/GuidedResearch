@@ -14,6 +14,7 @@ class Renderer:
         diffuse: list[float] = [0.5, 0.5, 0.5],
         specular: list[float] = [0.3, 0.3, 0.3],
         light: list[float] = [-1.0, 1.0, 0.0],
+        color: int = 0,
         device: str = "cuda",
         **kwargs,
     ):
@@ -35,6 +36,7 @@ class Renderer:
         self.diffuse = torch.tensor(diffuse, device=device)
         self.specular = torch.tensor(specular, device=device)
         self.light = torch.tensor(light, device=device)
+        self.color = color
 
         self.time_tracker = TimeTracker()
 

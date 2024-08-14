@@ -3,7 +3,7 @@ from typing import Any
 
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame.flame import FLAME
-from lib.optimizer.base import BaseOptimizer
+from lib.optimizer.base import DifferentiableOptimizer
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 
@@ -114,7 +114,7 @@ class OptimizerScheduler(Scheduler):
 
     def configure_optimizer(
         self,
-        optimizer: BaseOptimizer,
+        optimizer: DifferentiableOptimizer,
         model: FLAME,
         batch: dict,
         iter_step: int,

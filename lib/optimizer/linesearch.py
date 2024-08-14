@@ -2,7 +2,7 @@ from typing import Callable
 
 import torch
 
-from lib.optimizer.base import BaseOptimizer
+from lib.optimizer.base import DifferentiableOptimizer
 
 
 def linesearch(
@@ -64,13 +64,15 @@ def ternary_search(
     return ls_optim
 
 
-class GradientDecentLinesearch(BaseOptimizer):
+class GradientDecentLinesearch(DifferentiableOptimizer):
     def step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
         # compute the gradients
         self.zero_grad()
-        loss = self.loss_closure(closure)
+        loss = self.loss_step(closure)
         loss.backward()
-        direction = self._gather_flat_grad().neg()  # we minimize
+
+        # set the update direction to the negative gradient
+        direction = self._gather_flat_grad().neg()
 
         # prepare the init delta vectors
         x_init = self._clone_param()

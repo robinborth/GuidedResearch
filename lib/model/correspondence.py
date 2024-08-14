@@ -114,6 +114,7 @@ class OpticalFlowCorrespondenceModule(nn.Module):
 
 class ProjectiveCorrespondenceModule(nn.Module):
     def __init__(self, d_threshold: float = 0.1, n_threshold: float = 0.9):
+        super().__init__()
         self.d_threshold = d_threshold
         self.n_threshold = n_threshold
 

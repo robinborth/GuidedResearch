@@ -12,7 +12,7 @@ from lib.trainer.timer import TimeTracker
 log = logging.getLogger()
 
 
-class BaseOptimizer(nn.Module):
+class DifferentiableOptimizer(nn.Module):
     def __init__(self):
         super().__init__()
         self._numel_cache = None
@@ -157,7 +157,7 @@ class BaseOptimizer(nn.Module):
         return float(loss)
 
     def loss_step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
-        F, _ = closure(self._params)
+        F, _ = closure(*self._params.values())
         return (F**2).sum()
 
     def jacobian_step(

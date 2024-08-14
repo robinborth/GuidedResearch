@@ -3,6 +3,8 @@ import math
 import torch
 from torchvision.transforms import v2
 
+from lib.data.loader import load_intrinsics
+
 
 class Camera:
     """
@@ -39,6 +41,7 @@ class Camera:
         K: torch.Tensor | None = None,
         device: str = "cuda",
     ):
+        self.K = K
         self.original_width = width
         self.original_height = height
         self.scale = scale
@@ -47,7 +50,6 @@ class Camera:
         self.near = near
         self.far = far
         self.fov_y = fov_y
-        self.K = K
         self.device = device
         self.set_perspective_projection()
 

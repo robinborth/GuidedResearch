@@ -3,11 +3,12 @@ from typing import Any, Callable
 
 import torch
 
-from lib.optimizer.base import BaseOptimizer
+from lib.optimizer.base import DifferentiableOptimizer
 
 
-class PytorchOptimizer(BaseOptimizer):
+class PytorchOptimizer(DifferentiableOptimizer):
     def __init__(self, optimizer: Callable[..., torch.optim.Optimizer]):
+        super().__init__()
         self.optimizer_fn = optimizer
         self.init_step_size = None
         self.step_size = None

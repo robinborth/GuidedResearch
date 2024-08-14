@@ -1,0 +1,73 @@
+# @package _global_
+
+defaults:
+  - logger: wandb
+  - data: synthetic
+  - hydra: default
+  - paths: default
+  - _self_
+
+seed: 123
+device: cuda
+task_name: train
+tags: 
+  - ${task_name}
+  - save
+
+
+model:
+  _target_: lib.model.optimizer.WeightedOptimizer
+  renderer: ???
+  max_optims: 1
+  max_iters: 1
+  flame:
+    _target_: lib.model.flame.Flame
+    flame_dir: ${paths.root_dir}/checkpoints/flame2023_no_jaw
+    shape_params: 100
+    expression_params: 50
+    vertices_mask: full
+  correspondence_module: 
+    _target_: lib.model.correspondence.ProjectiveCorrespondenceModule
+    d_threshold: 0.1
+    n_threshold: 0.9
+  weighting_module:
+    _target_: lib.model.weighting.ResidualWeightModule
+    hidden_channels: 100
+    kernal_size: 3
+    num_layers: 3
+    device: ${device}
+  residuals:
+    _target_: lib.optimizer.residuals.ChainedResiduals
+    chain:
+      - _target_: lib.optimizer.residuals.Point2PlaneResiduals
+        weight: 1.0
+      - _target_: lib.optimizer.residuals.ShapeRegularizationResiduals
+        weight: 1e-03
+      - _target_: lib.optimizer.residuals.ExpressionRegularizationResiduals
+        weight: 1e-03
+  optimizer:
+    _target_: lib.optimizer.newton.GaussNewton
+    lin_solver:
+      _target_: lib.optimizer.solver.PytorchSolver
+    step_size: 1.0 
+    line_search_fn: null
+    store_system: False 
+    output_dir: ${paths.output_dir}/linsys
+    verbose: False
+  lr: 1e-03
+  scheduler: null
+  
+
+trainer:
+  _target_: lightning.pytorch.trainer.Trainer
+  default_root_dir: ${paths.output_dir}
+  accelerator: ${device}
+  # training
+  min_epochs: 1 
+  max_epochs: 200 
+  # debugging
+  # overfit_batches: 4
+  accumulate_grad_batches: 8
+  num_sanity_val_steps: 0
+  check_val_every_n_epoch: 1
+  log_every_n_steps: 1

@@ -4,17 +4,18 @@ from typing import Callable
 
 import torch
 
-from lib.optimizer.base import BaseOptimizer
+from lib.optimizer.base import DifferentiableOptimizer
 from lib.optimizer.solver import LinearSystemSolver
 
 log = logging.getLogger()
 
 
-class NewtonOptimizer(BaseOptimizer):
+class NewtonOptimizer(DifferentiableOptimizer):
     def __init__(
         self,
         # solver
         lin_solver: LinearSystemSolver,
+        strategy: str = "forward-mode",
         # step size
         step_size: float = 1.0,
         # store linear systems
@@ -29,6 +30,7 @@ class NewtonOptimizer(BaseOptimizer):
         self.step_count = 0
 
         self.lin_solver = lin_solver
+        self.strategy = strategy
 
         self.store_system = store_system
         self.output_dir = output_dir
@@ -51,7 +53,7 @@ class NewtonOptimizer(BaseOptimizer):
 
     def apply_jacobian(self, closure: Callable[..., torch.Tensor]):
         self.time_tracker.start("jacobian_closure")
-        J, F = self.jacobian_step(closure)  # (M, N)
+        J, F = self.jacobian_step(closure, strategy=self.strategy)  # (M, N)
         assert J.shape[1] == self._numel
         self.time_tracker.start("H", stop=True)
         H = 2 * J.T @ J  # (N, N)
@@ -66,6 +68,7 @@ class GaussNewton(NewtonOptimizer):
         self,
         # solver
         lin_solver: LinearSystemSolver,
+        strategy: str = "forward-mode",
         # step size
         step_size: float = 1.0,
         line_search_fn: str | None = None,
@@ -76,6 +79,7 @@ class GaussNewton(NewtonOptimizer):
     ):
         super().__init__(
             lin_solver=lin_solver,
+            strategy=strategy,
             step_size=step_size,
             store_system=store_system,
             output_dir=output_dir,
