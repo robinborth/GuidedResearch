@@ -29,7 +29,7 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 2000
+  max_epochs: 100
   # debugging
   overfit_batches: 4
   accumulate_grad_batches: 4
