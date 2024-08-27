@@ -1,0 +1,23 @@
+# @package framework 
+
+_target_: lib.optimizer.framework.WeightedOptimizer
+
+flame: ???
+logger: ???
+renderer: ???
+correspondence: ???
+residuals: ???
+optimizer: ???
+
+max_iters: 3
+max_optims: 1
+
+lr: 1e-03
+scheduler: null
+
+weighting:
+  _target_: lib.model.weighting.ResidualWeightModule
+  hidden_channels: 100
+  kernal_size: 3
+  num_layers: 3
+  device: ${device}

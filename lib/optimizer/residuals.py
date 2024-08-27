@@ -56,8 +56,9 @@ class Point2PlaneResiduals(Residuals):
         s_point = kwargs["s_point"]
         t_point = kwargs["t_point"]
         t_normal = kwargs["t_normal"]
+        weights = kwargs["weights"]
         residuals = ((s_point - t_point) * t_normal).sum(-1)
-        if weights := kwargs.get("weights"):
+        if weights is not None:
             return [self.weight * residuals * weights]
         return [self.weight * residuals]
 
@@ -68,8 +69,9 @@ class Point2PointResiduals(Residuals):
     def forward(self, **kwargs):
         s_point = kwargs["s_point"]
         t_point = kwargs["t_point"]
+        weights = kwargs["weights"]
         residuals = s_point - t_point
-        if weights := kwargs.get("weights"):
+        if weights is not None:
             return [self.weight * residuals * weights]
         return [self.weight * residuals]
 
@@ -82,8 +84,9 @@ class SymmetricICPResiduals(Residuals):
         t_point = kwargs["t_point"]
         s_normal = kwargs["s_normal"]
         t_normal = kwargs["t_normal"]
+        weights = kwargs["weights"]
         residuals = ((s_point - t_point) * (s_normal + t_normal)).sum(-1)
-        if weights := kwargs.get("weights"):
+        if weights is not None:
             return [self.weight * residuals * weights]
         return [self.weight * residuals]
 

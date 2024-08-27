@@ -25,7 +25,8 @@ class ResidualWeightModule(nn.Module):
     def forward(self, s_point: torch.Tensor, t_point: torch.Tensor):
         x = torch.cat([s_point, t_point], dim=-1)  # (B, H, W, 6)
         x = x.permute(0, 3, 1, 2)  # (B, 6, H, W)
-        return torch.exp(self.cnn(x))  # (B, W, H, 1)
+        x = torch.exp(self.cnn(x))  # (B, W, H, 1)
+        return x
 
 
 class DummyWeightModule(nn.Module):

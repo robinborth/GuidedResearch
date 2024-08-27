@@ -23,9 +23,9 @@ class OptimizerFramework(L.LightningModule):
             ignore=[
                 "renderer",
                 "flame",
-                "weighting_module",
+                "weighting",
                 "residuals",
-                "correspondence_module",
+                "correspondence",
                 "optimizer",
             ],
         )
@@ -57,8 +57,17 @@ class OptimizerFramework(L.LightningModule):
             on_step=True,
             batch_size=1,
         )
+        self.log("train/weight_mean", out["weights"].mean(), batch_size=1)
+        self.log("train/weight_max", out["weights"].max(), batch_size=1)
         if batch_idx == 0:
-            self.logger.log_step(batch, out, "train", batch_idx)
+            self.logger.log_step(
+                batch=batch,
+                out=out,
+                flame=self.flame,
+                renderer=self.renderer,
+                mode="train",
+                batch_idx=batch_idx,
+            )
         return out["loss"]
 
     def validation_step(self, batch, batch_idx):
@@ -72,7 +81,14 @@ class OptimizerFramework(L.LightningModule):
             batch_size=1,
         )
         if batch_idx == 0:
-            self.logger.log_step(batch, out, "val", batch_idx)
+            self.logger.log_step(
+                batch=batch,
+                out=out,
+                flame=self.flame,
+                renderer=self.renderer,
+                mode="val",
+                batch_idx=batch_idx,
+            )
         return out["loss"]
 
     def test_step(self, batch, batch_idx):
@@ -99,27 +115,29 @@ class WeightedOptimizer(OptimizerFramework):
         self,
         # models
         flame: Flame,
-        correspondence_module: torch.nn.Module,
-        weighting_module: torch.nn.Module,
+        correspondence: torch.nn.Module,
+        weighting: torch.nn.Module,
         # renderer settings
         renderer: Renderer,
         # optimization settings
         residuals: Residuals,
         optimizer: DifferentiableOptimizer,
         max_iters: int = 1,
+        max_optims: int = 1,
         **kwargs,
     ):
         super().__init__(**kwargs)
         # models
         self.flame = flame
-        self.c_module = correspondence_module
-        self.w_module = weighting_module
+        self.c_module = correspondence
+        self.w_module = weighting
         # dfferentiable renderer
         self.renderer = renderer
         # optimization settings
         self.optimizer = optimizer
         self.residuals = residuals
         self.max_iters = max_iters
+        self.max_optims = max_optims
 
     def configure_optimizer(self):
         return torch.optim.Adam(self.w_module.parameters(), lr=self.hparams["lr"])
@@ -127,48 +145,49 @@ class WeightedOptimizer(OptimizerFramework):
     def forward(self, batch: dict):
         self.optimizer.set_params(batch["params"])
 
-        # render the current state of the model
-        out = self.flame.render(
-            renderer=self.renderer,
-            params=self.optimizer.get_params(),
-        )
-        # establish correspondences
-        mask = self.c_module.mask(
-            s_mask=batch["mask"],
-            s_point=batch["point"],
-            s_normal=batch["normal"],
-            t_mask=out["mask"],
-            t_point=out["point"],
-            t_normal=out["normal"],
-        )
-        # predict weights
-        weights = self.w_module(s_point=batch["point"], t_point=out["point"])
-
-        def residual_closure(*args):
-            # differentiable rendering without rasterization
-            new_params = self.optimizer.residual_params(args)
-            m_out = self.flame(**new_params)
-            # recompute to perform interpolation of the point inside closure
-            t_point = self.renderer.mask_interpolate(
-                vertices_idx=out["vertices_idx"],
-                bary_coords=out["bary_coords"],
-                attributes=m_out["vertices"],
-                mask=mask,
+        for iter_step in range(self.max_iters):
+            # render the current state of the model
+            out = self.flame.render(
+                renderer=self.renderer,
+                params=self.optimizer.get_params(),
             )
-            # perform the residuals
-            F, info = self.residuals.step(
-                s_normal=batch["normal"][mask],
-                s_point=batch["point"][mask],
-                t_normal=out["normal"][mask],
-                t_point=t_point,
-                weights=weights[mask],
-                params=new_params,
+            # establish correspondences
+            mask = self.c_module.mask(
+                s_mask=batch["mask"],
+                s_point=batch["point"],
+                s_normal=batch["normal"],
+                t_mask=out["mask"],
+                t_point=out["point"],
+                t_normal=out["normal"],
             )
-            return F, (F, info)  # first jacobian, then two aux
+            # predict weights
+            weights = self.w_module(s_point=batch["point"], t_point=out["point"])
 
-        # inner optimization loop
-        for optim_step in range(self.max_optims):
-            self.optimizer.step(residual_closure)
+            def residual_closure(*args):
+                # differentiable rendering without rasterization
+                new_params = self.optimizer.residual_params(args)
+                m_out = self.flame(**new_params)
+                # recompute to perform interpolation of the point inside closure
+                t_point = self.renderer.mask_interpolate(
+                    vertices_idx=out["vertices_idx"],
+                    bary_coords=out["bary_coords"],
+                    attributes=m_out["vertices"],
+                    mask=mask,
+                )
+                # perform the residuals
+                F, info = self.residuals.step(
+                    s_normal=batch["normal"][mask],
+                    s_point=batch["point"][mask],
+                    t_normal=out["normal"][mask],
+                    t_point=t_point,
+                    weights=weights[mask],
+                    params=new_params,
+                )
+                return F, (F, info)  # first jacobian, then two aux
+
+            # inner optimization loop
+            for optim_step in range(self.max_optims):
+                self.optimizer.step(residual_closure)
 
         return dict(params=self.optimizer.get_params(), weights=weights)
 

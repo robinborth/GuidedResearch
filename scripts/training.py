@@ -3,10 +3,9 @@ import logging
 import hydra
 from omegaconf import DictConfig
 
-from lib.data.loader import load_intrinsics
-from lib.rasterizer import Rasterizer
-from lib.renderer.camera import Camera
-from lib.renderer.renderer import Renderer
+from lib.model import Flame
+from lib.renderer import Camera, Rasterizer, Renderer
+from lib.tracker.logger import FlameLogger
 from lib.utils.config import set_configs
 
 log = logging.getLogger()
@@ -28,11 +27,34 @@ def optimize(cfg: DictConfig):
     rasterizer = Rasterizer(width=camera.width, height=camera.height)
     renderer = Renderer(rasterizer=rasterizer, camera=camera)
 
-    log.info(f"==> initializing model <{cfg.model._target_}>")
-    model = hydra.utils.instantiate(cfg.model, renderer=renderer)
+    log.info(f"==> initializing model <{cfg.model._target_}> ...")
+    flame: Flame = hydra.utils.instantiate(cfg.model)
 
-    log.info("==> initializing logger ...")
-    logger = hydra.utils.instantiate(cfg.logger)
+    log.info(f"==> initializing logger <{cfg.logger._target_}> ...")
+    logger: FlameLogger = hydra.utils.instantiate(cfg.logger)
+
+    log.info(f"==> initializing datamodule <{cfg.data._target_}> ...")
+    datamodule = hydra.utils.instantiate(cfg.data)
+
+    log.info(f"==> initializing correspondence <{cfg.correspondence._target_}> ...")
+    correspondence = hydra.utils.instantiate(cfg.correspondence)
+
+    log.info(f"==> initializing residuals <{cfg.residuals._target_}> ...")
+    residuals = hydra.utils.instantiate(cfg.residuals)
+
+    log.info(f"==> initializing optimizer <{cfg.optimizer._target_}> ...")
+    optimizer = hydra.utils.instantiate(cfg.optimizer)
+
+    log.info(f"==> initializing framework <{cfg.framework}> ...")
+    model = hydra.utils.instantiate(
+        cfg.framework,
+        flame=flame,
+        logger=logger,
+        renderer=renderer,
+        correspondence=correspondence,
+        residuals=residuals,
+        optimizer=optimizer,
+    )
 
     log.info("==> initializing datamodule ...")
     datamodule = hydra.utils.instantiate(cfg.data)

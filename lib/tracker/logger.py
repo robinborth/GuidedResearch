@@ -100,7 +100,7 @@ class FlameLogger(WandbLogger):
         wandb_images.append(wandb.Image(plt))
         plt.close()
 
-        self.logger.log_image(f"{mode}/{batch_idx}/images", wandb_images)  # type:ignore
+        self.log_image(f"{mode}/{batch_idx}/images", wandb_images)  # type:ignore
 
     def log_params(
         self,

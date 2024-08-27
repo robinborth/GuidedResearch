@@ -200,7 +200,7 @@ class SplitDataset(Dataset):
         i, j = self.split_dataset(split, samples, len(paths))
 
         data = []
-        for path in paths[i:j]:
+        for i, path in enumerate(paths[i:j]):
             out = torch.load(path)
             out["sample_id"] = path.stem
             data.append(out)
