@@ -305,7 +305,9 @@ class LinearSystemSolver(L.LightningModule):
 
 class PytorchSolver(LinearSystemSolver):
     def forward(self, A: torch.Tensor, b: torch.Tensor):
-        return torch.linalg.solve(A, b), {}
+        info: dict = {}
+        x = torch.linalg.solve(A, b)
+        return x, info
 
 
 class PCGSolver(LinearSystemSolver):

@@ -8,8 +8,8 @@ from lib.data.loader import load_intrinsics
 from lib.model.flame.flame import FLAME
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
-from lib.trainer.logger import FlameLogger
-from lib.trainer.trainer import BaseTrainer
+from lib.tracker.logger import FlameLogger
+from lib.tracker.trainer import BaseTrainer
 from lib.utils.config import set_configs
 
 log = logging.getLogger()

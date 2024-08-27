@@ -1,25 +1,20 @@
 import logging
 
 import lightning as L
-import matplotlib.pyplot as plt
 import torch
-from torch.optim.optimizer import Optimizer
 
-import wandb
-from lib.data.datamodule import DPHMDataModule
 from lib.model.correspondence import ProjectiveCorrespondenceModule
 from lib.model.flame.flame import Flame
 from lib.optimizer.base import DifferentiableOptimizer
 from lib.optimizer.residuals import Residuals
 from lib.renderer.renderer import Renderer
-from lib.trainer.logger import FlameLogger
-from lib.trainer.scheduler import CoarseToFineScheduler, OptimizerScheduler
-from lib.utils.visualize import change_color, visualize_depth_merged, visualize_grid
+from lib.tracker.logger import FlameLogger
+from lib.tracker.timer import TimeTracker
 
 log = logging.getLogger()
 
 
-class OptimizerModule(L.LightningModule):
+class OptimizerFramework(L.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
         self.save_hyperparameters(
@@ -57,58 +52,6 @@ class OptimizerModule(L.LightningModule):
         loss = torch.cat(_loss, dim=-1).mean()
         return dict(loss=loss, **out)
 
-    def log_step(self, batch: dict, out: dict, mode: str = "train", batch_idx: int = 0):
-        gt_out = self.flame.render(renderer=self.renderer, params=batch["gt_params"])
-        start_out = self.flame.render(renderer=self.renderer, params=batch["params"])
-        new_out = self.flame.render(renderer=self.renderer, params=out["params"])
-
-        wandb_images = []
-
-        images = visualize_depth_merged(
-            s_color=change_color(gt_out["color"], gt_out["mask"], code=0),
-            s_point=gt_out["point"],
-            s_mask=gt_out["mask"],
-            t_color=change_color(start_out["color"], start_out["mask"], code=1),
-            t_point=start_out["point"],
-            t_mask=start_out["mask"],
-        )
-        visualize_grid(images=images)
-        wandb_images.append(wandb.Image(plt))
-        plt.close()
-
-        images = visualize_depth_merged(
-            s_color=change_color(gt_out["color"], gt_out["mask"], code=0),
-            s_point=gt_out["point"],
-            s_mask=gt_out["mask"],
-            t_color=change_color(new_out["color"], new_out["mask"], code=2),
-            t_point=new_out["point"],
-            t_mask=new_out["mask"],
-        )
-        visualize_grid(images)
-        wandb_images.append(wandb.Image(plt))
-        plt.close()
-
-        images = change_color(color=gt_out["color"], mask=gt_out["mask"], code=0)
-        visualize_grid(images=images)
-        wandb_images.append(wandb.Image(plt))
-        plt.close()
-
-        images = change_color(color=start_out["color"], mask=start_out["mask"], code=1)
-        visualize_grid(images=images)
-        wandb_images.append(wandb.Image(plt))
-        plt.close()
-
-        images = change_color(color=new_out["color"], mask=new_out["mask"], code=2)
-        visualize_grid(images=images)
-        wandb_images.append(wandb.Image(plt))
-        plt.close()
-
-        visualize_grid(images=out["weights"])
-        wandb_images.append(wandb.Image(plt))
-        plt.close()
-
-        self.logger.log_image(f"{mode}/{batch_idx}/images", wandb_images)  # type:ignore
-
     def training_step(self, batch, batch_idx):
         out = self.model_step(batch)
         self.log(
@@ -120,7 +63,7 @@ class OptimizerModule(L.LightningModule):
             batch_size=1,
         )
         if batch_idx == 0:
-            self.log_step(batch, out, "train", batch_idx)
+            self.logger.log_step(batch, out, "train", batch_idx)
         return out["loss"]
 
     def validation_step(self, batch, batch_idx):
@@ -134,12 +77,12 @@ class OptimizerModule(L.LightningModule):
             batch_size=1,
         )
         if batch_idx == 0:
-            self.log_step(batch, out, "val", batch_idx)
+            self.logger.log_step(batch, out, "val", batch_idx)
         return out["loss"]
 
     def test_step(self, batch, batch_idx):
         out = self.model_step(batch)
-        self.log_step(batch, out, "val")
+        self.logger.log_step(batch, out, "val")
         return out["loss"]
 
     def configure_optimizers(self):
@@ -156,7 +99,7 @@ class OptimizerModule(L.LightningModule):
         return {"optimizer": optimizer}
 
 
-class WeightedOptimizer(OptimizerModule):
+class WeightedOptimizer(OptimizerFramework):
     def __init__(
         self,
         # models
@@ -218,7 +161,7 @@ class WeightedOptimizer(OptimizerModule):
                 mask=mask,
             )
             # perform the residuals
-            F = self.residuals.step(
+            F, info = self.residuals.step(
                 s_normal=batch["normal"][mask],
                 s_point=batch["point"][mask],
                 t_normal=out["normal"][mask],
@@ -226,7 +169,7 @@ class WeightedOptimizer(OptimizerModule):
                 weights=weights[mask],
                 params=new_params,
             )
-            return F, F
+            return F, (F, info)  # first jacobian, then two aux
 
         # inner optimization loop
         for optim_step in range(self.max_optims):
@@ -235,7 +178,192 @@ class WeightedOptimizer(OptimizerModule):
         return dict(params=self.optimizer.get_params(), weights=weights)
 
 
-class DeepFeatureOptimizer(OptimizerModule):
+class ICPOptimizer(OptimizerFramework):
+    def __init__(
+        self,
+        flame: Flame,
+        logger: FlameLogger,
+        renderer: Renderer,
+        correspondence: torch.nn.Module,
+        residuals: Residuals,
+        optimizer: DifferentiableOptimizer,
+    ):
+        super().__init__()
+        self.flame = flame
+        self.c_module = correspondence
+        self.renderer = renderer
+        self.optimizer = optimizer
+        self.residuals = residuals
+        self._logger = logger
+        self.time_tracker = TimeTracker()
+        self.verbose = True
+        self.save_interval = 1
+
+    @property
+    def logger(self):
+        return self._logger
+
+    def forward(self, batch: dict):
+        self.logger.mode = batch["mode"]
+        self.optimizer.set_params(batch["params"])
+        outer_progress = batch["outer_progress"]
+        inner_progress = batch["inner_progress"]
+        max_iters = batch["max_iters"]
+        max_optims = batch["max_optims"]
+        datamodule = batch["datamodule"]
+        converged = False
+        coarse2fine = batch["coarse2fine"]
+        scheduler = batch["scheduler"]
+
+        # outer optimization loop
+        self.time_tracker.start("outer_loop")
+        for iter_step in range(max_iters):
+            self.time_tracker.start("outer_step")
+            # prepare logging
+            self.reset_progress(inner_progress, max_optims)
+            self.logger.iter_step = iter_step
+
+            # build the batch
+            self.time_tracker.start("fetch_data")
+            coarse2fine.schedule(
+                datamodule=datamodule,
+                renderer=self.renderer,
+                iter_step=iter_step,
+            )
+            batch = datamodule.fetch()
+            self.time_tracker.stop("fetch_data")
+
+            # configure the optimizer
+            self.time_tracker.start("setup_optimizer")
+            scheduler.configure_optimizer(
+                optimizer=self.optimizer,
+                iter_step=iter_step,
+            )
+            outer_progress.set_postfix({"params": self.optimizer._p_names})
+            self.time_tracker.stop("setup_optimizer")
+
+            # find correspondences
+            self.time_tracker.start("find_correspondences")
+            with torch.no_grad():
+                # render the current state of the model
+                out = self.flame.render(
+                    renderer=self.renderer,
+                    params=self.optimizer.get_params(),
+                )
+                # establish correspondences
+                mask = self.c_module.mask(
+                    s_mask=batch["mask"],
+                    s_point=batch["point"],
+                    s_normal=batch["normal"],
+                    t_mask=out["mask"],
+                    t_point=out["point"],
+                    t_normal=out["normal"],
+                )
+            self.time_tracker.stop("find_correspondences")
+
+            # setup the residual computation
+            def residual_closure(*args):
+                # differentiable rendering without rasterization
+                new_params = self.optimizer.residual_params(args)
+                m_out = self.flame(**new_params)
+                # recompute to perform interpolation of the point inside closure
+                t_point = self.renderer.mask_interpolate(
+                    vertices_idx=out["vertices_idx"],
+                    bary_coords=out["bary_coords"],
+                    attributes=m_out["vertices"],
+                    mask=mask,
+                )
+                # perform the residuals
+                F, info = self.residuals.step(
+                    s_normal=batch["normal"][mask],
+                    s_point=batch["point"][mask],
+                    t_normal=out["normal"][mask],
+                    t_point=t_point,
+                    params=new_params,
+                )
+                return F, (F, info)
+
+            # inner optimization loop
+            self.time_tracker.start("inner_loop")
+            for optim_step in range(max_optims):
+                self.time_tracker.start("inner_step")
+
+                # optimize step
+                self.time_tracker.start("optimizer_step")
+                self.optimizer.step(residual_closure)
+                self.time_tracker.stop("optimizer_step")
+
+                # metrics and loss logging
+                self.time_tracker.start("inner_logging")
+                self.logger.log_merged(
+                    name="params",
+                    params=self.optimizer.get_params(),
+                    flame=self.flame,
+                    renderer=self.renderer,
+                    color=batch["color"],
+                )
+                loss, info = self.optimizer.loss_step(residual_closure)
+                self.logger.log_metrics({"loss": loss})
+                self.logger.log_metrics(info)
+                inner_progress.set_postfix({"loss": loss})
+
+                # finish the inner loop
+                inner_progress.update(1)
+                self.time_tracker.stop("inner_logging")
+                self.time_tracker.stop("inner_step")
+            self.time_tracker.stop("inner_loop")
+
+            # progress logging
+            self.time_tracker.start("outer_logging")
+            if (iter_step % self.save_interval) == 0 and self.verbose:
+                self.logger.log_error(
+                    frame_idx=batch["frame_idx"],
+                    s_point=batch["point"],
+                    s_normal=batch["normal"],
+                    t_mask=out["mask"],
+                    t_point=out["point"],
+                    t_normal=out["normal"],
+                )
+                self.logger.log_render(
+                    frame_idx=batch["frame_idx"],
+                    s_mask=batch["mask"],
+                    s_point=batch["point"],
+                    s_color=batch["color"],
+                    t_mask=out["mask"],
+                    t_point=out["point"],
+                    t_color=out["color"],
+                    t_normal_image=out["normal_image"],
+                    t_depth_image=out["depth_image"],
+                )
+                self.logger.log_input_batch(
+                    frame_idx=batch["frame_idx"],
+                    s_mask=batch["mask"],
+                    s_point=batch["point"],
+                    s_normal=batch["normal"],
+                    s_color=batch["color"],
+                )
+            self.time_tracker.stop("outer_logging")
+
+            # finish the outer loop
+            outer_progress.update(1)
+            self.time_tracker.stop("outer_step")
+        self.time_tracker.stop("outer_loop")
+
+        # # final metric logging
+        # self.time_tracker.print_summary()
+        # self.logger.log_tracker()
+        # if self.verbose:
+        #     self.logger.mode = f"final/{self.mode}"
+        #     self.logger.log_metrics(
+        #         batch=batch,
+        #         model=L.model_step(),
+        #         verbose=False,
+        #     )
+
+        return dict(params=self.optimizer.get_params())
+
+
+class DeepFeatureOptimizer(OptimizerFramework):
     def __init__(
         self,
         # models
@@ -296,7 +424,7 @@ class DeepFeatureOptimizer(OptimizerModule):
         return dict(params=self.optimizer.get_params())
 
 
-class VertexOptimizer(OptimizerModule):
+class VertexOptimizer(OptimizerFramework):
     def __init__(
         self,
         flame: Flame,
@@ -326,106 +454,4 @@ class VertexOptimizer(OptimizerModule):
 
         for iter_step in range(self.max_iters):
             self.optimizer.step(residual_closure)
-        return dict(params=self.optimizer.get_params())
-
-
-class ICPOptimizer(OptimizerModule):
-    def __init__(
-        self,
-        flame: Flame,
-        logger: FlameLogger,
-        renderer: Renderer,
-        correspondence: torch.nn.Module,
-        residuals: Residuals,
-        optimizer: DifferentiableOptimizer,
-    ):
-        super().__init__()
-        self.flame = flame
-        self.c_module = correspondence
-        self.renderer = renderer
-        self.optimizer = optimizer
-        self.residuals = residuals
-        self._logger = logger
-
-    @property
-    def logger(self):
-        return self._logger
-
-    def forward(self, batch: dict):
-        self.logger.mode = batch["mode"]
-        self.optimizer.set_params(batch["params"])
-        outer_progress = batch["outer_progress"]
-        inner_progress = batch["inner_progress"]
-        max_iters = batch["max_iters"]
-        max_optims = batch["max_optims"]
-        coarse2fine = batch["coarse2fine"]
-        scheduler = batch["scheduler"]
-        datamodule = batch["datamodule"]
-
-        for iter_step in range(max_iters):
-            self.reset_progress(inner_progress, max_optims)
-
-            # build the batch
-            coarse2fine.schedule(
-                datamodule=datamodule,
-                renderer=self.renderer,
-                iter_step=iter_step,
-            )
-            batch = datamodule.fetch()
-
-            # configure the optimizer
-            scheduler.configure_optimizer(
-                optimizer=self.optimizer,
-                iter_step=iter_step,
-            )
-
-            # render the current state of the model
-            out = self.flame.render(
-                renderer=self.renderer,
-                params=self.optimizer.get_params(),
-            )
-            # establish correspondences
-            mask = self.c_module.mask(
-                s_mask=batch["mask"],
-                s_point=batch["point"],
-                s_normal=batch["normal"],
-                t_mask=out["mask"],
-                t_point=out["point"],
-                t_normal=out["normal"],
-            )
-
-            def residual_closure(*args):
-                # differentiable rendering without rasterization
-                new_params = self.optimizer.residual_params(args)
-                m_out = self.flame(**new_params)
-                # recompute to perform interpolation of the point inside closure
-                t_point = self.renderer.mask_interpolate(
-                    vertices_idx=out["vertices_idx"],
-                    bary_coords=out["bary_coords"],
-                    attributes=m_out["vertices"],
-                    mask=mask,
-                )
-                # perform the residuals
-                F = self.residuals.step(
-                    s_normal=batch["normal"][mask],
-                    s_point=batch["point"][mask],
-                    t_normal=out["normal"][mask],
-                    t_point=t_point,
-                    params=new_params,
-                )
-                return F, F
-
-            # inner optimization loop
-            for optim_step in range(max_optims):
-                self.optimizer.step(residual_closure)
-                self.logger.log_merged(
-                    name="params",
-                    params=self.optimizer.get_params(),
-                    flame=self.flame,
-                    renderer=self.renderer,
-                    color=batch["color"],
-                )
-                inner_progress.update(1)
-            outer_progress.update(1)
-
         return dict(params=self.optimizer.get_params())

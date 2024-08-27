@@ -10,7 +10,7 @@ from lib.model.flame.utils import (
     load_static_landmark_embedding,
 )
 from lib.renderer import Camera, Rasterizer, Renderer
-from lib.trainer.timer import TimeTracker
+from lib.tracker.timer import TimeTracker
 
 
 class Flame(L.LightningModule):

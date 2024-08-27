@@ -2,7 +2,7 @@ import torch
 
 from lib.rasterizer import Fragments, Rasterizer
 from lib.renderer.camera import Camera
-from lib.trainer.timer import TimeTracker
+from lib.tracker.timer import TimeTracker
 from lib.utils.mesh import vertex_normals
 
 

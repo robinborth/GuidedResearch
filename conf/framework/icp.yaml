@@ -1,6 +1,6 @@
 # @package framework 
 
-_target_: lib.model.optimizer.ICPOptimizer 
+_target_: lib.optimizer.framework.ICPOptimizer 
 flame: ???
 logger: ???
 renderer: ???

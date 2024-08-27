@@ -6,7 +6,7 @@ from omegaconf import DictConfig
 from lib.data.loader import load_intrinsics
 from lib.model import Flame
 from lib.renderer import Camera, Rasterizer, Renderer
-from lib.trainer.logger import FlameLogger
+from lib.tracker.logger import FlameLogger
 from lib.utils.config import set_configs
 
 log = logging.getLogger()
@@ -58,9 +58,9 @@ def optimize(cfg: DictConfig):
         optimizer=optimizer,
     )
 
-    log.info("==> initializing trainer ...")
+    log.info("==> initializing tracking ...")
     trainer = hydra.utils.instantiate(
-        cfg.joint_trainer,
+        cfg.joint_tracker,
         optimizer=framework,
         datamodule=datamodule,
     )

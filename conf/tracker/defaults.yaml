@@ -3,12 +3,12 @@ datamodule: ???
 optimizer: ???
 
 scheduler:
-  _target_: lib.trainer.scheduler.OptimizerScheduler
+  _target_: lib.tracker.scheduler.OptimizerScheduler
   copy_optimizer_state: False
   milestones: ???
   params: ???
 
 coarse2fine:
-  _target_: lib.trainer.scheduler.CoarseToFineScheduler
+  _target_: lib.tracker.scheduler.CoarseToFineScheduler
   milestones: ???
   scales: ???

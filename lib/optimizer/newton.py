@@ -22,8 +22,19 @@ class NewtonOptimizer(DifferentiableOptimizer):
         store_system: bool = False,
         output_dir: str = "/data",
         verbose: bool = True,
+        # convergence
+        eps_step: float = 1e-10,  # determines acceptance of a optimization step
+        eps_grad: float = 1e-10,  # convergence tolerance for gradient
+        eps_params: float = 1e-10,  # convergence tolerance for coefficients
+        eps_energy: float = 1e-10,  # convergence tolerance for energy
     ):
-        super().__init__()
+        super().__init__(
+            verbose=verbose,
+            eps_step=eps_step,
+            eps_grad=eps_grad,
+            eps_params=eps_params,
+            eps_energy=eps_energy,
+        )
 
         self.init_step_size = step_size
         self.step_size = step_size
@@ -34,7 +45,6 @@ class NewtonOptimizer(DifferentiableOptimizer):
 
         self.store_system = store_system
         self.output_dir = output_dir
-        self.verbose = verbose
 
     def save_system(self, A: torch.Tensor, x: torch.Tensor, b: torch.Tensor):
         if not self.store_system:
@@ -72,6 +82,11 @@ class GaussNewton(NewtonOptimizer):
         # step size
         step_size: float = 1.0,
         line_search_fn: str | None = None,
+        # convergence
+        eps_step: float = 1e-10,  # determines acceptance of a optimization step
+        eps_grad: float = 1e-10,  # convergence tolerance for gradient
+        eps_params: float = 1e-10,  # convergence tolerance for coefficients
+        eps_energy: float = 1e-10,  # convergence tolerance for energy
         # store linear systems
         store_system: bool = False,
         output_dir: str = "/data",
@@ -84,6 +99,10 @@ class GaussNewton(NewtonOptimizer):
             store_system=store_system,
             output_dir=output_dir,
             verbose=verbose,
+            eps_step=eps_step,
+            eps_grad=eps_grad,
+            eps_params=eps_params,
+            eps_energy=eps_energy,
         )
         self.line_search_fn = line_search_fn
 
@@ -101,26 +120,13 @@ class GaussNewton(NewtonOptimizer):
         # prepare the init delta vectors
         self.time_tracker.start("apply_jacobian")
         J, F, H, grad_f = self.apply_jacobian(closure)
-
-        self.time_tracker.start("clone_param", stop=True)
-        x_init = self._clone_param()
+        self._store_flat_grad(grad_f)
 
         # solve for the direction
         self.time_tracker.start("solve_delta", stop=True)
         direction = self.solve_delta(H, grad_f)
 
-        # determine the step size and possible perform linesearch
-        self.time_tracker.start("update_params", stop=True)
-        step_size = self.step_size
-        if self.line_search_fn is not None:
-            step_size = self.linesearch(
-                closure=closure,
-                x_init=x_init,
-                direction=direction,
-                line_search_fn=self.line_search_fn,
-            )
-        self._add_direction(step_size, direction)
-        self._store_flat_grad(grad_f)
+        self._add_direction(self.step_size, direction)
         self.time_tracker.stop()
 
 
@@ -140,7 +146,7 @@ class LevenbergMarquardt(NewtonOptimizer):
         # step size
         step_size: float = 1.0,
         # convergence
-        eps_step: float = 1e-10,  # determines acceptance of a LM step
+        eps_step: float = 1e-10,  # determines acceptance of a optimization step
         eps_grad: float = 1e-10,  # convergence tolerance for gradient
         eps_params: float = 1e-10,  # convergence tolerance for coefficients
         eps_energy: float = 1e-10,  # convergence tolerance for energy
@@ -155,6 +161,10 @@ class LevenbergMarquardt(NewtonOptimizer):
             store_system=store_system,
             output_dir=output_dir,
             verbose=verbose,
+            eps_step=eps_step,
+            eps_grad=eps_grad,
+            eps_params=eps_params,
+            eps_energy=eps_energy,
         )
         self.levenberg = levenberg
 
@@ -166,12 +176,6 @@ class LevenbergMarquardt(NewtonOptimizer):
         self.df_down = df_down
         self.df_lower = df_lower
         self.df_upper = df_upper
-
-        # convergence criterias
-        self.eps_step = eps_step
-        self.eps_grad = eps_grad
-        self.eps_params = eps_params
-        self.eps_energy = eps_energy
 
     def reset(self):
         super().reset()
@@ -210,16 +214,16 @@ class LevenbergMarquardt(NewtonOptimizer):
         x_init = self._clone_param()
 
         self.time_tracker.start("compute_direction", stop=True)
-        loss_init = self.loss_step(closure)  # sum of squared residuals
+        loss_init, _ = self.loss_step(closure)  # sum of squared residuals
 
         # current damping factor
         dx = self.solve_delta(H, grad_f, self.damping_factor)
-        loss_df = self._evaluate(closure, x_init, self.step_size, dx)
+        loss_df = self.evaluate_step(closure, x_init, self.step_size, dx)
 
         # lower damping factor
         df_factor = max(self.damping_factor / self.df_down, self.df_lower)
         dx_factor = self.solve_delta(H, grad_f, df_factor)
-        loss_df_factor = self._evaluate(closure, x_init, self.step_size, dx_factor)
+        loss_df_factor = self.evaluate_step(closure, x_init, self.step_size, dx_factor)
 
         # both are worse -> increase damping factor until improvement
         if loss_df >= loss_init and loss_df_factor >= loss_init:
@@ -227,7 +231,7 @@ class LevenbergMarquardt(NewtonOptimizer):
                 df = self.damping_factor * self.df_up
                 self.damping_factor = min(df, self.df_upper)
                 direction = self.solve_delta(H, grad_f, self.damping_factor)
-                loss = self._evaluate(closure, x_init, self.step_size, direction)
+                loss = self.evaluate_step(closure, x_init, self.step_size, direction)
                 if loss < loss_init:
                     break
 

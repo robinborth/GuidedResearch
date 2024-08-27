@@ -11,12 +11,18 @@ class Residuals(nn.Module):
     # Loss and Jacobian Computation
     ####################################################################################
 
+    @property
+    def names(self):
+        return [self.name]
+
     def forward(self, **kwargs):
         raise NotImplementedError()
 
     def step(self, **kwargs):
-        F = self.weight * self.forward(**kwargs)  # (C,)
-        return F.reshape(-1)  # (C,)
+        residuals = self.forward(**kwargs)  # (C,)
+        F = torch.cat(residuals)
+        info = {n: r for n, r in zip(self.names, residuals)}
+        return F.reshape(-1), info  # (C,)
 
 
 ####################################################################################
@@ -25,12 +31,19 @@ class Residuals(nn.Module):
 
 
 class ChainedResiduals(Residuals):
-    def __init__(self, chain: list[Residuals] = [], weight: float = 1.0):
-        super().__init__(weight=weight)
+    def __init__(self, chain: dict[str, Residuals] = {}):
+        super().__init__()
         self.chain = chain
 
+    @property
+    def names(self):
+        return [f.name for f in self.chain.values()]
+
     def forward(self, **kwargs):
-        return torch.cat([f(**kwargs) for f in self.chain])
+        residuals = []
+        for f in self.chain.values():
+            residuals.extend(f(**kwargs))
+        return residuals
 
 
 ####################################################################################
@@ -45,8 +58,8 @@ class Point2PlaneResiduals(Residuals):
         t_normal = kwargs["t_normal"]
         residuals = ((s_point - t_point) * t_normal).sum(-1)
         if weights := kwargs.get("weights"):
-            return residuals * weights
-        return residuals
+            return [self.weight * residuals * weights]
+        return [self.weight * residuals]
 
 
 class Point2PointResiduals(Residuals):
@@ -57,8 +70,8 @@ class Point2PointResiduals(Residuals):
         t_point = kwargs["t_point"]
         residuals = s_point - t_point
         if weights := kwargs.get("weights"):
-            return residuals * weights
-        return residuals
+            return [self.weight * residuals * weights]
+        return [self.weight * residuals]
 
 
 class SymmetricICPResiduals(Residuals):
@@ -71,8 +84,8 @@ class SymmetricICPResiduals(Residuals):
         t_normal = kwargs["t_normal"]
         residuals = ((s_point - t_point) * (s_normal + t_normal)).sum(-1)
         if weights := kwargs.get("weights"):
-            return residuals * weights
-        return residuals
+            return [self.weight * residuals * weights]
+        return [self.weight * residuals]
 
 
 ####################################################################################
@@ -87,9 +100,9 @@ class ShapeRegularizationResiduals(Residuals):
         params = kwargs["params"]
         shape_params = params["shape_params"]
         if shape_params is not None:
-            return shape_params.view(-1)
+            return [self.weight * shape_params.view(-1)]
         device = kwargs["s_point"].device
-        return torch.tensor([], device=device)
+        return [torch.tensor([], device=device)]
 
 
 class ExpressionRegularizationResiduals(Residuals):
@@ -99,9 +112,9 @@ class ExpressionRegularizationResiduals(Residuals):
         params = kwargs["params"]
         expression_params = params["expression_params"]
         if expression_params is not None:
-            return expression_params.view(-1)
+            return [self.weight * expression_params.view(-1)]
         device = kwargs["s_point"].device
-        return torch.tensor([], device=device)
+        return [torch.tensor([], device=device)]
 
 
 ####################################################################################
@@ -128,7 +141,7 @@ class VertexResiduals(Residuals):
     def forward(self, **kwargs):
         t_vertices = kwargs["t_vertices"]
         s_vertices = kwargs["s_vertices"]
-        return t_vertices - s_vertices
+        return [self.weight * (t_vertices - s_vertices)]
 
 
 ####################################################################################
@@ -142,4 +155,4 @@ class FeatureResiduals(Residuals):
     def forward(self, **kwargs):
         t_vertices = kwargs["t_feature"]
         s_vertices = kwargs["s_feature"]
-        return t_vertices - s_vertices
+        return [self.weight(t_vertices - s_vertices)]

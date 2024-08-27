@@ -38,10 +38,10 @@ levenberg-marquardt:
 
 gauss_newton:
 	python scripts/optimize.py \
-	model=[flame, dphm_christoph_mouthmove] \
+	model=flame \
 	task_name=gauss_newton \
 	optimizer=gauss_newton \
-	loss=regularization \
+	residuals=regularization \
 	joint_trainer.max_iters=1 \
 	joint_trainer.max_optims=1 \
 	joint_trainer.init_idxs=[0] \

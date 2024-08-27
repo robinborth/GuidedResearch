@@ -8,7 +8,7 @@ defaults:
   - optimizer: gauss_newton
   - framework : icp 
   - correspondence: projective 
-  - trainer: joint
+  - tracker: joint
   - hydra: default
   - paths: default
   - _self_

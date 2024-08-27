@@ -8,7 +8,7 @@ defaults:
   - data: kinect
   - loss: point2plane 
   - optimizer: gauss_newton
-  - trainer: pcg_sampling
+  - tracker: pcg_sampling
   - hydra: default
   - paths: default
   - _self_

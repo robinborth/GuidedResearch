@@ -68,7 +68,7 @@ class GradientDecentLinesearch(DifferentiableOptimizer):
     def step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
         # compute the gradients
         self.zero_grad()
-        loss = self.loss_step(closure)
+        loss, _ = self.loss_step(closure)
         loss.backward()
 
         # set the update direction to the negative gradient

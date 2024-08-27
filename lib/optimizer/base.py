@@ -6,23 +6,47 @@ from typing import Any, Callable
 import torch
 from torch.func import jacfwd, jacrev
 
-from lib.trainer.timer import TimeTracker
+from lib.tracker.timer import TimeTracker
 
 log = logging.getLogger()
 
 
 class DifferentiableOptimizer:
-    def __init__(self):
+    def __init__(
+        self,
+        verbose: bool = True,
+        eps_step: float = 1e-10,  # determines acceptance of a optimization step
+        eps_grad: float = 1e-10,  # convergence tolerance for gradient
+        eps_params: float = 1e-10,  # convergence tolerance for coefficients
+        eps_energy: float = 1e-10,  # convergence tolerance for energy
+    ):
         self._params = None
+        self._p_names = None
         self._converged = False
         self.time_tracker = TimeTracker()
+
+        # convergence criterias
+        self.eps_step = eps_step
+        self.eps_grad = eps_grad
+        self.eps_params = eps_params
+        self.eps_energy = eps_energy
+        self.verbose = verbose
 
     ####################################################################################
     # Access to the FLAME parameters and State
     ####################################################################################
 
     def set_params(self, params: dict[str, Any]):
+        self._p_names = list(params.keys())
         self._params = {k: p.requires_grad_(True) for k, p in params.items()}
+
+    @property
+    def _aktive_params(self):
+        return {k: v for k, v in self._params.items() if k in self._p_names}
+
+    @property
+    def _default_params(self):
+        return {k: v for k, v in self._params.items() if k not in self._p_names}
 
     def get_params(self):
         return self._params
@@ -40,15 +64,8 @@ class DifferentiableOptimizer:
 
     def _reset(self):
         self._params = None
+        self._p_names = None
         self._converged = False
-
-    @property
-    def _aktive_params(self):
-        return {k: v for k, v in self._params.items() if v.requires_grad}
-
-    @property
-    def _default_params(self):
-        return {k: v for k, v in self._params.items() if not v.requires_grad}
 
     @property
     def _numel(self):
@@ -106,22 +123,28 @@ class DifferentiableOptimizer:
     # Convergence Tests
     ####################################################################################
 
-    # @property
-    # def check_convergence(self):
+    # def check_convergence(
+    #     self,
+    #     loss_init: torch.Tensor,
+    #     loss: torch.Tensor,
+    #     grad_f: torch.Tensor,
+    #     x_init: torch.Tensor,
+    #     x: torch.Tensor,
+    # ):
     #     # different convergence criterias
-    #     if (eps := (loss_init - loss) / M) < self.eps_step:
+    #     if (eps := (loss_init - loss)) < self.eps_step:
     #         self.converged = True
     #         if self.verbose:
     #             log.info(f"Convergence in relative step improvement: {eps=}")
-    #     if (eps := torch.max(torch.abs(grad_f / M))) < self.eps_grad:
+    #     if (eps := torch.max(torch.abs(grad_f))) < self.eps_grad:
     #         self.converged = True
     #         if self.verbose:
     #             log.info(f"Convergence in gradient: {eps=}")
-    #     if (eps := torch.max(torch.abs(direction / x_flat))) < self.eps_params:
+    #     if (eps := torch.max(torch.abs(direction))) < self.eps_params:
     #         self.converged = True
     #         if self.verbose:
     #             log.info(f"Convergence in params: {eps=}")
-    #     if (eps := loss / M) < self.eps_params:
+    #     if (eps := loss) < self.eps_params:
     #         self.converged = True
     #         if self.verbose:
     #             log.info(f"Convergence in absolute loss: {eps=}")
@@ -159,13 +182,15 @@ class DifferentiableOptimizer:
         direction: torch.Tensor,
     ) -> float:
         self._add_direction(step_size=step_size, direction=direction)
-        loss = self.loss_step(closure)  # not modify the grad
+        loss, _ = self.loss_step(closure)  # not modify the grad
         self._set_param(x_init)
         return float(loss)
 
     def loss_step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
-        F, _ = closure(*self._aktive_params.values())
-        return (F**2).sum()
+        F, (_, info) = closure(*self._aktive_params.values())
+        loss = (F**2).sum()
+        info = {k: (r**2).sum() for k, r in info.items()}
+        return loss, info
 
     def jacobian_step(
         self,
@@ -178,7 +203,7 @@ class DifferentiableOptimizer:
             argnums=tuple(range(len(self._aktive_params))),
             has_aux=True,
         )
-        jacobians, F = jacobian_fn(*self._aktive_params.values())
+        jacobians, (F, info) = jacobian_fn(*self._aktive_params.values())
         J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
         return J, F
 

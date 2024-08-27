@@ -1,11 +1,11 @@
-# @package sequential_trainer
+# @package sequential_tracker
 
 defaults:
   - defaults
   - _self_ 
 
 
-_target_: lib.trainer.trainer.SequentialTrainer
+_target_: lib.tracker.tracker.SequentialTracker
 
 # loop settings
 kernel_size: 1

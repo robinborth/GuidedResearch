@@ -26,6 +26,6 @@ class PytorchOptimizer(DifferentiableOptimizer):
 
     def step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):
         self.optimizer.zero_grad()
-        loss = self.loss_step(closure)
+        loss, _ = self.loss_step(closure)
         loss.backward()
         self.optimizer.step()

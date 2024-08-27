@@ -95,8 +95,4 @@ class OptimizerScheduler(Scheduler):
 
     def configure_optimizer(self, optimizer: DifferentiableOptimizer, iter_step: int):
         self.set_dirty(iter_step)
-        p_names = self.p_names(iter_step=iter_step)
-        for key, param in optimizer._params.items():
-            param = param.detach()
-            param.requires_grad_(key in p_names)
-            optimizer._params[key] = param
+        optimizer._p_names = self.p_names(iter_step=iter_step)
