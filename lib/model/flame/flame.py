@@ -117,7 +117,7 @@ class Flame(L.LightningModule):
         Return:
             (torch.Tensor): The mesh vertices of dim (B, V, 3)
         """
-        params = dict(
+        params = self.extract_params(
             shape_params=shape_params,
             expression_params=expression_params,
             global_pose=global_pose,
@@ -127,30 +127,15 @@ class Flame(L.LightningModule):
             transl=transl,
             scale=scale,
         )
-        # fill the default values and determine the batch size
-        B = 1
-        for p_name, param in params.items():
-            if param is None:
-                params[p_name] = self.params[p_name]
-            elif param.dim() == 2:  # override the batch_size
-                B = max(param.shape[0], B)
-
-        # check that the shape and expression params are correct
-        if params["shape_params"].shape[-1] != self.n_shape_params:
-            raise ValueError(f"Size of shape_params: {self.n_shape_params}")
-        if params["expression_params"].shape[-1] != self.n_expression_params:
-            raise ValueError(f"Size of expression_params: {self.n_expression_params}")
-
-        # expand the params
-        shape_params = params["shape_params"].expand(B, -1)
-        expression_params = params["expression_params"].expand(B, -1)
-        global_pose = params["global_pose"].expand(B, -1)
-        neck_pose = params["neck_pose"].expand(B, -1)
-        neck_pose = params["neck_pose"].expand(B, -1)
-        jaw_pose = params["jaw_pose"].expand(B, -1)
-        eye_pose = params["eye_pose"].expand(B, -1)
-        transl = params["transl"].expand(B, -1)
-        scale = params["scale"].expand(B, -1)
+        shape_params = params["shape_params"]
+        expression_params = params["expression_params"]
+        global_pose = params["global_pose"]
+        neck_pose = params["neck_pose"]
+        jaw_pose = params["jaw_pose"]
+        eye_pose = params["eye_pose"]
+        transl = params["transl"]
+        scale = params["scale"]
+        B = global_pose.shape[0]
 
         # create the betas merged with shape and expression
         zero_shape = self.zero_shape.expand(B, -1)  # (B, 300 - S')
@@ -218,6 +203,53 @@ class Flame(L.LightningModule):
             "expression_params": torch.zeros(expression_params, device=self.device),
         }
         return {k: nn.Parameter(p.unsqueeze(0)) for k, p in params.items()}
+
+    def extract_params(
+        self,
+        shape_params=None,
+        expression_params=None,
+        global_pose=None,
+        neck_pose=None,
+        jaw_pose=None,
+        eye_pose=None,
+        transl=None,
+        scale=None,
+    ):
+        params = dict(
+            shape_params=shape_params,
+            expression_params=expression_params,
+            global_pose=global_pose,
+            neck_pose=neck_pose,
+            jaw_pose=jaw_pose,
+            eye_pose=eye_pose,
+            transl=transl,
+            scale=scale,
+        )
+        # fill the default values and determine the batch size
+        B = 1
+        for p_name, param in params.items():
+            if param is None:
+                params[p_name] = self.params[p_name]
+            elif param.dim() == 2:  # override the batch_size
+                B = max(param.shape[0], B)
+
+        # check that the shape and expression params are correct
+        if params["shape_params"].shape[-1] != self.n_shape_params:
+            raise ValueError(f"Size of shape_params: {self.n_shape_params}")
+        if params["expression_params"].shape[-1] != self.n_expression_params:
+            raise ValueError(f"Size of expression_params: {self.n_expression_params}")
+
+        # expand the params
+        return dict(
+            shape_params=params["shape_params"].expand(B, -1),
+            expression_params=params["expression_params"].expand(B, -1),
+            global_pose=params["global_pose"].expand(B, -1),
+            neck_pose=params["neck_pose"].expand(B, -1),
+            jaw_pose=params["jaw_pose"].expand(B, -1),
+            eye_pose=params["eye_pose"].expand(B, -1),
+            transl=params["transl"].expand(B, -1),
+            scale=params["scale"].expand(B, -1),
+        )
 
     def mask_faces(self, faces: torch.Tensor, vertices_mask: torch.Tensor | None):
         """Calculates the triangular faces mask based on the masked vertices."""

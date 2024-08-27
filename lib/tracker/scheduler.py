@@ -50,11 +50,7 @@ class CoarseToFineScheduler(Scheduler):
         if self.skip(iter_step):
             return
         scale = self.get_attribute(self.scales, iter_step)
-        renderer.camera.update(scale=scale)
-        renderer.rasterizer.update(
-            width=renderer.camera.width,
-            height=renderer.camera.height,
-        )
+        renderer.update(scale=scale)
         datamodule.update_dataset(
             camera=renderer.camera,
             rasterizer=renderer.rasterizer,

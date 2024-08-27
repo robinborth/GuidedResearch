@@ -367,47 +367,65 @@ class FlameLogger(WandbLogger):
             out = yaml.dump(params, sort_keys=False)
             f.write(out)
 
-    # def capture_screen(
-    #     self,
-    #     camera: Camera,
-    #     rasterizer: Rasterizer,
-    #     datamodule: DPHMDataModule,
-    #     model: FLAME,
-    #     idx: int,
-    # ):
-    #     # set state
-    #     prev_iter_step = self.iter_step
-    #     prev_scale = camera.scale
-    #     self.capture_video = True
-    #     self.iter_step = 0
-    #     camera.update(scale=1)
-    #     rasterizer.update(width=camera.width, height=camera.height)
-    #     datamodule.update_dataset(camera=camera, rasterizer=rasterizer)
+    def capture_screen(
+        self,
+        renderer: Renderer,
+        datamodule: DPHMDataModule,
+        flame: Flame,
+        params: dict,
+        frame_idx: list[int],
+    ):
+        # full screen setup
+        self.capture_video = True
+        self.iter_step = 0
+        renderer.update(scale=1)
+        datamodule.update_dataset(
+            camera=renderer.camera,
+            rasterizer=renderer.rasterizer,
+        )
 
-    #     # inference
-    #     datamodule.update_idxs([idx])
-    #     batch = datamodule.fetch()
-    #     with torch.no_grad():
-    #         out = model.correspondence_step(batch)
+        # render the model
+        with torch.no_grad():
+            out = flame.render(renderer=renderer, params=params)
 
-    #     # log
-    #     self.log_render(batch=batch, model=out)
-    #     self.log_input_batch(batch=batch, model=out)
-    #     self.log_error(batch=batch, model=out)
+        # dataset image
+        datamodule.update_idxs(frame_idx)
+        batch = datamodule.fetch()
 
-    #     # restore state
-    #     camera.update(scale=prev_scale)
-    #     rasterizer.update(width=camera.width, height=camera.height)
-    #     datamodule.update_dataset(camera=camera, rasterizer=rasterizer)
-    #     self.capture_video = False
-    #     self.iter_step = prev_iter_step
+        self.log_error(
+            frame_idx=batch["frame_idx"],
+            s_point=batch["point"],
+            s_normal=batch["normal"],
+            t_mask=out["mask"],
+            t_point=out["point"],
+            t_normal=out["normal"],
+        )
+        self.log_render(
+            frame_idx=batch["frame_idx"],
+            s_mask=batch["mask"],
+            s_point=batch["point"],
+            s_color=batch["color"],
+            t_mask=out["mask"],
+            t_point=out["point"],
+            t_color=out["color"],
+            t_normal_image=out["normal_image"],
+            t_depth_image=out["depth_image"],
+        )
+        self.log_input_batch(
+            frame_idx=batch["frame_idx"],
+            s_mask=batch["mask"],
+            s_point=batch["point"],
+            s_normal=batch["normal"],
+            s_color=batch["color"],
+        )
 
-    # def log_video(self, name: str, framerate: int = 30):
-    #     _video_dir = Path(self.save_dir) / "final" / name
-    #     assert _video_dir.exists()
-    #     video_dir = str(_video_dir.resolve())
-    #     video_path = str((Path(self.save_dir) / "video" / f"{name}.mp4").resolve())
-    #     create_video(video_dir=video_dir, video_path=video_path, framerate=framerate)
+    def log_tracking_video(self, name: str, framerate: int = 30):
+        save_dir: str = self.save_dir  # type: ignore
+        _video_dir = Path(save_dir) / "final" / name
+        assert _video_dir.exists()
+        video_dir = str(_video_dir.resolve())
+        video_path = str((Path(save_dir) / "video" / f"{name}.mp4").resolve())
+        create_video(video_dir=video_dir, video_path=video_path, framerate=framerate)
 
     def log_tracker(self):
         statistics = self.time_tracker.compute_statistics()

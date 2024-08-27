@@ -13,12 +13,12 @@ stride: 1
 dilation: 1
 start_frame: 0
 end_frame: 120
-max_iters: 100
-max_optims: 50
+max_iters: 5 
+max_optims: 3
 
 scheduler:
   milestones: [0]
-  params: [[global_pose,transl,neck_pose,eye_pose,expression_params]]
+  params: [[global_pose,transl,neck_pose,expression_params]]
 
 coarse2fine:
   milestones: [0]

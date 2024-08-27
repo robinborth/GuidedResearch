@@ -47,6 +47,13 @@ class Renderer:
         self.light = self.light.to(device)
         return self
 
+    def update(self, scale: int = 1):
+        self.camera.update(scale=scale)
+        self.rasterizer.update(
+            width=self.camera.width,
+            height=self.camera.height,
+        )
+
     def rasterize(self, vertices: torch.Tensor, faces: torch.Tensor) -> Fragments:
         homo_vertices = self.camera.convert_to_homo_coords(vertices)
         homo_clip_vertices = self.camera.clip_transform(homo_vertices)  # (B, V, 4)

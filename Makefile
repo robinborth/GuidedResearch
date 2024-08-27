@@ -42,10 +42,12 @@ gauss_newton:
 	task_name=gauss_newton \
 	optimizer=gauss_newton \
 	residuals=regularization \
-	joint_trainer.max_iters=1 \
-	joint_trainer.max_optims=1 \
-	joint_trainer.init_idxs=[0] \
-	sequential_trainer=null \
+	joint_tracker.max_iters=50 \
+	joint_tracker.max_optims=5 \
+	joint_tracker.init_idxs=[0] \
+	sequential_tracker.max_iters=8 \
+	sequential_tracker.max_optims=3 \
+	sequential_tracker.end_frame=50 \
 
 adam:
 	python scripts/optimize.py \

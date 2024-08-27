@@ -2,6 +2,7 @@ import logging
 
 import hydra
 from omegaconf import DictConfig
+from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
 from lib.model import Flame
@@ -58,15 +59,40 @@ def optimize(cfg: DictConfig):
         optimizer=optimizer,
     )
 
-    log.info("==> initializing tracking ...")
+    log.info("==> initializing joint tracking ...")
     trainer = hydra.utils.instantiate(
         cfg.joint_tracker,
         optimizer=framework,
         datamodule=datamodule,
     )
-
     log.info("==> start optimization ...")
-    trainer.optimize()
+    joint_params = trainer.optimize()
+
+    log.info("==> initializing sequential tracking ...")
+    trainer = hydra.utils.instantiate(
+        cfg.sequential_tracker,
+        optimizer=framework,
+        datamodule=datamodule,
+        default_params=joint_params,
+    )
+    log.info("==> start optimization ...")
+    sequential_params = trainer.optimize()
+
+    # final full screen image
+    if trainer.final_video:
+        log.info("==> log final result ...")
+        for out in tqdm(sequential_params):
+            logger.capture_screen(
+                renderer=renderer,
+                datamodule=datamodule,
+                flame=flame,
+                params=out["params"],
+                frame_idx=out["frame_idx"],
+            )
+        logger.log_tracking_video("render_normal", framerate=20)
+        logger.log_tracking_video("render_merged", framerate=20)
+        logger.log_tracking_video("error_point_to_plane", framerate=20)
+        logger.log_tracking_video("batch_color", framerate=20)
 
 
 if __name__ == "__main__":

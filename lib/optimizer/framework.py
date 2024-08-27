@@ -10,6 +10,7 @@ from lib.optimizer.residuals import Residuals
 from lib.renderer.renderer import Renderer
 from lib.tracker.logger import FlameLogger
 from lib.tracker.timer import TimeTracker
+from lib.utils.progress import reset_progress
 
 log = logging.getLogger()
 
@@ -34,12 +35,6 @@ class OptimizerFramework(L.LightningModule):
 
     def configure_optimizer(self):
         raise NotImplementedError()
-
-    def reset_progress(self, progress, total: int):
-        progress.n = 0
-        progress.last_print_n = 0
-        progress.total = total
-        progress.refresh()
 
     def model_step(self, batch: dict):
         out = self.forward(batch)
@@ -220,7 +215,7 @@ class ICPOptimizer(OptimizerFramework):
         for iter_step in range(max_iters):
             self.time_tracker.start("outer_step")
             # prepare logging
-            self.reset_progress(inner_progress, max_optims)
+            reset_progress(inner_progress, max_optims)
             self.logger.iter_step = iter_step
 
             # build the batch
