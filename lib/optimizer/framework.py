@@ -10,6 +10,7 @@ from lib.optimizer.residuals import Residuals
 from lib.renderer.renderer import Renderer
 from lib.tracker.logger import FlameLogger
 from lib.tracker.timer import TimeTracker
+from lib.utils.distance import point2plane_distance
 from lib.utils.progress import reset_progress
 
 log = logging.getLogger()
@@ -38,14 +39,37 @@ class OptimizerFramework(L.LightningModule):
 
     def model_step(self, batch: dict):
         out = self.forward(batch)
-        params = out["params"]
-        gt_params = batch["gt_params"]
+        loss = self.compute_param_loss(out["params"], batch["params"])
+        return dict(loss=loss, **out)
+
+    def compute_point2plane_loss(
+        self,
+        s_mask: torch.Tensor,
+        s_point: torch.Tensor,
+        params: dict,
+        flame: Flame,
+        renderer: Renderer,
+    ):
+        out = flame.render(
+            renderer=renderer,
+            params=params,
+            vertices_mask="face",
+        )
+        mask = out["mask"] & s_mask
+        error = point2plane_distance(
+            s_point[mask],
+            out["point"][mask],
+            out["normal"][mask],
+        )
+        return error.mean()
+
+    def compute_param_loss(self, params, gt_params):
         _loss = []
-        for p_names in params.keys():
+        for p_names in self.hparams["params"]:
             l1_loss = torch.abs(params[p_names] - gt_params[p_names])
             _loss.append(l1_loss)
         loss = torch.cat(_loss, dim=-1).mean()
-        return dict(loss=loss, **out)
+        return loss
 
     def training_step(self, batch, batch_idx):
         out = self.model_step(batch)
@@ -91,11 +115,6 @@ class OptimizerFramework(L.LightningModule):
             )
         return out["loss"]
 
-    def test_step(self, batch, batch_idx):
-        out = self.model_step(batch)
-        self.logger.log_step(batch, out, "val")
-        return out["loss"]
-
     def configure_optimizers(self):
         optimizer = self.configure_optimizer()
         if self.hparams["scheduler"] is not None:
@@ -119,6 +138,7 @@ class WeightedOptimizer(OptimizerFramework):
         weighting: torch.nn.Module,
         # renderer settings
         renderer: Renderer,
+        logger: FlameLogger,
         # optimization settings
         residuals: Residuals,
         optimizer: DifferentiableOptimizer,
@@ -138,14 +158,21 @@ class WeightedOptimizer(OptimizerFramework):
         self.residuals = residuals
         self.max_iters = max_iters
         self.max_optims = max_optims
+        self._logger = logger
+
+    @property
+    def logger(self):
+        return self._logger
 
     def configure_optimizer(self):
         return torch.optim.Adam(self.w_module.parameters(), lr=self.hparams["lr"])
 
     def forward(self, batch: dict):
         self.optimizer.set_params(batch["params"])
+        self.optimizer._p_names = self.hparams["params"]
 
         for iter_step in range(self.max_iters):
+            self.logger.iter_step = iter_step
             # render the current state of the model
             out = self.flame.render(
                 renderer=self.renderer,
@@ -189,7 +216,35 @@ class WeightedOptimizer(OptimizerFramework):
             for optim_step in range(self.max_optims):
                 self.optimizer.step(residual_closure)
 
-        return dict(params=self.optimizer.get_params(), weights=weights)
+            # self.logger.log_error(
+            #     frame_idx=batch["frame_idx"],
+            #     s_point=batch["point"],
+            #     s_normal=batch["normal"],
+            #     t_mask=out["mask"],
+            #     t_point=out["point"],
+            #     t_normal=out["normal"],
+            # )
+            # self.logger.log_render(
+            #     frame_idx=batch["frame_idx"],
+            #     s_mask=batch["mask"],
+            #     s_point=batch["point"],
+            #     s_color=batch["color"],
+            #     t_mask=out["mask"],
+            #     t_point=out["point"],
+            #     t_color=out["color"],
+            #     t_normal_image=out["normal_image"],
+            #     t_depth_image=out["depth_image"],
+            # )
+            # self.logger.log_input_batch(
+            #     frame_idx=batch["frame_idx"],
+            #     s_mask=batch["mask"],
+            #     s_point=batch["point"],
+            #     s_normal=batch["normal"],
+            #     s_color=batch["color"],
+            # )
+
+        new_params = self.optimizer.get_params()
+        return dict(params=new_params, weights=weights)
 
 
 class ICPOptimizer(OptimizerFramework):

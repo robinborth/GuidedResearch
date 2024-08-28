@@ -32,7 +32,7 @@
             "name": "Debug: PCG Sampling",
             "type": "debugpy",
             "request": "launch",
-            "program": "scripts/pcg_sampling.py",
+            "program": "scripts/optimize.py",
             "args": [
                 "task_name=pcg_sampling",
                 "optimizer=gauss_newton",

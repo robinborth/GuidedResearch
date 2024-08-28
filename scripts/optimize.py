@@ -69,6 +69,7 @@ def optimize(cfg: DictConfig):
     joint_params = trainer.optimize()
 
     log.info("==> initializing sequential tracking ...")
+    framework.optimizer.store_system = True
     trainer = hydra.utils.instantiate(
         cfg.sequential_tracker,
         optimizer=framework,
@@ -78,17 +79,18 @@ def optimize(cfg: DictConfig):
     log.info("==> start optimization ...")
     sequential_params = trainer.optimize()
 
-    # final full screen image
+    log.info("==> prepare evaluation ...")
+    for out in tqdm(sequential_params):
+        logger.prepare_evaluation(
+            renderer=renderer,
+            datamodule=datamodule,
+            flame=flame,
+            params=out["params"],
+            frame_idx=out["frame_idx"],
+        )
+
     if trainer.final_video:
-        log.info("==> log final result ...")
-        for out in tqdm(sequential_params):
-            logger.capture_screen(
-                renderer=renderer,
-                datamodule=datamodule,
-                flame=flame,
-                params=out["params"],
-                frame_idx=out["frame_idx"],
-            )
+        log.info("==> create video ...")
         logger.log_tracking_video("render_normal", framerate=20)
         logger.log_tracking_video("render_merged", framerate=20)
         logger.log_tracking_video("error_point_to_plane", framerate=20)

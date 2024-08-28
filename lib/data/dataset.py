@@ -155,6 +155,14 @@ class DPHMDataset(Dataset):
                 self.save_cached(_normal, "normal", frame_idx)
             self.normal.append(_normal)
 
+    def load_params(self):
+        self.params = []
+        for frame_idx in self.iter_frame_idx():
+            path = Path(self.data_dir) / f"params/{frame_idx:05}.pt"
+            _params = torch.load(path)
+            _params = {k: v[0] for k, v in _params.items()}
+            self.params.append(_params)
+
     def __len__(self) -> int:
         return self.sequence_length
 
@@ -183,6 +191,39 @@ class DPHMPointDataset(DPHMDataset):
             "point": point,
             "normal": normal,
             "color": color,
+        }
+
+
+class DPHMParamsDataset(DPHMDataset):
+    def __init__(self, start_frame: int = 1, **kwargs):
+        super().__init__(**kwargs)
+        self.load_point()
+        self.load_normal()
+        self.load_color()
+        self.load_params()
+        self.frame_idxs = list(self.iter_frame_idx())
+        self.start_frame = start_frame
+
+    def __len__(self):
+        return self.sequence_length - self.start_frame
+
+    def __getitem__(self, idx: int):
+        # (H', W', 3) this is scaled
+        frame_idx = idx + self.start_frame
+        mask = self.mask[frame_idx]
+        point = self.point[frame_idx]
+        normal = self.normal[frame_idx]
+        color = self.color[frame_idx]
+        gt_params = self.params[frame_idx]
+        params = self.params[frame_idx - 1]
+        return {
+            "frame_idx": frame_idx,
+            "mask": mask,
+            "point": point,
+            "normal": normal,
+            "color": color,
+            "gt_params": gt_params,
+            "params": params,
         }
 
 

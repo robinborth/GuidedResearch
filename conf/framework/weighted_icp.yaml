@@ -8,16 +8,11 @@ renderer: ???
 correspondence: ???
 residuals: ???
 optimizer: ???
+weighting: ???
 
-max_iters: 3
+max_iters: 1
 max_optims: 1
 
 lr: 1e-03
 scheduler: null
-
-weighting:
-  _target_: lib.model.weighting.ResidualWeightModule
-  hidden_channels: 200
-  kernal_size: 3
-  num_layers: 3
-  device: ${device}
+params: [global_pose,transl,neck_pose,expression_params]

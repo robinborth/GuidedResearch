@@ -113,7 +113,7 @@ def main():
     ]
     prefixs = float_to_scientific(values)
 
-    group_name = "train_weighting1_lr"
+    group_name = "train_weighting_1_lr"
     template_generator = """
     python scripts/training.py \\
     logger.group={group_name} \\
@@ -126,7 +126,20 @@ def main():
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    group_name = "train_weighting2_lr"
+    group_name = "train_weighting_iter2_lr"
+    template_generator = """
+    python scripts/training.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    framework.lr={value} \\
+    framework.max_iters=2 \\
+    framework.max_optims=1 \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    group_name = "train_weighting_optim2_lr"
     template_generator = """
     python scripts/training.py \\
     logger.group={group_name} \\

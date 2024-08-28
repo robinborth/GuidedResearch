@@ -196,8 +196,8 @@ class LevenbergMarquardt(NewtonOptimizer):
         delta, _ = self.lin_solver(A=A, b=grad_f)
         direction = -delta  # we need to go the negative direction
         self.time_tracker.stop("solve_delta")
-
         self.save_system(A=A, x=delta, b=grad_f)
+
         return direction
 
     @torch.no_grad()

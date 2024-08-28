@@ -6,6 +6,6 @@ lin_solver:
 step_size: 3e-01  # 3e-01
 line_search_fn: null
 # store linear system
-store_system: False 
+store_system: False
 output_dir: ${paths.output_dir}/linsys
 verbose: False

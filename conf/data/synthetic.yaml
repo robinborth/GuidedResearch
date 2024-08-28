@@ -47,3 +47,5 @@ dataset:
   _target_: lib.data.dataset.SplitDataset
   _partial_: True
   data_dir: ${data.data_dir}
+
+renderer: ???

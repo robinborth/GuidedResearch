@@ -1,10 +1,10 @@
 # @package data
-_target_: lib.data.datamodule.DPHMDataModule
+_target_: lib.data.datamodule.KinectDataModule
 
 # dataset settings
 dataset_name: dphm_christoph_mouthmove
 data_dir: ${paths.data_dir}/${data.dataset_name}
-sequence_length: 127
+sequence_length: 120
 
 # camera settings
 width: 1920
@@ -21,8 +21,11 @@ persistent_workers: False
 
 # dataset settings
 dataset:
-  _target_: lib.data.dataset.DPHMPointDataset
+  _target_: lib.data.dataset.DPHMParamsDataset
   _partial_: True
+  start_frame: 20 
   data_dir: ${data.data_dir}
   sequence_length: ${data.sequence_length}
   camera: ???  # the camera is shared
+
+renderer: ???

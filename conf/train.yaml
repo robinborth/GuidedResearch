@@ -3,11 +3,12 @@
 defaults:
   - model: flame 
   - logger: flame_wandb
-  - data: synthetic
+  - data: kinect_train   # synthetic, kinect_train
   - residuals: regularization 
   - optimizer: gauss_newton
   - framework : weighted_icp
   - correspondence: projective 
+  - weighting: dummy 
   - hydra: default
   - paths: default
   - _self_
@@ -15,9 +16,10 @@ defaults:
 seed: 123
 device: cuda
 task_name: train
+eval: False
+train: True
 tags: 
   - ${task_name}
-  - save
 
 framework:
   max_iters: 2
@@ -29,10 +31,10 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 100
+  max_epochs: 150
   # debugging
-  overfit_batches: 4
-  accumulate_grad_batches: 4
+  overfit_batches: 1
+  accumulate_grad_batches: 1
   num_sanity_val_steps: 0
   check_val_every_n_epoch: 10
   log_every_n_steps: 1

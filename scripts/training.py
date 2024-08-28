@@ -1,6 +1,7 @@
 import logging
 
 import hydra
+from lightning import Trainer
 from omegaconf import DictConfig
 
 from lib.model import Flame
@@ -34,10 +35,13 @@ def optimize(cfg: DictConfig):
     logger: FlameLogger = hydra.utils.instantiate(cfg.logger)
 
     log.info(f"==> initializing datamodule <{cfg.data._target_}> ...")
-    datamodule = hydra.utils.instantiate(cfg.data)
+    datamodule = hydra.utils.instantiate(cfg.data, renderer=renderer)
 
     log.info(f"==> initializing correspondence <{cfg.correspondence._target_}> ...")
     correspondence = hydra.utils.instantiate(cfg.correspondence)
+
+    log.info(f"==> initializing weighting <{cfg.weighting._target_}> ...")
+    weighting = hydra.utils.instantiate(cfg.weighting)
 
     log.info(f"==> initializing residuals <{cfg.residuals._target_}> ...")
     residuals = hydra.utils.instantiate(cfg.residuals)
@@ -54,16 +58,24 @@ def optimize(cfg: DictConfig):
         correspondence=correspondence,
         residuals=residuals,
         optimizer=optimizer,
+        weighting=weighting,
     )
-
-    log.info("==> initializing datamodule ...")
-    datamodule = hydra.utils.instantiate(cfg.data)
 
     log.info("==> initializing trainer ...")
     trainer = hydra.utils.instantiate(cfg.trainer, logger=logger)
 
-    log.info("==> start training ...")
-    trainer.fit(model=model, datamodule=datamodule)
+    if cfg.train:
+        log.info("==> start training ...")
+        trainer.fit(model=model, datamodule=datamodule)
+
+    if cfg.eval:  # custom because of fwAD
+        log.info("==> start evaluation ...")
+        model = model.to("cuda")
+        datamodule.setup("val")
+        dataloader = datamodule.val_dataloader()
+        for batch_idx, batch in enumerate(dataloader):
+            batch = model.transfer_batch_to_device(batch, "cuda", 0)
+            model.validation_step(batch, batch_idx)
 
 
 if __name__ == "__main__":

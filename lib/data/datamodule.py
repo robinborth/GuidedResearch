@@ -5,10 +5,10 @@ import torch
 from torch.utils.data import DataLoader, Dataset, default_collate
 
 from lib.data.sampler import SimpleIndexSampler
-from lib.rasterizer import Rasterizer
-from lib.renderer.camera import Camera
+from lib.renderer import Camera, Rasterizer, Renderer
 
 
+# Dataset for optimization
 class DPHMDataModule(L.LightningDataModule):
     def __init__(
         self,
@@ -155,10 +155,12 @@ class SyntheticDataModule(L.LightningDataModule):
         shuffle: bool = True,
         # dataset
         dataset: Dataset | None = None,
+        renderer: Renderer | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
-        self.save_hyperparameters(logger=False)
+        self.save_hyperparameters(logger=False, ignore=["renderer"])
+        self.renderer = renderer
 
     def setup(self, stage: str):
         if stage in ["fit", "all"]:
@@ -197,24 +199,50 @@ class SyntheticDataModule(L.LightningDataModule):
             collate_fn=self.collate_fn,
         )
 
-    def test_dataloader(self) -> DataLoader:
+
+class KinectDataModule(L.LightningDataModule):
+    def __init__(
+        self,
+        # dataset settings
+        data_dir: str = "/data",
+        split: list[float] = [0.8, 0.1, 0.1],
+        # training
+        num_workers: int = 0,
+        pin_memory: bool = False,
+        drop_last: bool = True,
+        persistent_workers: bool = False,
+        shuffle: bool = True,
+        # dataset
+        dataset: Dataset | None = None,
+        renderer: Renderer | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__()
+        self.save_hyperparameters(logger=False, ignore=["renderer"])
+        self.renderer = renderer
+
+    def setup(self, stage: str = "all"):
+        camera = self.renderer.camera  # type: ignore
+        self.dataset = self.hparams["dataset"](camera=camera)
+
+    def train_dataloader(self) -> DataLoader:
         return DataLoader(
-            dataset=self.test_dataset,
+            dataset=self.dataset,
             batch_size=1,
             num_workers=self.hparams["num_workers"],
             pin_memory=self.hparams["pin_memory"],
             drop_last=self.hparams["drop_last"],
             persistent_workers=self.hparams["persistent_workers"],
-            collate_fn=self.collate_fn,
+            shuffle=self.hparams["shuffle"],
         )
 
-    def predict_dataloader(self) -> DataLoader:
+    def val_dataloader(self) -> DataLoader:
         return DataLoader(
-            dataset=self.predict_dataset,
+            dataset=self.dataset,
             batch_size=1,
             num_workers=self.hparams["num_workers"],
             pin_memory=self.hparams["pin_memory"],
             drop_last=self.hparams["drop_last"],
             persistent_workers=self.hparams["persistent_workers"],
-            collate_fn=self.collate_fn,
+            shuffle=False,
         )

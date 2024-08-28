@@ -1,0 +1,7 @@
+# @package weighting 
+
+_target_: lib.model.weighting.ResidualWeightModule
+hidden_channels: 100
+kernal_size: 3
+num_layers: 3
+device: ${device}

@@ -39,8 +39,8 @@ class FlameLogger(WandbLogger):
     def __init__(self, mode: str = "", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.mode = mode
-        self.capture_video = False
         self.iter_step = 0
+        self.capture_eval = False
 
     def log_step(
         self,
@@ -156,8 +156,8 @@ class FlameLogger(WandbLogger):
         self.log_metrics(value)
 
     def log_path(self, folder: str, frame_idx: int, suffix: str):
-        if self.capture_video:
-            return f"final/{folder}/{frame_idx:05}.{suffix}"
+        if self.capture_eval:
+            return f"{self.mode}/{folder}/{frame_idx:05}.{suffix}"
         _f = f"{self.mode}/{folder}" if self.mode else folder
         return f"{_f}/{frame_idx:05}/{self.iter_step:05}.{suffix}"
 
@@ -310,21 +310,6 @@ class FlameLogger(WandbLogger):
         #         self.log(f"{pre}/landmark_2d", lm_2d_dist[b_idx].mean())
         #         i = j
 
-    # def log_params(self, batch: dict):
-    #     for _, _, f_idx in self.iter_debug_idx(batch):
-    #         params = {}
-    #         for p_name in self.model.frame_p_names:
-    #             module = getattr(self.model, p_name)
-    #             weight = module.weight[f_idx].detach().cpu().numpy()
-    #             params[p_name] = [float(w) for w in weight]
-    #         for p_name in self.model.shape_p_names:
-    #             module = getattr(self.model, p_name)
-    #             weight = module.weight[0].detach().cpu().numpy()
-    #             params[p_name] = [float(w) for w in weight]
-    #         file_name = self.log_path("model_params", f_idx, "yaml")
-    #         params = dict(sorted(params.items(), key=lambda item: len(item[1])))
-    #         self.save_params(file_name, params)
-
     # def log_gradients(self, verbose: bool = False):
     #     log = {}
     #     for p_name, weight in zip(self.optimizer._p_names, self.optimizer._params):
@@ -360,14 +345,14 @@ class FlameLogger(WandbLogger):
         with open(path, "wb") as f:
             np.save(f, points.detach().cpu().numpy())
 
-    def save_params(self, file_name: str, params: dict):
-        path = Path(self.save_dir) / file_name  # type: ignore
+    def save_params(self, params: dict, frame_idx: torch.Tensor):
+        assert len(frame_idx) == 1
+        path = Path(self.save_dir) / f"params/{frame_idx.item():05}.pt"  # type: ignore
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w") as f:
-            out = yaml.dump(params, sort_keys=False)
-            f.write(out)
+        flame_params = {k: v.detach().cpu() for k, v in params.items()}
+        torch.save(flame_params, path)
 
-    def capture_screen(
+    def prepare_evaluation(
         self,
         renderer: Renderer,
         datamodule: DPHMDataModule,
@@ -376,21 +361,24 @@ class FlameLogger(WandbLogger):
         frame_idx: list[int],
     ):
         # full screen setup
-        self.capture_video = True
-        self.iter_step = 0
+        self.capture_eval = True
         renderer.update(scale=1)
         datamodule.update_dataset(
             camera=renderer.camera,
             rasterizer=renderer.rasterizer,
         )
-
-        # render the model
-        with torch.no_grad():
-            out = flame.render(renderer=renderer, params=params)
-
         # dataset image
         datamodule.update_idxs(frame_idx)
         batch = datamodule.fetch()
+
+        # render the full model
+        self.mode = "eval"
+        with torch.no_grad():
+            out = flame.render(
+                renderer=renderer,
+                params=params,
+                vertices_mask="full",
+            )
 
         self.log_error(
             frame_idx=batch["frame_idx"],
@@ -418,10 +406,14 @@ class FlameLogger(WandbLogger):
             s_normal=batch["normal"],
             s_color=batch["color"],
         )
+        self.save_params(
+            params=params,
+            frame_idx=batch["frame_idx"],
+        )
 
-    def log_tracking_video(self, name: str, framerate: int = 30):
+    def log_tracking_video(self, name: str, framerate: int = 30, mode: str = "eval"):
         save_dir: str = self.save_dir  # type: ignore
-        _video_dir = Path(save_dir) / "final" / name
+        _video_dir = Path(save_dir) / mode / name
         assert _video_dir.exists()
         video_dir = str(_video_dir.resolve())
         video_path = str((Path(save_dir) / "video" / f"{name}.mp4").resolve())

@@ -30,9 +30,11 @@ class Flame(L.LightningModule):
         # load the faces
         full_faces = flame_model["f"]
         self.full_faces = nn.Parameter(full_faces, requires_grad=False)  # (9976,3)
-        face_mask = load_flame_masks(flame_dir, return_tensors="pt")[vertices_mask]
-        masked_faces = self.mask_faces(flame_model["f"], face_mask)
-        self.faces = torch.nn.Parameter(masked_faces, requires_grad=False)
+        face_mask = load_flame_masks(flame_dir, return_tensors="pt")
+        face_faces = self.mask_faces(self.full_faces, face_mask["face"])
+        self.face_faces = nn.Parameter(face_faces, requires_grad=False)  # (3408,3)
+        assert vertices_mask in ["face", "full"]
+        self.vertices_mask = vertices_mask
 
         # load the mean vertices and pca bases
         self.v_template = nn.Parameter(flame_model["v_template"])  # (5023, 3)
@@ -49,13 +51,9 @@ class Flame(L.LightningModule):
         parents[0, 0] = -1  # [-1, 0, 1, 1, 1]
         self.parents = nn.Parameter(parents[0], requires_grad=False)  # (5,)
 
-        # flame masks, for different vertex idx
-        face_mask = load_flame_masks(flame_dir, return_tensors="pt")[vertices_mask]
-        self.vertices_mask = torch.nn.Parameter(face_mask, requires_grad=False)
-
         # flame landmarks to guide sparse landmark loss
         lms = load_static_landmark_embedding(flame_dir, return_tensors="pt")
-        lm_faces = self.faces[lms["lm_face_idx"]]  # (105, )
+        lm_faces = self.full_faces[lms["lm_face_idx"]]  # (105, )
         self.lm_faces = torch.nn.Parameter(lm_faces, requires_grad=False)
         lm_bary_coords = lms["lm_bary_coords"]  # (105, 3)
         self.lm_bary_coords = torch.nn.Parameter(lm_bary_coords, requires_grad=False)
@@ -264,10 +262,13 @@ class Flame(L.LightningModule):
             return landmarks[:, self.lm_mediapipe_idx]
         return landmarks
 
-    def render(self, renderer: Renderer, params: dict):
+    def render(self, renderer: Renderer, params: dict, vertices_mask=None):
         m_out = self.forward(**params)
+        if vertices_mask is None:
+            vertices_mask = self.vertices_mask
+        faces = self.face_faces if vertices_mask == "face" else self.full_faces
         r_out = renderer.render_full(
             vertices=m_out["vertices"],  # (B, V, 3)
-            faces=self.faces,  # (F, 3)
+            faces=faces,  # (F, 3)
         )
         return r_out

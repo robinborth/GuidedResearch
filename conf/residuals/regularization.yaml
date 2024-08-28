@@ -7,7 +7,7 @@ chain:
     weight: 1.0
   shape_regularization: 
     _target_: lib.optimizer.residuals.ShapeRegularizationResiduals
-    weight: 1e-03
+    weight: 5e-03
   expression_regularization:
     _target_: lib.optimizer.residuals.ExpressionRegularizationResiduals
-    weight: 1e-03
+    weight: 7e-04
