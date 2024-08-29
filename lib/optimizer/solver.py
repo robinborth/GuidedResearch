@@ -304,12 +304,6 @@ class LinearSystemSolver(L.LightningModule):
 
 
 class PytorchSolver(LinearSystemSolver):
-
-    # def forward(self, A: torch.Tensor, b: torch.Tensor):
-    #     info: dict = {}
-    #     x = torch.linalg.solve(A, b)
-    #     return x, info
-
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         info: dict = {}
         # add noise to make it non-singular

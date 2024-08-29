@@ -2,7 +2,7 @@
 _target_: lib.data.datamodule.PCGDataModule
 
 # dataset settings
-dataset_name: linsys_pose_full
+dataset_name: linsys
 data_dir: ${paths.data_dir}/${data.dataset_name}
 split: [0.98, 0.01, 0.01]
 
@@ -16,7 +16,7 @@ shuffle: True
 
 # dataset settings
 dataset:
-  _target_: lib.data.dataset.PCGDataset
+  _target_: lib.data.dataset.SplitDataset
   _partial_: True
   data_dir: ${data.data_dir}
   split: ???

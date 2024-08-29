@@ -24,7 +24,7 @@ train_dataset:
   _target_: lib.data.dataset.DPHMParamsDataset
   _partial_: True
   start_frame: 52
-  end_frame: 80
+  end_frame: 84 
   data_dir: ${data.data_dir}
   sequence_length: ${data.sequence_length}
   camera: ???  # the camera is shared
@@ -33,8 +33,8 @@ train_dataset:
 val_dataset:
   _target_: lib.data.dataset.DPHMParamsDataset
   _partial_: True
-  start_frame: 80
-  end_frame: 100
+  start_frame: 110
+  end_frame: 120
   data_dir: ${data.data_dir}
   sequence_length: ${data.sequence_length}
   camera: ???  # the camera is shared

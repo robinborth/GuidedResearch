@@ -66,6 +66,7 @@ def optimize(cfg: DictConfig):
         optimizer=optimizer,
         weighting=weighting,
     )
+    logger.watch(model, "all")
 
     log.info("==> initializing trainer ...")
     trainer = hydra.utils.instantiate(cfg.trainer, logger=logger)

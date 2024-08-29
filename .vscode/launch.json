@@ -15,7 +15,9 @@
             "type": "debugpy",
             "request": "launch",
             "program": "scripts/optimize.py",
-            "args": [],
+            "args": [
+                "data.dataset_name=dataset_name=ali_kocal_mouthmove"
+            ],
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -49,12 +51,10 @@
             "program": "scripts/pcg_training.py",
             "args": [
                 "task_name=pcg_debug",
-                "model.optimizer.lr=2e-02",
+                "model.optimizer.lr=1e-05",
                 "model.max_iter=5",
                 "data.batch_size=1024",
                 "trainer.max_epochs=500",
-                "model.loss._target_=lib.optimizer.pcg.NoiseResidualLoss",
-                "+model.loss.sigma=0.1",
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

@@ -27,14 +27,13 @@ train: True
 
 framework:
   lr: 1e-03
-  max_iters: 3
+  max_iters: 1
   max_optims: 1
   params:
-    global_pose: 100
-    transl: 10
-    neck_pose: 100
+    global_pose: 1.0
+    transl: 1.0
+    neck_pose: 1.0
     expression_params: 1.0
-    # shape_params: 1e-01
   verbose: False
 
 trainer:
@@ -43,10 +42,10 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 500
+  max_epochs: 200
   # debugging
-  overfit_batches: 1
-  accumulate_grad_batches: 1
+  overfit_batches: 32
+  accumulate_grad_batches: 32
   num_sanity_val_steps: 0
-  check_val_every_n_epoch: 10
+  check_val_every_n_epoch: 1
   log_every_n_steps: 1

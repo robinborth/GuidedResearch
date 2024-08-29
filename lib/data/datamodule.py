@@ -70,7 +70,7 @@ class DPHMDataModule(L.LightningDataModule):
         return next(iter(dataloader))
 
 
-class SplitDataModule(L.LightningDataModule):
+class PCGDataModule(L.LightningDataModule):
     def __init__(
         self,
         # dataset settings

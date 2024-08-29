@@ -1,10 +1,23 @@
 # @package model
-_target_: lib.model.pcg.PCGModule
-dim: 6
+
+_target_: lib.optimizer.solver.PCGSolver
 max_iter: 1
+gradients: backprop
 verbose: False
-mode: dense3
+loss:
+  _target_: lib.optimizer.solver.ResidualLoss
+  _partial_: True
+condition_net:
+  _target_: lib.optimizer.solver.DenseConditionNet
+  _partial_: True
+  unknowns: 59
+  hidden_dim: 200
+  num_layers: 2
+# optimization
+scheduler: null
+monitor: train/loss
 optimizer:
   _target_: torch.optim.Adam
   _partial_: True
-  lr: 1e-05
+  lr: 1e-06
+  

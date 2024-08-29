@@ -1,8 +1,9 @@
 # @package _global_
 
 defaults:
-  - data: linsys_pose
+  - data: linsys
   - callbacks: default
+  - model: pcg
   - logger: wandb
   - hydra: default
   - paths: default
@@ -13,7 +14,7 @@ seed: 123
 device: cuda
 train: True
 eval: True
-eval_max_iter: 15
+eval_max_iter: 150 
 eval_batch_size: 1024
 eval_splits: [train,val]
 task_name: pcg_training
@@ -21,8 +22,9 @@ tags:
   - ${task_name}
 
 data:
-  batch_size: 1
-  split: [0.8, 0.1, 0.1]
+  dataset_name: linsys  # linsys_pose, linsys
+  split: [0.98, 0.01, 0.01]
+  batch_size: 256
 
 trainer:
   _target_: lightning.pytorch.trainer.Trainer
@@ -30,31 +32,25 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 5000
+  max_epochs: 1000
   # debugging
   check_val_every_n_epoch: 20
   num_sanity_val_steps: 0
   log_every_n_steps: 1
 
 model:
-  _target_: lib.optimizer.pcg.PCGSolver
-  max_iter: 1
+  max_iter: 10
   gradients: backprop
-  verbose: False
-  loss:
-    _target_: lib.optimizer.pcg.ResidualLoss
-    _partial_: True
-  condition_net:
-    _target_: lib.optimizer.pcg.DenseConditionNet
-    _partial_: True
-    unknowns: 6
-    hidden_dim: 200
-    num_layers: 2
   # optimization
-  scheduler: null
+  scheduler:
+    _target_: torch.optim.lr_scheduler.ExponentialLR
+    _partial_: True
+    gamma: 0.999
   monitor: train/loss
+  condition_net:
+    unknowns: 59  # 6, 59
   optimizer:
     _target_: torch.optim.Adam
     _partial_: True
-    lr: 1e-06
+    lr: 1e-03
   

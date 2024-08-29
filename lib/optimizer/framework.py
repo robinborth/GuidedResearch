@@ -88,7 +88,8 @@ class OptimizerFramework(L.LightningModule):
         self.log(f"{mode}/weight_mean", out["weights"].mean(), batch_size=1)
         self.log(f"{mode}/weight_max", out["weights"].max(), batch_size=1)
 
-        final_loss = loss["loss"] + point2plane * 1e-01
+        # final_loss = loss["loss"] + point2plane
+        final_loss = loss["loss"]
 
         return dict(
             loss=final_loss,
@@ -100,27 +101,25 @@ class OptimizerFramework(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         out = self.model_step(batch, mode="train")
-        if batch_idx == 0 and self.current_epoch % 10 == 0:
+        if batch["frame_idx"] == 52 and self.current_epoch % 10 == 0:
             self.logger.log_step(  # type: ignore
                 batch=batch,
                 out=out["out"],
                 flame=self.flame,
                 renderer=self.renderer,
                 mode="train",
-                batch_idx=batch_idx,
             )
         return out["loss"]
 
     def validation_step(self, batch, batch_idx):
         out = self.model_step(batch, mode="val")
-        if batch_idx == 0:
+        if batch["frame_idx"] == 110 and self.current_epoch % 10 == 0:
             self.logger.log_step(  # type: ignore
                 batch=batch,
                 out=out["out"],
                 flame=self.flame,
                 renderer=self.renderer,
                 mode="val",
-                batch_idx=batch_idx,
             )
         return out["loss"]
 
@@ -157,13 +156,14 @@ class OptimizerFramework(L.LightningModule):
             out["normal"][mask],
         )
         return error.mean() * 1e03  # from m to mm
+        # return error.sum()
 
     def compute_param_loss(self, params, gt_params):
         param_loss = {}
         for p_names, weight in self.hparams["params"].items():
             l1_loss = torch.abs(params[p_names] - gt_params[p_names])
-            param_loss[p_names] = l1_loss.mean() * weight
-        loss = torch.stack(list(param_loss.values())).mean()
+            param_loss[p_names] = l1_loss * weight
+        loss = torch.cat([p.flatten() for p in param_loss.values()]).mean()
         param_loss["loss"] = loss
         return param_loss
 
@@ -208,7 +208,7 @@ class WeightedOptimizer(OptimizerFramework):
         return torch.optim.Adam(self.w_module.parameters(), lr=self.hparams["lr"])
 
     def on_before_optimizer_step(self, optimizer):
-        print("before optimization")
+        optimizer.param_groups[0]["params"][0].grad
 
     def forward(self, batch: dict):
         self.optimizer.set_params(batch["init_params"])
