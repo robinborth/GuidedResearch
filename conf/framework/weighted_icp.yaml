@@ -16,4 +16,8 @@ verbose: True
 
 lr: 1e-03
 scheduler: null
-params: [global_pose,transl,neck_pose,expression_params]
+params:
+  global_pose: 1.0
+  transl: 1.0
+  neck_pose: 1.0
+  expression_params: 1.0

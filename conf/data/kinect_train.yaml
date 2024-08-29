@@ -20,10 +20,21 @@ pin_memory: False
 persistent_workers: False 
 
 # dataset settings
-dataset:
+train_dataset:
   _target_: lib.data.dataset.DPHMParamsDataset
   _partial_: True
-  start_frame: 20 
+  start_frame: 52
+  end_frame: 80
+  data_dir: ${data.data_dir}
+  sequence_length: ${data.sequence_length}
+  camera: ???  # the camera is shared
+
+# dataset settings
+val_dataset:
+  _target_: lib.data.dataset.DPHMParamsDataset
+  _partial_: True
+  start_frame: 80
+  end_frame: 100
   data_dir: ${data.data_dir}
   sequence_length: ${data.sequence_length}
   camera: ???  # the camera is shared

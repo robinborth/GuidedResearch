@@ -195,7 +195,12 @@ class DPHMPointDataset(DPHMDataset):
 
 
 class DPHMParamsDataset(DPHMDataset):
-    def __init__(self, start_frame: int = 1, **kwargs):
+    def __init__(
+        self,
+        start_frame: int = 1,
+        end_frame: int = 2,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.load_point()
         self.load_normal()
@@ -203,9 +208,10 @@ class DPHMParamsDataset(DPHMDataset):
         self.load_params()
         self.frame_idxs = list(self.iter_frame_idx())
         self.start_frame = start_frame
+        self.end_frame = end_frame
 
     def __len__(self):
-        return self.sequence_length - self.start_frame
+        return self.end_frame - self.start_frame
 
     def __getitem__(self, idx: int):
         # (H', W', 3) this is scaled
@@ -216,14 +222,16 @@ class DPHMParamsDataset(DPHMDataset):
         color = self.color[frame_idx]
         gt_params = self.params[frame_idx]
         params = self.params[frame_idx - 1]
+        init_color = self.color[frame_idx - 1]
         return {
             "frame_idx": frame_idx,
             "mask": mask,
             "point": point,
             "normal": normal,
             "color": color,
-            "gt_params": gt_params,
-            "params": params,
+            "params": gt_params,
+            "init_params": params,
+            "init_color": init_color,
         }
 
 

@@ -51,24 +51,42 @@ class FlameLogger(WandbLogger):
         mode: str = "train",
         batch_idx: int = 0,
     ):
-        gt_out = flame.render(renderer=renderer, params=batch["gt_params"])
-        start_out = flame.render(renderer=renderer, params=batch["params"])
+        gt_out = flame.render(renderer=renderer, params=batch["params"])
+        init_out = flame.render(renderer=renderer, params=batch["init_params"])
         new_out = flame.render(renderer=renderer, params=out["params"])
 
         wandb_images = []
 
+        # initial color image
+        visualize_grid(images=batch["init_color"])
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        # target color image
+        visualize_grid(images=batch["color"])
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        # target normal image
+        normal_image = Renderer.normal_to_normal_image(batch["normal"], batch["mask"])
+        visualize_grid(images=normal_image)
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        # point clouds merged: initial - target
         images = visualize_depth_merged(
             s_color=change_color(gt_out["color"], gt_out["mask"], code=0),
             s_point=gt_out["point"],
             s_mask=gt_out["mask"],
-            t_color=change_color(start_out["color"], start_out["mask"], code=1),
-            t_point=start_out["point"],
-            t_mask=start_out["mask"],
+            t_color=change_color(init_out["color"], init_out["mask"], code=1),
+            t_point=init_out["point"],
+            t_mask=init_out["mask"],
         )
         visualize_grid(images=images)
         wandb_images.append(wandb.Image(plt))
         plt.close()
 
+        # point clouds merged: new - target
         images = visualize_depth_merged(
             s_color=change_color(gt_out["color"], gt_out["mask"], code=0),
             s_point=gt_out["point"],
@@ -81,26 +99,63 @@ class FlameLogger(WandbLogger):
         wandb_images.append(wandb.Image(plt))
         plt.close()
 
-        images = change_color(color=gt_out["color"], mask=gt_out["mask"], code=0)
+        # flame init
+        images = change_color(color=init_out["color"], mask=init_out["mask"], code=1)
         visualize_grid(images=images)
         wandb_images.append(wandb.Image(plt))
         plt.close()
 
-        images = change_color(color=start_out["color"], mask=start_out["mask"], code=1)
-        visualize_grid(images=images)
-        wandb_images.append(wandb.Image(plt))
-        plt.close()
-
+        # flame new
         images = change_color(color=new_out["color"], mask=new_out["mask"], code=2)
         visualize_grid(images=images)
         wandb_images.append(wandb.Image(plt))
         plt.close()
 
+        # flame target
+        images = change_color(color=gt_out["color"], mask=gt_out["mask"], code=0)
+        visualize_grid(images=images)
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        # weights map
         visualize_grid(images=out["weights"])
         wandb_images.append(wandb.Image(plt))
         plt.close()
 
-        self.log_image(f"{mode}/{batch_idx}/images", wandb_images)  # type:ignore
+        # init error map
+        images = visualize_point2plane_error(
+            s_point=batch["point"][batch_idx],
+            t_normal=init_out["normal"][batch_idx],
+            t_point=init_out["point"][batch_idx],
+            t_mask=init_out["mask"][batch_idx],
+        )
+        visualize_grid(images=images.unsqueeze(0))
+        wandb_images.append(wandb.Image(plt, caption="init_error_map"))
+        plt.close()
+
+        # new error map
+        images = visualize_point2plane_error(
+            s_point=batch["point"][batch_idx],
+            t_normal=new_out["normal"][batch_idx],
+            t_point=new_out["point"][batch_idx],
+            t_mask=new_out["mask"][batch_idx],
+        )
+        visualize_grid(images=images.unsqueeze(0))
+        wandb_images.append(wandb.Image(plt, caption="new_error_map"))
+        plt.close()
+
+        # gt error map
+        images = visualize_point2plane_error(
+            s_point=batch["point"][batch_idx],
+            t_normal=gt_out["normal"][batch_idx],
+            t_point=gt_out["point"][batch_idx],
+            t_mask=gt_out["mask"][batch_idx],
+        )
+        visualize_grid(images=images.unsqueeze(0))
+        wandb_images.append(wandb.Image(plt, caption="gt_error_map"))
+        plt.close()
+
+        self.log_image(f"{mode}/images", wandb_images)  # type:ignore
 
     def log_params(
         self,

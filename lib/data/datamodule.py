@@ -223,11 +223,12 @@ class KinectDataModule(L.LightningDataModule):
 
     def setup(self, stage: str = "all"):
         camera = self.renderer.camera  # type: ignore
-        self.dataset = self.hparams["dataset"](camera=camera)
+        self.train_dataset = self.hparams["train_dataset"](camera=camera)
+        self.val_dataset = self.hparams["val_dataset"](camera=camera)
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
-            dataset=self.dataset,
+            dataset=self.train_dataset,
             batch_size=1,
             num_workers=self.hparams["num_workers"],
             pin_memory=self.hparams["pin_memory"],
@@ -238,7 +239,7 @@ class KinectDataModule(L.LightningDataModule):
 
     def val_dataloader(self) -> DataLoader:
         return DataLoader(
-            dataset=self.dataset,
+            dataset=self.val_dataset,
             batch_size=1,
             num_workers=self.hparams["num_workers"],
             pin_memory=self.hparams["pin_memory"],

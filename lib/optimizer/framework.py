@@ -37,18 +37,105 @@ class OptimizerFramework(L.LightningModule):
     def configure_optimizer(self):
         raise NotImplementedError()
 
-    def model_step(self, batch: dict):
+    def model_step(self, batch: dict, mode: str):
+        # setup and inference
+        self.logger.mode = mode  # type: ignore
         out = self.forward(batch)
-        default_loss = self.compute_param_loss(batch["params"], batch["gt_params"])
-        loss = self.compute_param_loss(out["params"], batch["gt_params"])
-        # loss = self.compute_point2plane_loss(
-        #     s_mask=batch["mask"],
-        #     s_point=batch["point"],
-        #     params=out["params"],
-        #     flame=self.flame,
-        #     renderer=self.renderer,
-        # )
-        return dict(loss=loss, **out)
+
+        # extract the params
+        init_params = batch["init_params"]
+        gt_params = batch["params"]
+        new_params = out["params"]
+
+        # compute the loss
+        loss = self.compute_param_loss(gt_params, new_params)
+        self.log(
+            f"{mode}/loss",
+            loss["loss"],
+            prog_bar=True,
+            on_epoch=True,
+            on_step=True,
+            batch_size=1,
+        )
+        for p_names in self.hparams["params"].keys():
+            self.log(f"{mode}/loss_{p_names}", loss[p_names].mean(), batch_size=1)
+
+        # compute the default loss
+        default_loss = self.compute_param_loss(gt_params, init_params)
+        self.log(f"{mode}/default_loss", default_loss["loss"], batch_size=1)
+
+        # compute the metrics
+        point2plane = self.compute_point2plane_loss(
+            s_mask=batch["mask"],
+            s_point=batch["point"],
+            params=new_params,
+            flame=self.flame,
+            renderer=self.renderer,
+        )
+        self.log(f"{mode}/point2plane", point2plane, batch_size=1)
+
+        # compute the default metrics
+        default_point2plane = self.compute_point2plane_loss(
+            s_mask=batch["mask"],
+            s_point=batch["point"],
+            params=init_params,
+            flame=self.flame,
+            renderer=self.renderer,
+        )
+        self.log(f"{mode}/default_point2plane", default_point2plane, batch_size=1)
+
+        # logging weights
+        self.log(f"{mode}/weight_mean", out["weights"].mean(), batch_size=1)
+        self.log(f"{mode}/weight_max", out["weights"].max(), batch_size=1)
+
+        final_loss = loss["loss"] + point2plane * 1e-01
+
+        return dict(
+            loss=final_loss,
+            default_loss=default_loss,
+            point2plane=point2plane,
+            out=out,
+            **out,
+        )
+
+    def training_step(self, batch, batch_idx):
+        out = self.model_step(batch, mode="train")
+        if batch_idx == 0 and self.current_epoch % 10 == 0:
+            self.logger.log_step(  # type: ignore
+                batch=batch,
+                out=out["out"],
+                flame=self.flame,
+                renderer=self.renderer,
+                mode="train",
+                batch_idx=batch_idx,
+            )
+        return out["loss"]
+
+    def validation_step(self, batch, batch_idx):
+        out = self.model_step(batch, mode="val")
+        if batch_idx == 0:
+            self.logger.log_step(  # type: ignore
+                batch=batch,
+                out=out["out"],
+                flame=self.flame,
+                renderer=self.renderer,
+                mode="val",
+                batch_idx=batch_idx,
+            )
+        return out["loss"]
+
+    def configure_optimizers(self):
+        optimizer = self.configure_optimizer()
+        if self.hparams["scheduler"] is not None:
+            scheduler = self.hparams["scheduler"](optimizer=optimizer)
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "monitor": self.hparams["monitor"],
+                },
+            }
+        return {"optimizer": optimizer}
 
     def compute_point2plane_loss(
         self,
@@ -69,74 +156,16 @@ class OptimizerFramework(L.LightningModule):
             out["point"][mask],
             out["normal"][mask],
         )
-        return error.mean()
+        return error.mean() * 1e03  # from m to mm
 
     def compute_param_loss(self, params, gt_params):
-        _loss = []
-        for p_names in self.hparams["params"]:
+        param_loss = {}
+        for p_names, weight in self.hparams["params"].items():
             l1_loss = torch.abs(params[p_names] - gt_params[p_names])
-            _loss.append(l1_loss)
-        loss = torch.cat(_loss, dim=-1).mean()
-        return loss
-
-    def training_step(self, batch, batch_idx):
-        self.logger.mode = "train"
-        out = self.model_step(batch)
-        self.log(
-            "train/loss",
-            out["loss"],
-            prog_bar=True,
-            on_epoch=True,
-            on_step=True,
-            batch_size=1,
-        )
-        self.log("train/weight_mean", out["weights"].mean(), batch_size=1)
-        self.log("train/weight_max", out["weights"].max(), batch_size=1)
-        if batch_idx == 0:
-            self.logger.log_step(
-                batch=batch,
-                out=out,
-                flame=self.flame,
-                renderer=self.renderer,
-                mode="train",
-                batch_idx=batch_idx,
-            )
-        return out["loss"]
-
-    def validation_step(self, batch, batch_idx):
-        self.logger.mode = "val"
-        out = self.model_step(batch)
-        self.log(
-            "val/loss",
-            out["loss"],
-            prog_bar=True,
-            on_epoch=True,
-            on_step=True,
-            batch_size=1,
-        )
-        if batch_idx == 0:
-            self.logger.log_step(
-                batch=batch,
-                out=out,
-                flame=self.flame,
-                renderer=self.renderer,
-                mode="val",
-                batch_idx=batch_idx,
-            )
-        return out["loss"]
-
-    def configure_optimizers(self):
-        optimizer = self.configure_optimizer()
-        if self.hparams["scheduler"] is not None:
-            scheduler = self.hparams["scheduler"](optimizer=optimizer)
-            return {
-                "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    "monitor": self.hparams["monitor"],
-                },
-            }
-        return {"optimizer": optimizer}
+            param_loss[p_names] = l1_loss.mean() * weight
+        loss = torch.stack(list(param_loss.values())).mean()
+        param_loss["loss"] = loss
+        return param_loss
 
 
 class WeightedOptimizer(OptimizerFramework):
@@ -178,12 +207,12 @@ class WeightedOptimizer(OptimizerFramework):
     def configure_optimizer(self):
         return torch.optim.Adam(self.w_module.parameters(), lr=self.hparams["lr"])
 
-    def on_before_optimization_step(self, optimizer):
+    def on_before_optimizer_step(self, optimizer):
         print("before optimization")
 
     def forward(self, batch: dict):
-        self.optimizer.set_params(batch["params"])
-        self.optimizer._p_names = self.hparams["params"]
+        self.optimizer.set_params(batch["init_params"])
+        self.optimizer._p_names = list(self.hparams["params"].keys())  # type: ignore
 
         for iter_step in range(self.max_iters):
             self.logger.iter_step = iter_step

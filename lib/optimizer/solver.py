@@ -313,8 +313,8 @@ class PytorchSolver(LinearSystemSolver):
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         info: dict = {}
         # add noise to make it non-singular
-        eps_A = torch.rand_like(A) * 1e-08
-        eps_b = torch.rand_like(b) * 1e-08
+        eps_A = torch.rand_like(A) * 1e-09
+        eps_b = torch.rand_like(b) * 1e-09
         # solve the system
         x = torch.linalg.solve(A + eps_A, b + eps_b)
         # ensure that no update is done if grad is zero

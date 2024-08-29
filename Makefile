@@ -269,3 +269,33 @@ pcg_scheduler:
 
 
 
+.PHONY: iters_optims iters4_optims1  iters5_optims1 iters1_optims4 iters1_optims5 
+iters_optims: iters4_optims1  iters5_optims1 iters1_optims4 iters1_optims5
+
+iters4_optims1:
+	python scripts/training.py \
+	logger.name=iters4_optims1 \
+	logger.tags=[train,iters_optims] \
+	framework.max_iters=4 \
+	framework.max_optims=1 \
+
+iters5_optims1:
+	python scripts/training.py \
+	logger.name=iters5_optims1 \
+	logger.tags=[train,iters_optims] \
+	framework.max_iters=5 \
+	framework.max_optims=1 \
+
+iters1_optims4:
+	python scripts/training.py \
+	logger.name=iters1_optims4 \
+	logger.tags=[train,iters_optims] \
+	framework.max_iters=1 \
+	framework.max_optims=4 \
+
+iters1_optims5:
+	python scripts/training.py \
+	logger.name=iters1_optims5 \
+	logger.tags=[train,iters_optims] \
+	framework.max_iters=1 \
+	framework.max_optims=5 \
