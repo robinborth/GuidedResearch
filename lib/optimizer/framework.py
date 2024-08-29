@@ -39,7 +39,15 @@ class OptimizerFramework(L.LightningModule):
 
     def model_step(self, batch: dict):
         out = self.forward(batch)
-        loss = self.compute_param_loss(out["params"], batch["params"])
+        default_loss = self.compute_param_loss(batch["params"], batch["gt_params"])
+        loss = self.compute_param_loss(out["params"], batch["gt_params"])
+        # loss = self.compute_point2plane_loss(
+        #     s_mask=batch["mask"],
+        #     s_point=batch["point"],
+        #     params=out["params"],
+        #     flame=self.flame,
+        #     renderer=self.renderer,
+        # )
         return dict(loss=loss, **out)
 
     def compute_point2plane_loss(
@@ -72,6 +80,7 @@ class OptimizerFramework(L.LightningModule):
         return loss
 
     def training_step(self, batch, batch_idx):
+        self.logger.mode = "train"
         out = self.model_step(batch)
         self.log(
             "train/loss",
@@ -95,6 +104,7 @@ class OptimizerFramework(L.LightningModule):
         return out["loss"]
 
     def validation_step(self, batch, batch_idx):
+        self.logger.mode = "val"
         out = self.model_step(batch)
         self.log(
             "val/loss",
@@ -144,6 +154,7 @@ class WeightedOptimizer(OptimizerFramework):
         optimizer: DifferentiableOptimizer,
         max_iters: int = 1,
         max_optims: int = 1,
+        verbose: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -166,6 +177,9 @@ class WeightedOptimizer(OptimizerFramework):
 
     def configure_optimizer(self):
         return torch.optim.Adam(self.w_module.parameters(), lr=self.hparams["lr"])
+
+    def on_before_optimization_step(self, optimizer):
+        print("before optimization")
 
     def forward(self, batch: dict):
         self.optimizer.set_params(batch["params"])
@@ -216,32 +230,33 @@ class WeightedOptimizer(OptimizerFramework):
             for optim_step in range(self.max_optims):
                 self.optimizer.step(residual_closure)
 
-            # self.logger.log_error(
-            #     frame_idx=batch["frame_idx"],
-            #     s_point=batch["point"],
-            #     s_normal=batch["normal"],
-            #     t_mask=out["mask"],
-            #     t_point=out["point"],
-            #     t_normal=out["normal"],
-            # )
-            # self.logger.log_render(
-            #     frame_idx=batch["frame_idx"],
-            #     s_mask=batch["mask"],
-            #     s_point=batch["point"],
-            #     s_color=batch["color"],
-            #     t_mask=out["mask"],
-            #     t_point=out["point"],
-            #     t_color=out["color"],
-            #     t_normal_image=out["normal_image"],
-            #     t_depth_image=out["depth_image"],
-            # )
-            # self.logger.log_input_batch(
-            #     frame_idx=batch["frame_idx"],
-            #     s_mask=batch["mask"],
-            #     s_point=batch["point"],
-            #     s_normal=batch["normal"],
-            #     s_color=batch["color"],
-            # )
+            if self.hparams["verbose"]:
+                self.logger.log_error(
+                    frame_idx=batch["frame_idx"],
+                    s_point=batch["point"],
+                    s_normal=batch["normal"],
+                    t_mask=out["mask"],
+                    t_point=out["point"],
+                    t_normal=out["normal"],
+                )
+                self.logger.log_render(
+                    frame_idx=batch["frame_idx"],
+                    s_mask=batch["mask"],
+                    s_point=batch["point"],
+                    s_color=batch["color"],
+                    t_mask=out["mask"],
+                    t_point=out["point"],
+                    t_color=out["color"],
+                    t_normal_image=out["normal_image"],
+                    t_depth_image=out["depth_image"],
+                )
+                self.logger.log_input_batch(
+                    frame_idx=batch["frame_idx"],
+                    s_mask=batch["mask"],
+                    s_point=batch["point"],
+                    s_normal=batch["normal"],
+                    s_color=batch["color"],
+                )
 
         new_params = self.optimizer.get_params()
         return dict(params=new_params, weights=weights)

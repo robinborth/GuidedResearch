@@ -304,9 +304,24 @@ class LinearSystemSolver(L.LightningModule):
 
 
 class PytorchSolver(LinearSystemSolver):
+
+    # def forward(self, A: torch.Tensor, b: torch.Tensor):
+    #     info: dict = {}
+    #     x = torch.linalg.solve(A, b)
+    #     return x, info
+
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         info: dict = {}
-        x = torch.linalg.solve(A, b)
+        # add noise to make it non-singular
+        eps_A = torch.rand_like(A) * 1e-08
+        eps_b = torch.rand_like(b) * 1e-08
+        # solve the system
+        x = torch.linalg.solve(A + eps_A, b + eps_b)
+        # ensure that no update is done if grad is zero
+        valid_grad_mask = b != 0
+        x = x * valid_grad_mask
+        if (~valid_grad_mask).sum() >= 1:
+            print("Singular!")
         return x, info
 
 

@@ -12,6 +12,7 @@ weighting: ???
 
 max_iters: 1
 max_optims: 1
+verbose: True 
 
 lr: 1e-03
 scheduler: null

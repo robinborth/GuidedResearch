@@ -1,9 +1,11 @@
 import logging
+from pathlib import Path
 
 import hydra
 from lightning import Trainer
 from omegaconf import DictConfig
 
+from lib.data.loader import load_intrinsics
 from lib.model import Flame
 from lib.renderer import Camera, Rasterizer, Renderer
 from lib.tracker.logger import FlameLogger
@@ -18,7 +20,11 @@ def optimize(cfg: DictConfig):
     cfg = set_configs(cfg)
 
     log.info("==> initializing camera and rasterizer ...")
+    K = None
+    if Path(cfg.data.data_dir).name != "synthetic":
+        K = load_intrinsics(data_dir=cfg.data.data_dir, return_tensor="pt")
     camera = Camera(
+        K=K,
         width=cfg.data.width,
         height=cfg.data.height,
         near=cfg.data.near,
@@ -49,7 +55,7 @@ def optimize(cfg: DictConfig):
     log.info(f"==> initializing optimizer <{cfg.optimizer._target_}> ...")
     optimizer = hydra.utils.instantiate(cfg.optimizer)
 
-    log.info(f"==> initializing framework <{cfg.framework}> ...")
+    log.info(f"==> initializing framework <{cfg.framework._target_}> ...")
     model = hydra.utils.instantiate(
         cfg.framework,
         flame=flame,

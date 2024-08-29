@@ -12,12 +12,12 @@ kernel_size: 1
 stride: 1
 dilation: 1
 start_frame: 0
-end_frame: 120
-max_iters: 30
-max_optims: 5
-# end_frame: 3
-# max_iters: 5
-# max_optims: 3
+# end_frame: 120
+# max_iters: 30
+# max_optims: 5
+end_frame: 1
+max_iters: 1
+max_optims: 1
 
 scheduler:
   milestones: [0]

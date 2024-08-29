@@ -265,4 +265,6 @@ class SplitDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        return self.data[idx]
+        data = self.data[idx]
+        data["frame_idx"] = torch.tensor([idx])
+        return data

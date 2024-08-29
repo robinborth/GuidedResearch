@@ -374,10 +374,10 @@ class FlameLogger(WandbLogger):
         # render the full model
         self.mode = "eval"
         with torch.no_grad():
+            m_out = flame(**params)
             out = flame.render(
                 renderer=renderer,
                 params=params,
-                vertices_mask="full",
             )
 
         self.log_error(

@@ -25,6 +25,7 @@ class Flame(L.LightningModule):
         super().__init__()
 
         # load the face model
+        self.flame_dir = flame_dir
         flame_model = load_flame(flame_dir=flame_dir, return_tensors="pt")
 
         # load the faces

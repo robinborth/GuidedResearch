@@ -48,7 +48,7 @@ def optimize(cfg: DictConfig):
     log.info(f"==> initializing optimizer <{cfg.optimizer._target_}> ...")
     optimizer = hydra.utils.instantiate(cfg.optimizer)
 
-    log.info(f"==> initializing framework <{cfg.framework}> ...")
+    log.info(f"==> initializing framework <{cfg.framework._target_}> ...")
     framework = hydra.utils.instantiate(
         cfg.framework,
         flame=flame,

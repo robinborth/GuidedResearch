@@ -155,8 +155,8 @@ class SequentialTracker:
             with torch.no_grad():
                 out = self.optimizer(batch)
             # updatae the params
-            batch["params"] = out["params"]
-            store.append(dict(params=out["params"], frame_idx=frame_idxs))
+            batch["params"] = {k: v.clone() for k, v in out["params"].items()}
+            store.append(dict(params=batch["params"], frame_idx=frame_idxs))
             frame_progress.update(1)
 
         # close the progresses

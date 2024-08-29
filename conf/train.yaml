@@ -8,7 +8,7 @@ defaults:
   - optimizer: gauss_newton
   - framework : weighted_icp
   - correspondence: projective 
-  - weighting: dummy 
+  - weighting: residual # dummy, residual
   - hydra: default
   - paths: default
   - _self_
@@ -16,14 +16,18 @@ defaults:
 seed: 123
 device: cuda
 task_name: train
-eval: False
-train: True
 tags: 
   - ${task_name}
 
+eval: False
+train: True
+
 framework:
-  max_iters: 2
+  lr: 1e-03
+  max_iters: 1
   max_optims: 1
+  # params: [global_pose,transl,neck_pose,expression_params,shape_params]
+  params: [global_pose,transl,neck_pose,expression_params]
 
 trainer:
   _target_: lightning.pytorch.trainer.Trainer
@@ -31,7 +35,7 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 150
+  max_epochs: 500
   # debugging
   overfit_batches: 1
   accumulate_grad_batches: 1
