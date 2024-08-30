@@ -54,15 +54,27 @@ class OptimizerFramework(L.LightningModule):
             loss["loss"],
             prog_bar=True,
             on_epoch=True,
-            on_step=True,
+            on_step=False,
             batch_size=1,
         )
         for p_names in self.hparams["params"].keys():
-            self.log(f"{mode}/loss_{p_names}", loss[p_names].mean(), batch_size=1)
+            self.log(
+                f"{mode}/loss_{p_names}",
+                loss[p_names].mean(),
+                on_epoch=True,
+                on_step=False,
+                batch_size=1,
+            )
 
         # compute the default loss
         default_loss = self.compute_param_loss(gt_params, init_params)
-        self.log(f"{mode}/loss_default", default_loss["loss"], batch_size=1)
+        self.log(
+            f"{mode}/loss_default",
+            default_loss["loss"],
+            on_epoch=True,
+            on_step=False,
+            batch_size=1,
+        )
 
         # compute the metrics
         point2plane = self.compute_point2plane_loss(
@@ -72,7 +84,13 @@ class OptimizerFramework(L.LightningModule):
             flame=self.flame,
             renderer=self.renderer,
         )
-        self.log(f"{mode}/point2plane", point2plane, batch_size=1)
+        self.log(
+            f"{mode}/point2plane",
+            point2plane,
+            on_step=False,
+            on_epoch=True,
+            batch_size=1,
+        )
 
         # compute the default metrics
         default_point2plane = self.compute_point2plane_loss(
@@ -94,8 +112,20 @@ class OptimizerFramework(L.LightningModule):
         self.log(f"{mode}/point2plane_gt", gt_point2plane, batch_size=1)
 
         # logging weights
-        self.log(f"{mode}/weight_mean", out["weights"][-1].mean(), batch_size=1)
-        self.log(f"{mode}/weight_max", out["weights"][-1].max(), batch_size=1)
+        self.log(
+            f"{mode}/weight_mean",
+            out["weights"][-1].mean(),
+            on_step=False,
+            on_epoch=True,
+            batch_size=1,
+        )
+        self.log(
+            f"{mode}/weight_max",
+            out["weights"][-1].max(),
+            on_step=False,
+            on_epoch=True,
+            batch_size=1,
+        )
 
         # final_loss = loss["loss"] + point2plane
         final_loss = loss["loss"]
@@ -111,7 +141,7 @@ class OptimizerFramework(L.LightningModule):
     def training_step(self, batch, batch_idx):
         out = self.model_step(batch, mode="train")
         if (
-            batch["frame_idx"] == self.hparams["train_start_frame"]
+            batch["frame_idx"] == 52
             and self.current_epoch % self.hparams["log_interval"] == 0
         ):
             self.logger.log_step(  # type: ignore
@@ -126,7 +156,7 @@ class OptimizerFramework(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         out = self.model_step(batch, mode="val")
         if (
-            batch["frame_idx"] == self.hparams["val_start_frame"]
+            batch["frame_idx"] == 110
             and self.current_epoch % self.hparams["log_interval"] == 0
         ):
             self.logger.log_step(  # type: ignore
@@ -275,34 +305,6 @@ class WeightedOptimizer(OptimizerFramework):
             for optim_step in range(self.max_optims):
                 self.optimizer.step(residual_closure)
 
-            if self.hparams["verbose"]:
-                self.logger.log_error(
-                    frame_idx=batch["frame_idx"],
-                    s_point=batch["point"],
-                    s_normal=batch["normal"],
-                    t_mask=out["mask"],
-                    t_point=out["point"],
-                    t_normal=out["normal"],
-                )
-                self.logger.log_render(
-                    frame_idx=batch["frame_idx"],
-                    s_mask=batch["mask"],
-                    s_point=batch["point"],
-                    s_color=batch["color"],
-                    t_mask=out["mask"],
-                    t_point=out["point"],
-                    t_color=out["color"],
-                    t_normal_image=out["normal_image"],
-                    t_depth_image=out["depth_image"],
-                )
-                self.logger.log_input_batch(
-                    frame_idx=batch["frame_idx"],
-                    s_mask=batch["mask"],
-                    s_point=batch["point"],
-                    s_normal=batch["normal"],
-                    s_color=batch["color"],
-                )
-
         new_params = self.optimizer.get_params()
         return dict(params=new_params, weights=track_weights)
 
@@ -340,7 +342,6 @@ class ICPOptimizer(OptimizerFramework):
         max_iters = batch["max_iters"]
         max_optims = batch["max_optims"]
         datamodule = batch["datamodule"]
-        converged = False
         coarse2fine = batch["coarse2fine"]
         scheduler = batch["scheduler"]
 
@@ -575,11 +576,11 @@ class VertexOptimizer(OptimizerFramework):
         def residual_closure(*args):
             new_params = self.optimizer.residual_params(args)
             m_out = self.flame(**new_params)
-            F = self.residuals.step(
+            F, info = self.residuals.step(
                 t_vertices=m_out["vertices"],
                 s_vertices=batch["vertices"],
             )
-            return F, F
+            return F, (F, info)
 
         for iter_step in range(self.max_iters):
             self.optimizer.step(residual_closure)

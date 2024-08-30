@@ -25,8 +25,8 @@ train_dataset:
   _partial_: True
   # start_frame: 52
   # end_frame: 84 
-  start_frame: 54
-  end_frame: 86
+  start_frame: 14
+  end_frame: 110
   jump_size: 1
   data_dir: ${data.data_dir}
   sequence_length: ${data.sequence_length}

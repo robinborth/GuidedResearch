@@ -114,6 +114,23 @@ def main():
     values = [
         "dphm_innocenzo_fulgintl_mouthmove",
         "dphm_innocenzo_fulgintl_rotatemouth",
+    ]
+    prefixs = values
+
+    group_name = "optimize"
+    template_generator = """
+    python scripts/optimize.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    data.dataset_name={value} \\
+    residuals.chain.shape_regularization.weight=5e-03 \\
+    residuals.chain.expression_regularization.weight=1e-03 \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    values = [
         "dphm_christoph_mouthmove",
         "dphm_christoph_rotatemouth",
     ]
@@ -127,47 +144,43 @@ def main():
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
     data.dataset_name={value} \\
-    joint_tracker.max_iters=80 \\
-    joint_tracker.max_optims=10 \\
-    sequential_tracker.max_iters=30 \\
-    sequential_tracker.max_optims=5 \\
+    residuals.chain.shape_regularization.weight=5e-03 \\
+    residuals.chain.expression_regularization.weight=7e-04 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = [1, 8, 16, 32]
+    values = [1, 2, 3]
     prefixs = values
 
-    group_name = "train_iters1_batch"
+    group_name = "train_iters"
     template_generator = """
     python scripts/training.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.max_iters=1 \\
+    framework.max_iters={value} \\
     framework.max_optims=1 \\
     framework.lr=1e-03 \\
-    trainer.max_epochs=1000 \\
-    trainer.overfit_batches={value} \\
-    trainer.accumulate_grad_batches={value} \\
+    trainer.max_epochs=2000 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    group_name = "train_iters2_batch"
-    template_generator = """
-    python scripts/training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    framework.max_iters=2 \\
-    framework.max_optims=1 \\
-    framework.lr=1e-03 \\
-    trainer.max_epochs=1000 \\
-    trainer.overfit_batches={value} \\
-    trainer.accumulate_grad_batches={value} \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
+    # group_name = "train_iters2_batch"
+    # template_generator = """
+    # python scripts/training.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # framework.max_iters=2 \\
+    # framework.max_optims=1 \\
+    # framework.lr=1e-03 \\
+    # trainer.max_epochs=1000 \\
+    # trainer.overfit_batches={value} \\
+    # trainer.accumulate_grad_batches={value} \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
 
     group_name = "train_iters3_batch"
     template_generator = """
