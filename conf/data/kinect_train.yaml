@@ -23,8 +23,11 @@ persistent_workers: False
 train_dataset:
   _target_: lib.data.dataset.DPHMParamsDataset
   _partial_: True
-  start_frame: 52
-  end_frame: 84 
+  # start_frame: 52
+  # end_frame: 84 
+  start_frame: 54
+  end_frame: 86
+  jump_size: 1
   data_dir: ${data.data_dir}
   sequence_length: ${data.sequence_length}
   camera: ???  # the camera is shared
@@ -35,6 +38,7 @@ val_dataset:
   _partial_: True
   start_frame: 110
   end_frame: 120
+  jump_size: 1
   data_dir: ${data.data_dir}
   sequence_length: ${data.sequence_length}
   camera: ???  # the camera is shared

@@ -4,6 +4,7 @@ from pathlib import Path
 import hydra
 from lightning import Trainer
 from omegaconf import DictConfig
+from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
 from lib.model import Flame
@@ -78,9 +79,14 @@ def optimize(cfg: DictConfig):
     if cfg.eval:  # custom because of fwAD
         log.info("==> start evaluation ...")
         model = model.to("cuda")
-        datamodule.setup("val")
+        renderer.update(scale=1)
+        datamodule.setup("all")
+        dataloader = datamodule.train_dataloader()
+        for batch_idx, batch in tqdm(enumerate(dataloader)):
+            batch = model.transfer_batch_to_device(batch, "cuda", 0)
+            model.validation_step(batch, batch_idx)
         dataloader = datamodule.val_dataloader()
-        for batch_idx, batch in enumerate(dataloader):
+        for batch_idx, batch in tqdm(enumerate(dataloader)):
             batch = model.transfer_batch_to_device(batch, "cuda", 0)
             model.validation_step(batch, batch_idx)
 

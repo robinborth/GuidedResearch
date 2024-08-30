@@ -199,6 +199,7 @@ class DPHMParamsDataset(DPHMDataset):
         self,
         start_frame: int = 1,
         end_frame: int = 2,
+        jump_size: int = 1,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -209,6 +210,8 @@ class DPHMParamsDataset(DPHMDataset):
         self.frame_idxs = list(self.iter_frame_idx())
         self.start_frame = start_frame
         self.end_frame = end_frame
+        self.jump_size = jump_size
+        assert self.start_frame >= self.jump_size
 
     def __len__(self):
         return self.end_frame - self.start_frame
@@ -221,8 +224,8 @@ class DPHMParamsDataset(DPHMDataset):
         normal = self.normal[frame_idx]
         color = self.color[frame_idx]
         gt_params = self.params[frame_idx]
-        params = self.params[frame_idx - 1]
-        init_color = self.color[frame_idx - 1]
+        params = self.params[frame_idx - self.jump_size]
+        init_color = self.color[frame_idx - self.jump_size]
         return {
             "frame_idx": frame_idx,
             "mask": mask,

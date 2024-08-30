@@ -12,6 +12,9 @@ weighting: ???
 
 max_iters: 1
 max_optims: 1
+train_start_frame: ${data.train_dataset.start_frame}
+val_start_frame: ${data.val_dataset.start_frame}
+log_interval: 10
 verbose: True 
 
 lr: 1e-03

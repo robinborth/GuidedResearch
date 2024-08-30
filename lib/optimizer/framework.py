@@ -62,7 +62,7 @@ class OptimizerFramework(L.LightningModule):
 
         # compute the default loss
         default_loss = self.compute_param_loss(gt_params, init_params)
-        self.log(f"{mode}/default_loss", default_loss["loss"], batch_size=1)
+        self.log(f"{mode}/loss_default", default_loss["loss"], batch_size=1)
 
         # compute the metrics
         point2plane = self.compute_point2plane_loss(
@@ -82,11 +82,20 @@ class OptimizerFramework(L.LightningModule):
             flame=self.flame,
             renderer=self.renderer,
         )
-        self.log(f"{mode}/default_point2plane", default_point2plane, batch_size=1)
+        self.log(f"{mode}/point2plane_default", default_point2plane, batch_size=1)
+
+        gt_point2plane = self.compute_point2plane_loss(
+            s_mask=batch["mask"],
+            s_point=batch["point"],
+            params=gt_params,
+            flame=self.flame,
+            renderer=self.renderer,
+        )
+        self.log(f"{mode}/point2plane_gt", gt_point2plane, batch_size=1)
 
         # logging weights
-        self.log(f"{mode}/weight_mean", out["weights"].mean(), batch_size=1)
-        self.log(f"{mode}/weight_max", out["weights"].max(), batch_size=1)
+        self.log(f"{mode}/weight_mean", out["weights"][-1].mean(), batch_size=1)
+        self.log(f"{mode}/weight_max", out["weights"][-1].max(), batch_size=1)
 
         # final_loss = loss["loss"] + point2plane
         final_loss = loss["loss"]
@@ -101,7 +110,10 @@ class OptimizerFramework(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         out = self.model_step(batch, mode="train")
-        if batch["frame_idx"] == 52 and self.current_epoch % 10 == 0:
+        if (
+            batch["frame_idx"] == self.hparams["train_start_frame"]
+            and self.current_epoch % self.hparams["log_interval"] == 0
+        ):
             self.logger.log_step(  # type: ignore
                 batch=batch,
                 out=out["out"],
@@ -113,7 +125,10 @@ class OptimizerFramework(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         out = self.model_step(batch, mode="val")
-        if batch["frame_idx"] == 110 and self.current_epoch % 10 == 0:
+        if (
+            batch["frame_idx"] == self.hparams["val_start_frame"]
+            and self.current_epoch % self.hparams["log_interval"] == 0
+        ):
             self.logger.log_step(  # type: ignore
                 batch=batch,
                 out=out["out"],
@@ -156,7 +171,6 @@ class OptimizerFramework(L.LightningModule):
             out["normal"][mask],
         )
         return error.mean() * 1e03  # from m to mm
-        # return error.sum()
 
     def compute_param_loss(self, params, gt_params):
         param_loss = {}
@@ -211,6 +225,7 @@ class WeightedOptimizer(OptimizerFramework):
         optimizer.param_groups[0]["params"][0].grad
 
     def forward(self, batch: dict):
+        track_weights: list = []
         self.optimizer.set_params(batch["init_params"])
         self.optimizer._p_names = list(self.hparams["params"].keys())  # type: ignore
 
@@ -232,6 +247,7 @@ class WeightedOptimizer(OptimizerFramework):
             )
             # predict weights
             weights = self.w_module(s_point=batch["point"], t_point=out["point"])
+            track_weights.append(weights)
 
             def residual_closure(*args):
                 # differentiable rendering without rasterization
@@ -288,7 +304,7 @@ class WeightedOptimizer(OptimizerFramework):
                 )
 
         new_params = self.optimizer.get_params()
-        return dict(params=new_params, weights=weights)
+        return dict(params=new_params, weights=track_weights)
 
 
 class ICPOptimizer(OptimizerFramework):

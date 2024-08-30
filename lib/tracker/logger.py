@@ -118,9 +118,10 @@ class FlameLogger(WandbLogger):
         plt.close()
 
         # weights map
-        visualize_grid(images=out["weights"])
-        wandb_images.append(wandb.Image(plt))
-        plt.close()
+        for weight in out["weights"]:
+            visualize_grid(images=weight)
+            wandb_images.append(wandb.Image(plt))
+            plt.close()
 
         # init error map
         images = visualize_point2plane_error(

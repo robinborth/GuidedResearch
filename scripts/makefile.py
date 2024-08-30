@@ -76,141 +76,114 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    # values = [
-    #     "[0]",
-    #     "[0,20]",
-    #     "[0,20,35]",
-    #     "[0,20,35,55]",
-    #     "[0,20,35,55,65]",
-    #     "[0,20,35,55,65,95]",
-    #     "[0,20,35,55,65,95,110]",
-    #     "[0,20,35,55,65,95,110,115]",
-    # ]
-    # prefixs = [1, 2, 3, 4, 5, 6, 7, 8]
-    # values = ["v1", "v2"]
+    # values = [1, 2, 3, 4, 5]
     # prefixs = values
-    values = [
-        # 1e-05,
-        # 3e-05,
-        # 5e-05,
-        # 7e-05,
-        # 9e-05,
-        1e-04,
-        3e-04,
-        5e-04,
-        7e-04,
-        9e-04,
-        1e-03,
-        3e-03,
-        5e-03,
-        7e-03,
-        9e-03,
-        # 1e-02,
-        # 3e-02,
-        # 5e-02,
-        # 7e-02,
-        # 9e-02,
-    ]
-    prefixs = float_to_scientific(values)
 
-    group_name = "train_weighting_lr"
+    # group_name = "train_iters"
+    # template_generator = """
+    # python scripts/training.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # framework.max_iters={value} \\
+    # framework.max_optims=1 \\
+    # framework.lr=1e-03 \\
+    # trainer.max_epochs=500 \\
+    # trainer.overfit_batches=8 \\
+    # trainer.accumulate_grad_batches=8 \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    # group_name = "train_optims"
+    # template_generator = """
+    # python scripts/training.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # framework.max_iters=1 \\
+    # framework.max_optims={value} \\
+    # framework.lr=1e-03 \\
+    # trainer.max_epochs=500 \\
+    # trainer.overfit_batches=8 \\
+    # trainer.accumulate_grad_batches=8 \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    values = [
+        "dphm_innocenzo_fulgintl_mouthmove",
+        "dphm_innocenzo_fulgintl_rotatemouth",
+        "dphm_christoph_mouthmove",
+        "dphm_christoph_rotatemouth",
+    ]
+    prefixs = values
+
+    group_name = "optimize"
+    template_generator = """
+    python scripts/optimize.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    data.dataset_name={value} \\
+    joint_tracker.max_iters=80 \\
+    joint_tracker.max_optims=10 \\
+    sequential_tracker.max_iters=30 \\
+    sequential_tracker.max_optims=5 \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    values = [1, 8, 16, 32]
+    prefixs = values
+
+    group_name = "train_iters1_batch"
     template_generator = """
     python scripts/training.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.lr={value} \\
     framework.max_iters=1 \\
     framework.max_optims=1 \\
+    framework.lr=1e-03 \\
+    trainer.max_epochs=1000 \\
+    trainer.overfit_batches={value} \\
+    trainer.accumulate_grad_batches={value} \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    # group_name = "train_weighting_iter2_lr"
-    # template_generator = """
-    # python scripts/training.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # framework.lr={value} \\
-    # framework.max_iters=2 \\
-    # framework.max_optims=1 \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
+    group_name = "train_iters2_batch"
+    template_generator = """
+    python scripts/training.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    framework.max_iters=2 \\
+    framework.max_optims=1 \\
+    framework.lr=1e-03 \\
+    trainer.max_epochs=1000 \\
+    trainer.overfit_batches={value} \\
+    trainer.accumulate_grad_batches={value} \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    # group_name = "train_weighting_optim2_lr"
-    # template_generator = """
-    # python scripts/training.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # framework.lr={value} \\
-    # framework.max_iters=1 \\
-    # framework.max_optims=2 \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    # group_name = "train_optims2_iters"
-    # template_generator = """
-    # python scripts/optimize.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # model=[flame,dphm_christoph_mouthmove_train] \\
-    # optimizer=gauss_newton \\
-    # loss=point2plane \\
-    # weight_trainer.init_idxs=[0] \\
-    # weight_trainer.max_iters={value} \\
-    # weight_trainer.max_optims=2 \\
-    # weight_trainer.scheduler.milestones=[0] \\
-    # weight_trainer.scheduler.params=[[global_pose,transl]] \\
-    # joint_trainer=null \\
-    # sequential_trainer=null \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    # group_name = "train_optims3_iters"
-    # template_generator = """
-    # python scripts/optimize.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # model=[flame,dphm_christoph_mouthmove_train] \\
-    # optimizer=gauss_newton \\
-    # loss=point2plane \\
-    # weight_trainer.init_idxs=[0] \\
-    # weight_trainer.max_iters={value} \\
-    # weight_trainer.max_optims=3 \\
-    # weight_trainer.scheduler.milestones=[0] \\
-    # weight_trainer.scheduler.params=[[global_pose,transl]] \\
-    # joint_trainer=null \\
-    # sequential_trainer=null \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    # group_name = "timer_gn_p2p_v2_no_shape_single_step"
-    # template_generator = """
-    # python scripts/optimize.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # model=[flame,dphm_christoph_mouthmove] \\
-    # optimizer=gauss_newton \\
-    # loss=point2plane \\
-    # +loss.jacobian_fn=v2 \\
-    # joint_trainer.init_idxs={value} \\
-    # joint_trainer.scheduler.milestones=[0] \\
-    # joint_trainer.max_iters=50 \\
-    # joint_trainer.max_optims=1 \\
-    # joint_trainer.scheduler.params=[[global_pose,transl,neck_pose,expression_params]] \\
-    # sequential_trainer=null \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
+    group_name = "train_iters3_batch"
+    template_generator = """
+    python scripts/training.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    framework.max_iters=3 \\
+    framework.max_optims=1 \\
+    framework.lr=1e-03 \\
+    trainer.max_epochs=1000 \\
+    trainer.overfit_batches={value} \\
+    trainer.accumulate_grad_batches={value} \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
 
     with open("Makefile.abl", "w") as f:
         f.write(build_makefile(groups))

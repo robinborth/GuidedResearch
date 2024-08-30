@@ -269,13 +269,38 @@ pcg_scheduler:
 
 
 
-.PHONY: iters_optims iters4_optims1  iters5_optims1 iters1_optims4 iters1_optims5 
-iters_optims: iters4_optims1  iters5_optims1 iters1_optims4 iters1_optims5
+.PHONY: iters_optims iters1_optims1 iters2_optims1 iters3_optims1 iters4_optims1 iters5_optims1 iters1_optims2 iters1_optims3 iters1_optims4 iters1_optims5 
+iters_optims: iters4_optims1 iters1_optims1 iters2_optims1 iters3_optims1 iters4_optims1 iters5_optims1 iters1_optims2 iters1_optims3 iters1_optims4 iters1_optims5 
+
+iters1_optims1:
+	python scripts/training.py \
+	logger.name=iters1_optims1 \
+	logger.tags=[train,iters_optims] \
+	logger.group=base \
+	framework.max_iters=1 \
+	framework.max_optims=1 \
+
+iters2_optims1:
+	python scripts/training.py \
+	logger.name=iters2_optims1 \
+	logger.tags=[train,iters_optims] \
+	logger.group=iters \
+	framework.max_iters=2 \
+	framework.max_optims=1 \
+
+iters3_optims1:
+	python scripts/training.py \
+	logger.name=iters3_optims1 \
+	logger.tags=[train,iters_optims] \
+	logger.group=iters \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
 
 iters4_optims1:
 	python scripts/training.py \
 	logger.name=iters4_optims1 \
 	logger.tags=[train,iters_optims] \
+	logger.group=iters \
 	framework.max_iters=4 \
 	framework.max_optims=1 \
 
@@ -283,13 +308,31 @@ iters5_optims1:
 	python scripts/training.py \
 	logger.name=iters5_optims1 \
 	logger.tags=[train,iters_optims] \
+	logger.group=iters \
 	framework.max_iters=5 \
 	framework.max_optims=1 \
+
+iters1_optims2:
+	python scripts/training.py \
+	logger.name=iters1_optims2 \
+	logger.tags=[train,iters_optims] \
+	logger.group=optims \
+	framework.max_iters=1 \
+	framework.max_optims=2 \
+
+iters1_optims3:
+	python scripts/training.py \
+	logger.name=iters1_optims3 \
+	logger.tags=[train,iters_optims] \
+	logger.group=optims \
+	framework.max_iters=1 \
+	framework.max_optims=3 \
 
 iters1_optims4:
 	python scripts/training.py \
 	logger.name=iters1_optims4 \
 	logger.tags=[train,iters_optims] \
+	logger.group=optims \
 	framework.max_iters=1 \
 	framework.max_optims=4 \
 
@@ -297,5 +340,33 @@ iters1_optims5:
 	python scripts/training.py \
 	logger.name=iters1_optims5 \
 	logger.tags=[train,iters_optims] \
+	logger.group=optims \
 	framework.max_iters=1 \
 	framework.max_optims=5 \
+
+.PHONY: optimize dphm_christoph_mouthmove dphm_christoph_rotatemouth dphm_innocenzo_fulgintl_mouthmove dphm_innocenzo_fulgintl_rotatemouth
+optimize: dphm_christoph_mouthmove dphm_christoph_rotatemouth dphm_innocenzo_fulgintl_mouthmove dphm_innocenzo_fulgintl_rotatemouth
+
+dphm_christoph_mouthmove:
+	python scripts/optimize.py \
+	logger.name=dphm_christoph_mouthmove \
+	logger.tags=[optimize,dphm_christoph_mouthmove] \
+	data.dataset_name=dphm_christoph_mouthmove \
+
+dphm_christoph_rotatemouth:
+	python scripts/optimize.py \
+	logger.name=dphm_christoph_rotatemouth \
+	logger.tags=[optimize,dphm_christoph_rotatemouth] \
+	data.dataset_name=dphm_christoph_rotatemouth \
+
+dphm_innocenzo_fulgintl_mouthmove:
+	python scripts/optimize.py \
+	logger.name=dphm_innocenzo_fulgintl_mouthmove \
+	logger.tags=[optimize,dphm_innocenzo_fulgintl_mouthmove] \
+	data.dataset_name=dphm_innocenzo_fulgintl_mouthmove \
+
+dphm_innocenzo_fulgintl_rotatemouth:
+	python scripts/optimize.py \
+	logger.name=dphm_innocenzo_fulgintl_rotatemouth \
+	logger.tags=[optimize,dphm_innocenzo_fulgintl_rotatemouth] \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
