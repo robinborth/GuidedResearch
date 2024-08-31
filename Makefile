@@ -370,3 +370,316 @@ dphm_innocenzo_fulgintl_rotatemouth:
 	logger.name=dphm_innocenzo_fulgintl_rotatemouth \
 	logger.tags=[optimize,dphm_innocenzo_fulgintl_rotatemouth] \
 	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+
+####################################################################################
+# Masters Day Results (Fulgitl-1)
+####################################################################################
+
+.PHONY: results_fulgitl1 results_fulgitl1_1_params_p2p results_fulgitl1_3_params_p2p results_fulgitl1_3_params results_fulgitl1_3_p2p results_fulgitl1_10_params_p2p
+results_fulgitl1: results_fulgitl1_1_params_p2p results_fulgitl1_3_params_p2p results_fulgitl1_3_params results_fulgitl1_3_p2p results_fulgitl1_10_params_p2p
+
+
+results_fulgitl1_1_params_p2p:
+	python scripts/training.py \
+	logger.name=results_fulgitl_1_params_p2p \
+	logger.tags=[train,results_fulgitl_1_params_p2p] \
+	logger.group=train \
+	framework.max_iters=1 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=6 \
+	data.train_dataset.start_frame=31 \
+	framework.log_frame_idx=31 \
+
+results_fulgitl1_3_params_p2p:
+	python scripts/training.py \
+	logger.name=results_fulgitl_3_params_p2p \
+	logger.tags=[train,results_fulgitl_3_params_p2p] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=6 \
+	data.train_dataset.start_frame=31 \
+	framework.log_frame_idx=31 \
+
+results_fulgitl1_3_params:
+	python scripts/training.py \
+	logger.name=results_fulgitl_3_params \
+	logger.tags=[train,results_fulgitl_3_params] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=0.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=6 \
+	data.train_dataset.start_frame=31 \
+	framework.log_frame_idx=31 \
+
+results_fulgitl1_3_p2p:
+	python scripts/training.py \
+	logger.name=results_fulgitl_3_p2p \
+	logger.tags=[train,results_fulgitl_3_p2p] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=0.0 \
+	framework.geometric_weight=0.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=6 \
+	data.train_dataset.start_frame=31 \
+	framework.log_frame_idx=31 \
+
+results_fulgitl1_10_params_p2p:
+	python scripts/training.py \
+	logger.name=results_fulgitl_10_params_p2p \
+	logger.tags=[train,results_fulgitl_10_params_p2p] \
+	logger.group=train \
+	framework.max_iters=10 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=6 \
+	data.train_dataset.start_frame=31 \
+	framework.log_frame_idx=31 \
+
+####################################################################################
+# Masters Day Results (Fulgitl-2)
+####################################################################################
+
+.PHONY: results_fulgitl2 results_fulgitl2_1_params_p2p results_fulgitl2_3_params_p2p results_fulgitl2_3_params results_fulgitl2_3_p2p results_fulgitl2_10_params_p2p
+results_fulgitl2: results_fulgitl2_1_params_p2p results_fulgitl2_3_params_p2p results_fulgitl2_3_params results_fulgitl2_3_p2p results_fulgitl2_10_params_p2p
+
+
+results_fulgitl2_1_params_p2p:
+	python scripts/training.py \
+	logger.name=results_fulgitl2_1_params_p2p \
+	logger.tags=[train,results_fulgitl2_1_params_p2p] \
+	logger.group=train \
+	framework.max_iters=1 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=2 \
+	data.train_dataset.start_frame=47 \
+	framework.log_frame_idx=47 \
+
+results_fulgitl2_3_params_p2p:
+	python scripts/training.py \
+	logger.name=results_fulgitl2_3_params_p2p \
+	logger.tags=[train,results_fulgitl2_3_params_p2p] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=2 \
+	data.train_dataset.start_frame=47 \
+	framework.log_frame_idx=47 \
+
+results_fulgitl2_3_params:
+	python scripts/training.py \
+	logger.name=results_fulgitl2_3_params \
+	logger.tags=[train,results_fulgitl2_3_params] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=0.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=2 \
+	data.train_dataset.start_frame=47 \
+	framework.log_frame_idx=47 \
+
+results_fulgitl2_3_p2p:
+	python scripts/training.py \
+	logger.name=results_fulgitl2_3_p2p \
+	logger.tags=[train,results_fulgitl2_3_p2p] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=0.0 \
+	framework.geometric_weight=0.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=2 \
+	data.train_dataset.start_frame=47 \
+	framework.log_frame_idx=47 \
+
+results_fulgitl2_10_params_p2p:
+	python scripts/training.py \
+	logger.name=results_fulgitl2_10_params_p2p \
+	logger.tags=[train,results_fulgitl2_10_params_p2p] \
+	logger.group=train \
+	framework.max_iters=10 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
+	data.train_dataset.jump_size=2 \
+	data.train_dataset.start_frame=47 \
+	framework.log_frame_idx=47 \
+
+####################################################################################
+# Masters Day Results (Christoph-1)
+####################################################################################
+
+.PHONY: results_christoph1 results_christoph1_1_params_p2p results_christoph1_3_params_p2p results_christoph1_3_params results_christoph1_3_p2p results_christoph1_10_params_p2p
+results_christoph1: results_christoph1_1_params_p2p results_christoph1_3_params_p2p results_christoph1_3_params results_christoph1_3_p2p results_christoph1_10_params_p2p
+
+
+results_christoph1_1_params_p2p:
+	python scripts/training.py \
+	logger.name=results_christoph1_1_params_p2p \
+	logger.tags=[train,results_christoph1_1_params_p2p] \
+	logger.group=train \
+	framework.max_iters=1 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=52 \
+	framework.log_frame_idx=52 \
+
+results_christoph1_3_params_p2p:
+	python scripts/training.py \
+	logger.name=results_christoph1_3_params_p2p \
+	logger.tags=[train,results_christoph1_3_params_p2p] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=52 \
+	framework.log_frame_idx=52 \
+
+results_christoph1_3_params:
+	python scripts/training.py \
+	logger.name=results_christoph1_3_params \
+	logger.tags=[train,results_christoph1_3_params] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=0.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=52 \
+	framework.log_frame_idx=52 \
+
+results_christoph1_3_p2p:
+	python scripts/training.py \
+	logger.name=results_christoph1_3_p2p \
+	logger.tags=[train,results_christoph1_3_p2p] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=0.0 \
+	framework.geometric_weight=0.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=52 \
+	framework.log_frame_idx=52 \
+
+results_christoph1_10_params_p2p:
+	python scripts/training.py \
+	logger.name=results_christoph1_10_params_p2p \
+	logger.tags=[train,results_christoph1_10_params_p2p] \
+	logger.group=train \
+	framework.max_iters=10 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=52 \
+	framework.log_frame_idx=52 \
+
+
+####################################################################################
+# Masters Day Results (Christoph-2)
+####################################################################################
+
+.PHONY: results_christoph2 results_christoph2_1_params_p2p results_christoph2_3_params_p2p results_christoph2_3_params results_christoph2_3_p2p results_christoph2_10_params_p2p
+results_christoph2: results_christoph2_1_params_p2p results_christoph2_3_params_p2p results_christoph2_3_params results_christoph2_3_p2p results_christoph2_10_params_p2p
+
+
+results_christoph2_1_params_p2p:
+	python scripts/training.py \
+	logger.name=results_christoph2_1_params_p2p \
+	logger.tags=[train,results_christoph2_1_params_p2p] \
+	logger.group=train \
+	framework.max_iters=1 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=42 \
+	framework.log_frame_idx=42 \
+
+results_christoph2_3_params_p2p:
+	python scripts/training.py \
+	logger.name=results_christoph2_3_params_p2p \
+	logger.tags=[train,results_christoph2_3_params_p2p] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=42 \
+	framework.log_frame_idx=42 \
+
+results_christoph2_3_params:
+	python scripts/training.py \
+	logger.name=results_christoph2_3_params \
+	logger.tags=[train,results_christoph2_3_params] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=0.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=42 \
+	framework.log_frame_idx=42 \
+
+results_christoph2_3_p2p:
+	python scripts/training.py \
+	logger.name=results_christoph2_3_p2p \
+	logger.tags=[train,results_christoph2_3_p2p] \
+	logger.group=train \
+	framework.max_iters=3 \
+	framework.max_optims=1 \
+	framework.param_weight=0.0 \
+	framework.geometric_weight=0.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=42 \
+	framework.log_frame_idx=42 \
+
+results_christoph2_10_params_p2p:
+	python scripts/training.py \
+	logger.name=results_christoph2_10_params_p2p \
+	logger.tags=[train,results_christoph2_10_params_p2p] \
+	logger.group=train \
+	framework.max_iters=10 \
+	framework.max_optims=1 \
+	framework.param_weight=1.0 \
+	framework.geometric_weight=1.0 \
+	data.dataset_name=dphm_christoph_rotatemouth \
+	data.train_dataset.jump_size=4 \
+	data.train_dataset.start_frame=42 \
+	framework.log_frame_idx=42 \

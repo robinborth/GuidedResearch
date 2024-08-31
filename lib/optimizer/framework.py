@@ -10,7 +10,7 @@ from lib.optimizer.residuals import Residuals
 from lib.renderer.renderer import Renderer
 from lib.tracker.logger import FlameLogger
 from lib.tracker.timer import TimeTracker
-from lib.utils.distance import point2plane_distance
+from lib.utils.distance import point2plane_distance, point2point_distance
 from lib.utils.progress import reset_progress
 
 log = logging.getLogger()
@@ -57,6 +57,15 @@ class OptimizerFramework(L.LightningModule):
             on_step=False,
             batch_size=1,
         )
+        if self.current_epoch == 0:
+            self.log(
+                f"{mode}/init_loss",
+                loss["loss"],
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+                batch_size=1,
+            )
         for p_names in self.hparams["params"].keys():
             self.log(
                 f"{mode}/loss_{p_names}",
@@ -77,39 +86,76 @@ class OptimizerFramework(L.LightningModule):
         )
 
         # compute the metrics
-        point2plane = self.compute_point2plane_loss(
+        geometric_loss = self.compute_geometric_loss(
             s_mask=batch["mask"],
             s_point=batch["point"],
+            s_normal=batch["normal"],
             params=new_params,
             flame=self.flame,
             renderer=self.renderer,
         )
         self.log(
             f"{mode}/point2plane",
-            point2plane,
+            geometric_loss["point2plane"],
             on_step=False,
             on_epoch=True,
             batch_size=1,
         )
+        self.log(
+            f"{mode}/point2point",
+            geometric_loss["point2point"],
+            on_step=False,
+            on_epoch=True,
+            batch_size=1,
+        )
+        if self.current_epoch == 0:
+            self.log(
+                f"{mode}/init_point2point",
+                geometric_loss["point2point"],
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+                batch_size=1,
+            )
 
         # compute the default metrics
-        default_point2plane = self.compute_point2plane_loss(
+        default_geometric_loss = self.compute_geometric_loss(
             s_mask=batch["mask"],
             s_point=batch["point"],
+            s_normal=batch["normal"],
             params=init_params,
             flame=self.flame,
             renderer=self.renderer,
         )
-        self.log(f"{mode}/point2plane_default", default_point2plane, batch_size=1)
+        self.log(
+            f"{mode}/point2plane_default",
+            default_geometric_loss["point2plane"],
+            batch_size=1,
+        )
+        self.log(
+            f"{mode}/point2point_default",
+            default_geometric_loss["point2point"],
+            batch_size=1,
+        )
 
-        gt_point2plane = self.compute_point2plane_loss(
+        gt_geometric_loss = self.compute_geometric_loss(
             s_mask=batch["mask"],
             s_point=batch["point"],
+            s_normal=batch["normal"],
             params=gt_params,
             flame=self.flame,
             renderer=self.renderer,
         )
-        self.log(f"{mode}/point2plane_gt", gt_point2plane, batch_size=1)
+        self.log(
+            f"{mode}/point2plane_gt",
+            gt_geometric_loss["point2plane"],
+            batch_size=1,
+        )
+        self.log(
+            f"{mode}/point2point_gt",
+            gt_geometric_loss["point2point"],
+            batch_size=1,
+        )
 
         # logging weights
         self.log(
@@ -127,13 +173,16 @@ class OptimizerFramework(L.LightningModule):
             batch_size=1,
         )
 
-        # final_loss = loss["loss"] + point2plane
-        final_loss = loss["loss"]
+        final_loss = (
+            self.hparams["param_weight"] * loss["loss"]
+            + self.hparams["geometric_weight"] * geometric_loss["point2plane"]
+        )
 
         return dict(
             loss=final_loss,
             default_loss=default_loss,
-            point2plane=point2plane,
+            point2plane=geometric_loss["point2plane"],
+            point2point=geometric_loss["point2point"],
             out=out,
             **out,
         )
@@ -141,7 +190,7 @@ class OptimizerFramework(L.LightningModule):
     def training_step(self, batch, batch_idx):
         out = self.model_step(batch, mode="train")
         if (
-            batch["frame_idx"] == 52
+            batch["frame_idx"] == self.hparams["log_frame_idx"]
             and self.current_epoch % self.hparams["log_interval"] == 0
         ):
             self.logger.log_step(  # type: ignore
@@ -181,10 +230,11 @@ class OptimizerFramework(L.LightningModule):
             }
         return {"optimizer": optimizer}
 
-    def compute_point2plane_loss(
+    def compute_geometric_loss(
         self,
         s_mask: torch.Tensor,
         s_point: torch.Tensor,
+        s_normal: torch.Tensor,
         params: dict,
         flame: Flame,
         renderer: Renderer,
@@ -192,15 +242,29 @@ class OptimizerFramework(L.LightningModule):
         out = flame.render(
             renderer=renderer,
             params=params,
-            vertices_mask="face",
         )
-        mask = out["mask"] & s_mask
-        error = point2plane_distance(
+        mask = self.c_module.mask(
+            s_mask=s_mask,
+            s_point=s_point,
+            s_normal=s_normal,
+            t_mask=out["mask"],
+            t_point=out["point"],
+            t_normal=out["normal"],
+        )
+        point2plane = point2plane_distance(
             s_point[mask],
             out["point"][mask],
             out["normal"][mask],
         )
-        return error.mean() * 1e03  # from m to mm
+        point2plane = point2plane.mean() * 1e03  # from m to mm
+
+        point2point = point2point_distance(
+            s_point[mask],
+            out["point"][mask],
+        )
+        point2point = point2point.mean() * 1e03  # from m to mm
+
+        return dict(point2plane=point2plane, point2point=point2point)
 
     def compute_param_loss(self, params, gt_params):
         param_loss = {}

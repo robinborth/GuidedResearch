@@ -4,13 +4,13 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import wandb
 import yaml
 from lightning.pytorch.loggers.wandb import WandbLogger
 from matplotlib import cm
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
 
+import wandb
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import Flame
 from lib.rasterizer import Rasterizer
@@ -51,6 +51,7 @@ class FlameLogger(WandbLogger):
         mode: str = "train",
         batch_idx: int = 0,
     ):
+        # update full resolution
         gt_out = flame.render(renderer=renderer, params=batch["params"])
         init_out = flame.render(renderer=renderer, params=batch["init_params"])
         new_out = flame.render(renderer=renderer, params=out["params"])
@@ -155,6 +156,33 @@ class FlameLogger(WandbLogger):
         visualize_grid(images=images.unsqueeze(0))
         wandb_images.append(wandb.Image(plt, caption="gt_error_map"))
         plt.close()
+
+        # reset scale to previous
+        scale = renderer.camera.scale
+        renderer.update(scale=2)
+        gt_out = flame.render(renderer=renderer, params=batch["params"])
+        init_out = flame.render(renderer=renderer, params=batch["init_params"])
+        new_out = flame.render(renderer=renderer, params=out["params"])
+
+        # flame init
+        images = init_out["color"]
+        visualize_grid(images=images)
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        # flame new
+        images = new_out["color"]
+        visualize_grid(images=images)
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        # flame target
+        images = gt_out["color"]
+        visualize_grid(images=images)
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        renderer.update(scale=scale)
 
         self.log_image(f"{mode}/images", wandb_images)  # type:ignore
 
