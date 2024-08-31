@@ -372,8 +372,18 @@ dphm_innocenzo_fulgintl_rotatemouth:
 	data.dataset_name=dphm_innocenzo_fulgintl_rotatemouth \
 
 ####################################################################################
+# Masters Day Results
+####################################################################################
+
+
+.PHONY: results results_fulgitl1 results_fulgitl2 results_christoph1 results_christoph2
+results: results_fulgitl1 results_fulgitl2 results_christoph1 results_christoph2
+
+
+####################################################################################
 # Masters Day Results (Fulgitl-1)
 ####################################################################################
+
 
 .PHONY: results_fulgitl1 results_fulgitl1_1_params_p2p results_fulgitl1_3_params_p2p results_fulgitl1_3_params results_fulgitl1_3_p2p results_fulgitl1_10_params_p2p
 results_fulgitl1: results_fulgitl1_1_params_p2p results_fulgitl1_3_params_p2p results_fulgitl1_3_params results_fulgitl1_3_p2p results_fulgitl1_10_params_p2p
@@ -381,8 +391,8 @@ results_fulgitl1: results_fulgitl1_1_params_p2p results_fulgitl1_3_params_p2p re
 
 results_fulgitl1_1_params_p2p:
 	python scripts/training.py \
-	logger.name=results_fulgitl_1_params_p2p \
-	logger.tags=[train,results_fulgitl_1_params_p2p] \
+	logger.name=results_fulgitl1_1_params_p2p \
+	logger.tags=[train,results_fulgitl1_1_params_p2p] \
 	logger.group=train \
 	framework.max_iters=1 \
 	framework.max_optims=1 \
@@ -395,8 +405,8 @@ results_fulgitl1_1_params_p2p:
 
 results_fulgitl1_3_params_p2p:
 	python scripts/training.py \
-	logger.name=results_fulgitl_3_params_p2p \
-	logger.tags=[train,results_fulgitl_3_params_p2p] \
+	logger.name=results_fulgitl1_3_params_p2p \
+	logger.tags=[train,results_fulgitl1_3_params_p2p] \
 	logger.group=train \
 	framework.max_iters=3 \
 	framework.max_optims=1 \
@@ -409,8 +419,8 @@ results_fulgitl1_3_params_p2p:
 
 results_fulgitl1_3_params:
 	python scripts/training.py \
-	logger.name=results_fulgitl_3_params \
-	logger.tags=[train,results_fulgitl_3_params] \
+	logger.name=results_fulgitl1_3_params \
+	logger.tags=[train,results_fulgitl1_3_params] \
 	logger.group=train \
 	framework.max_iters=3 \
 	framework.max_optims=1 \
@@ -423,8 +433,8 @@ results_fulgitl1_3_params:
 
 results_fulgitl1_3_p2p:
 	python scripts/training.py \
-	logger.name=results_fulgitl_3_p2p \
-	logger.tags=[train,results_fulgitl_3_p2p] \
+	logger.name=results_fulgitl1_3_p2p \
+	logger.tags=[train,results_fulgitl1_3_p2p] \
 	logger.group=train \
 	framework.max_iters=3 \
 	framework.max_optims=1 \
@@ -437,8 +447,8 @@ results_fulgitl1_3_p2p:
 
 results_fulgitl1_10_params_p2p:
 	python scripts/training.py \
-	logger.name=results_fulgitl_10_params_p2p \
-	logger.tags=[train,results_fulgitl_10_params_p2p] \
+	logger.name=results_fulgitl1_10_params_p2p \
+	logger.tags=[train,results_fulgitl1_10_params_p2p] \
 	logger.group=train \
 	framework.max_iters=10 \
 	framework.max_optims=1 \
@@ -452,6 +462,7 @@ results_fulgitl1_10_params_p2p:
 ####################################################################################
 # Masters Day Results (Fulgitl-2)
 ####################################################################################
+
 
 .PHONY: results_fulgitl2 results_fulgitl2_1_params_p2p results_fulgitl2_3_params_p2p results_fulgitl2_3_params results_fulgitl2_3_p2p results_fulgitl2_10_params_p2p
 results_fulgitl2: results_fulgitl2_1_params_p2p results_fulgitl2_3_params_p2p results_fulgitl2_3_params results_fulgitl2_3_p2p results_fulgitl2_10_params_p2p

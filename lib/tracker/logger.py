@@ -4,13 +4,13 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import wandb
 import yaml
 from lightning.pytorch.loggers.wandb import WandbLogger
 from matplotlib import cm
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
 
-import wandb
 from lib.data.datamodule import DPHMDataModule
 from lib.model.flame import Flame
 from lib.rasterizer import Rasterizer
@@ -159,7 +159,7 @@ class FlameLogger(WandbLogger):
 
         # reset scale to previous
         scale = renderer.camera.scale
-        renderer.update(scale=2)
+        renderer.update(scale=1)
         gt_out = flame.render(renderer=renderer, params=batch["params"])
         init_out = flame.render(renderer=renderer, params=batch["init_params"])
         new_out = flame.render(renderer=renderer, params=out["params"])
