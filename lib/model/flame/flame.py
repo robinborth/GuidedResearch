@@ -167,7 +167,7 @@ class Flame(L.LightningModule):
         lm_bary_coods = self.lm_bary_coords.expand(B, -1, -1).unsqueeze(-1)
         landmarks = (lm_bary_coods * lm_vertices).sum(-2)  # (B, 105, D)
 
-        return {"vertices": vertices, "landmarks": landmarks}
+        return {"vertices": vertices, "landmark": landmarks}
 
     ####################################################################################
     # Model Utils

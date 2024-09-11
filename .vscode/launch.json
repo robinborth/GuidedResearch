@@ -16,16 +16,17 @@
             "request": "launch",
             "program": "scripts/optimize.py",
             "args": [
-                "data.dataset_name=dataset_name=ali_kocal_mouthmove"
+                "residuals=landmark",
+                "optimizer.step_size=1e-04",
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
         },
         {
-            "name": "Debug: Generate",
+            "name": "Debug: Generate Dataset",
             "type": "debugpy",
             "request": "launch",
-            "program": "scripts/generate_synthetic.py",
+            "program": "scripts/prepare_dataset.py",
             "args": [],
             "console": "integratedTerminal",
             "justMyCode": false,

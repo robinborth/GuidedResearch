@@ -274,7 +274,7 @@ class Renderer:
     @classmethod
     def normal_to_normal_image(self, normal, mask):
         normal_image = (((normal + 1) / 2) * 255).to(torch.uint8)
-        normal_image[~mask] = 0
+        normal_image[~mask] = 255
         return normal_image
 
     def normal_to_color_image(self, normal, mask):

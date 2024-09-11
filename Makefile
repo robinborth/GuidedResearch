@@ -555,7 +555,7 @@ results_christoph1_1_params_p2p:
 	framework.max_optims=1 \
 	framework.param_weight=1.0 \
 	framework.geometric_weight=1.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=52 \
 	framework.log_frame_idx=52 \
@@ -569,7 +569,7 @@ results_christoph1_3_params_p2p:
 	framework.max_optims=1 \
 	framework.param_weight=1.0 \
 	framework.geometric_weight=1.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=52 \
 	framework.log_frame_idx=52 \
@@ -583,7 +583,7 @@ results_christoph1_3_params:
 	framework.max_optims=1 \
 	framework.param_weight=1.0 \
 	framework.geometric_weight=0.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=52 \
 	framework.log_frame_idx=52 \
@@ -597,7 +597,7 @@ results_christoph1_3_p2p:
 	framework.max_optims=1 \
 	framework.param_weight=0.0 \
 	framework.geometric_weight=0.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=52 \
 	framework.log_frame_idx=52 \
@@ -611,7 +611,7 @@ results_christoph1_10_params_p2p:
 	framework.max_optims=1 \
 	framework.param_weight=1.0 \
 	framework.geometric_weight=1.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=52 \
 	framework.log_frame_idx=52 \
@@ -634,7 +634,7 @@ results_christoph2_1_params_p2p:
 	framework.max_optims=1 \
 	framework.param_weight=1.0 \
 	framework.geometric_weight=1.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=42 \
 	framework.log_frame_idx=42 \
@@ -648,7 +648,7 @@ results_christoph2_3_params_p2p:
 	framework.max_optims=1 \
 	framework.param_weight=1.0 \
 	framework.geometric_weight=1.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=42 \
 	framework.log_frame_idx=42 \
@@ -662,7 +662,7 @@ results_christoph2_3_params:
 	framework.max_optims=1 \
 	framework.param_weight=1.0 \
 	framework.geometric_weight=0.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=42 \
 	framework.log_frame_idx=42 \
@@ -676,7 +676,7 @@ results_christoph2_3_p2p:
 	framework.max_optims=1 \
 	framework.param_weight=0.0 \
 	framework.geometric_weight=0.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=42 \
 	framework.log_frame_idx=42 \
@@ -690,7 +690,7 @@ results_christoph2_10_params_p2p:
 	framework.max_optims=1 \
 	framework.param_weight=1.0 \
 	framework.geometric_weight=1.0 \
-	data.dataset_name=dphm_christoph_rotatemouth \
+	data.dataset_name=dphm_christoph_mouthmove \
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=42 \
 	framework.log_frame_idx=42 \

@@ -24,6 +24,7 @@ class DifferentiableOptimizer:
         self._p_names = None
         self._converged = False
         self.time_tracker = TimeTracker()
+        self.residual_tracker = []
 
         # convergence criterias
         self.eps_step = eps_step
@@ -205,6 +206,7 @@ class DifferentiableOptimizer:
         )
         jacobians, (F, info) = jacobian_fn(*self._aktive_params.values())
         J = torch.cat([j.flatten(-2) for j in jacobians], dim=-1)  # (M, N)
+        self.residual_tracker.append(int(J.shape[0]))
         return J, F
 
     def step(self, closure: Callable[[dict[str, torch.Tensor]], torch.Tensor]):

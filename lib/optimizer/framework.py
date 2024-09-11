@@ -471,8 +471,10 @@ class ICPOptimizer(OptimizerFramework):
                 F, info = self.residuals.step(
                     s_normal=batch["normal"][mask],
                     s_point=batch["point"][mask],
+                    s_landmark=batch["landmark"],
                     t_normal=out["normal"][mask],
                     t_point=t_point,
+                    t_landmark=m_out["landmark"],
                     params=new_params,
                 )
                 return F, (F, info)

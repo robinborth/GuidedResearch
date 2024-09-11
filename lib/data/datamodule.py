@@ -47,7 +47,7 @@ class DPHMDataModule(L.LightningDataModule):
         """This is modified by the coarse to fine scheduler."""
         self.scale = camera.scale
         if self.scale not in self._datasets:  # cache the dataset with the scale
-            _dataset = self.hparams["dataset"](camera=camera, rasterizer=rasterizer)
+            _dataset = self.hparams["dataset"](scale=self.scale)
             self._datasets[self.scale] = _dataset
         self.dataset = self._datasets[self.scale]  # select the dataset with the scale
 
@@ -222,9 +222,9 @@ class KinectDataModule(L.LightningDataModule):
         self.renderer = renderer
 
     def setup(self, stage: str = "all"):
-        camera = self.renderer.camera  # type: ignore
-        self.train_dataset = self.hparams["train_dataset"](camera=camera)
-        self.val_dataset = self.hparams["val_dataset"](camera=camera)
+        scale = self.renderer.camera.scale  # type: ignore
+        self.train_dataset = self.hparams["train_dataset"](scale=scale)
+        self.val_dataset = self.hparams["val_dataset"](scale=scale)
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

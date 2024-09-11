@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from lib.data.preprocessing import biliteral_filter
+from lib.data.preprocessing import biliteral_filter, point2normal
 
 ########################################################################################
 # Utils
@@ -30,7 +30,8 @@ def load_mask(
     data_dir: str | Path,
     idx: int,
     return_tensor: str = "np",
-    threshold: float = 200.0,
+    depth_factor: float = 1000,
+    threshold: float = 0.8,  # in m
 ):
     """Creates a binary mask for the kinect images.
 
@@ -47,10 +48,12 @@ def load_mask(
     """
     assert return_tensor in ["pt", "np"]
 
-    path = Path(data_dir) / "depth_normals_bilateral" / f"{idx:05}_depth.jpg"
-    mask_image = Image.open(path)
+    path = Path(data_dir) / "depth" / f"{idx:05}.png"
+    depth_image = np.asarray(Image.open(path)).copy()
 
-    mask = np.asarray(mask_image).mean(-1) < threshold
+    depth = (depth_image / depth_factor).astype(np.float32)
+    mask = (depth < threshold) & (depth != 0)
+
     if return_tensor == "pt":
         return torch.tensor(mask)
     return mask
@@ -132,6 +135,7 @@ def load_depth(
 
 def load_normal(
     data_dir: str | Path,
+    camera,
     idx: int,
     value: float | int = 0,
     return_tensor: str = "np",
@@ -149,10 +153,11 @@ def load_normal(
     """
 
     assert return_tensor in ["np", "pt"]
-    mask = load_mask(data_dir=data_dir, idx=idx, return_tensor="np")
 
-    path = Path(data_dir) / "depth_normals_bilateral" / f"{idx:05}_normal.jpg"
-    normal_image = np.asarray(Image.open(path)).copy()
+    depth = load_depth(data_dir=data_dir, idx=idx, return_tensor="pt")
+    normal, mask = depth2normal(depth, camera)
+    normal_image = (((normal + 1) / 2) * 255).to(torch.uint8)
+    normal_image = normal_image.detach().cpu().numpy()
 
     if smooth:
         normal_image = biliteral_filter(
@@ -164,7 +169,7 @@ def load_normal(
 
     normal = ((normal_image / 255) * 2) - 1
     normal = normal / np.linalg.norm(normal, axis=-1)[..., None]
-    normal[~mask] = value
+    normal[~mask.detach().cpu().numpy()] = value
 
     return convert_tensor_from_np(normal, return_tensor=return_tensor)
 

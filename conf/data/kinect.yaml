@@ -2,7 +2,8 @@
 _target_: lib.data.datamodule.DPHMDataModule
 
 # dataset settings
-dataset_name: dphm_christoph_mouthmove
+dataset_name: christoph_mouthmove
+# data_dir: ${paths.data_dir}/DPHM-Kinect/${data.dataset_name}
 data_dir: ${paths.data_dir}/${data.dataset_name}
 sequence_length: 127
 

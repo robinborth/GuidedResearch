@@ -96,26 +96,16 @@ class SymmetricICPResiduals(Residuals):
 ####################################################################################
 
 
-class ShapeRegularizationResiduals(Residuals):
-    name: str = "shape_regularization"
+class RegularizationResiduals(Residuals):
+    def __init__(self, name: str, weight: float = 1.0):
+        super().__init__()
+        self.weight = weight
+        self.name = name
 
     def forward(self, **kwargs):
-        params = kwargs["params"]
-        shape_params = params["shape_params"]
-        if shape_params is not None:
-            return [self.weight * shape_params.view(-1)]
-        device = kwargs["s_point"].device
-        return [torch.tensor([], device=device)]
-
-
-class ExpressionRegularizationResiduals(Residuals):
-    name: str = "expression_regularization"
-
-    def forward(self, **kwargs):
-        params = kwargs["params"]
-        expression_params = params["expression_params"]
-        if expression_params is not None:
-            return [self.weight * expression_params.view(-1)]
+        params = kwargs["params"][self.name]
+        if params is not None:
+            return [self.weight * params.view(-1)]
         device = kwargs["s_point"].device
         return [torch.tensor([], device=device)]
 
@@ -125,12 +115,14 @@ class ExpressionRegularizationResiduals(Residuals):
 ####################################################################################
 
 
-class Landmark2DResiduals(Residuals):
-    name: str = "landmark2d"
+class LandmarkResiduals(Residuals):
+    name: str = "landmark"
 
-
-class Landmark3DResiduals(Residuals):
-    name: str = "landmark3d"
+    def forward(self, **kwargs):
+        s_landmark = kwargs["s_landmark"]
+        t_landmark = kwargs["t_landmark"]
+        residuals = (s_landmark - t_landmark).sum(-1)
+        return [self.weight * residuals]
 
 
 ####################################################################################

@@ -14,7 +14,7 @@ dilation: 1
 start_frame: 0
 
 end_frame: 127
-max_iters: 50
+max_iters: 20
 max_optims: 5
 
 # end_frame: 1
