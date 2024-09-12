@@ -1,7 +1,7 @@
 run:
-  dir: ${paths.log_dir}/${now:%Y-%m-%d}_test_${now:%H-%M-%S}_${task_name}
+  dir: ${paths.log_dir}/${now:%Y-%m-%d}/${now:%H-%M-%S}_${task_name}
 sweep:
-  dir: ${paths.log_dir}/${now:%Y-%m-%d/${now:%H-%M-%S}_${task_name}
+  dir: ${paths.log_dir}/${now:%Y-%m-%d}/${now:%H-%M-%S}_${task_name}
   subdir: ${hydra.job.num}
 
 job_logging:

@@ -7,10 +7,6 @@ class Residuals(nn.Module):
         super().__init__()
         self.weight = weight
 
-    ####################################################################################
-    # Loss and Jacobian Computation
-    ####################################################################################
-
     @property
     def names(self):
         return [self.name]
@@ -119,9 +115,10 @@ class LandmarkResiduals(Residuals):
     name: str = "landmark"
 
     def forward(self, **kwargs):
+        mask = kwargs["s_landmark_mask"]
         s_landmark = kwargs["s_landmark"]
         t_landmark = kwargs["t_landmark"]
-        residuals = (s_landmark - t_landmark).sum(-1)
+        residuals = (s_landmark[mask] - t_landmark[mask]).flatten()
         return [self.weight * residuals]
 
 

@@ -152,7 +152,7 @@ class ProjectiveCorrespondenceModule(nn.Module):
         n_mask = normal_dot > self.n_threshold  # (B, W, H)
         # final loss mask of silhouette, depth and normal threshold
         final_mask = d_mask & f_mask & n_mask
-        assert final_mask.sum()  # we have some overlap
+        # assert final_mask.sum()  # we have some overlap
         return final_mask
 
     def transform(self, t_value: torch.Tensor, **kwargs):

@@ -56,6 +56,13 @@ class DPHMDataset(Dataset):
             landmark.append(torch.load(path))
         return landmark
 
+    def load_landmark_mask(self):
+        landmark = []
+        for frame_idx in self.iter_frame_idx():
+            path = Path(self.data_dir) / f"landmark_mask/{frame_idx:05}.pt"
+            landmark.append(torch.load(path))
+        return landmark
+
     def load_params(self):
         params = []
         for frame_idx in self.iter_frame_idx():
@@ -80,6 +87,7 @@ class DPHMPointDataset(DPHMDataset):
         self.color = self.load("color")
         self.point = self.load("point")
         self.landmark = self.load_landmark()
+        self.landmark_mask = self.load_landmark_mask()
         self.frame_idxs = list(self.iter_frame_idx())
 
     def __getitem__(self, idx: int):
@@ -89,6 +97,7 @@ class DPHMPointDataset(DPHMDataset):
         normal = self.normal[idx]
         color = self.color[idx]
         landmark = self.landmark[idx]
+        landmark_mask = self.landmark_mask[idx]
         frame_idx = self.frame_idxs[idx]
         return {
             "frame_idx": frame_idx,
@@ -97,6 +106,7 @@ class DPHMPointDataset(DPHMDataset):
             "normal": normal,
             "color": color,
             "landmark": landmark,
+            "landmark_mask": landmark_mask,
         }
 
 

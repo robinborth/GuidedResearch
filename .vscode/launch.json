@@ -16,8 +16,8 @@
             "request": "launch",
             "program": "scripts/optimize.py",
             "args": [
-                "residuals=landmark",
-                "optimizer.step_size=1e-04",
+                // "residuals=landmark",
+                "optimizer.step_size=1.0",
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

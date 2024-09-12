@@ -6,7 +6,7 @@ import torch
 from lib.model.correspondence import ProjectiveCorrespondenceModule
 from lib.model.flame.flame import Flame
 from lib.optimizer.base import DifferentiableOptimizer
-from lib.optimizer.residuals import Residuals
+from lib.optimizer.residuals import LandmarkResiduals, Residuals
 from lib.renderer.renderer import Renderer
 from lib.tracker.logger import FlameLogger
 from lib.tracker.timer import TimeTracker
@@ -382,6 +382,8 @@ class ICPOptimizer(OptimizerFramework):
         correspondence: torch.nn.Module,
         residuals: Residuals,
         optimizer: DifferentiableOptimizer,
+        save_interval: int = 1,
+        verbose: bool = True,
     ):
         super().__init__()
         self.flame = flame
@@ -391,8 +393,8 @@ class ICPOptimizer(OptimizerFramework):
         self.residuals = residuals
         self._logger = logger
         self.time_tracker = TimeTracker()
-        self.verbose = True
-        self.save_interval = 1
+        self.verbose = verbose
+        self.save_interval = save_interval
 
     @property
     def logger(self):
@@ -472,6 +474,7 @@ class ICPOptimizer(OptimizerFramework):
                     s_normal=batch["normal"][mask],
                     s_point=batch["point"][mask],
                     s_landmark=batch["landmark"],
+                    s_landmark_mask=batch["landmark_mask"],
                     t_normal=out["normal"][mask],
                     t_point=t_point,
                     t_landmark=m_out["landmark"],
@@ -530,6 +533,7 @@ class ICPOptimizer(OptimizerFramework):
                     t_color=out["color"],
                     t_normal_image=out["normal_image"],
                     t_depth_image=out["depth_image"],
+                    t_landmark=out["landmark"],
                 )
                 self.logger.log_input_batch(
                     frame_idx=batch["frame_idx"],
@@ -537,6 +541,7 @@ class ICPOptimizer(OptimizerFramework):
                     s_point=batch["point"],
                     s_normal=batch["normal"],
                     s_color=batch["color"],
+                    s_landmark=batch["landmark"],
                 )
             self.time_tracker.stop("outer_logging")
 
@@ -645,6 +650,39 @@ class VertexOptimizer(OptimizerFramework):
             F, info = self.residuals.step(
                 t_vertices=m_out["vertices"],
                 s_vertices=batch["vertices"],
+            )
+            return F, (F, info)
+
+        for iter_step in range(self.max_iters):
+            self.optimizer.step(residual_closure)
+        return dict(params=self.optimizer.get_params())
+
+
+class LandmarkRigidOptimizer(OptimizerFramework):
+    def __init__(
+        self,
+        flame: Flame,
+        optimizer: DifferentiableOptimizer,
+        max_iters: int = 1,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.flame = flame
+        self.optimizer = optimizer
+        self.residuals = LandmarkResiduals()
+        self.max_iters = max_iters
+
+    def forward(self, batch: dict):
+        self.optimizer.set_params(batch["params"])
+        self.optimizer._p_names = ["transl", "global_pose"]  # type: ignore
+
+        def residual_closure(*args):
+            new_params = self.optimizer.residual_params(args)
+            m_out = self.flame(**new_params)
+            F, info = self.residuals.step(
+                s_landmark=batch["landmark"],
+                s_landmark_mask=batch["landmark_mask"],
+                t_landmark=m_out["landmark"],
             )
             return F, (F, info)
 

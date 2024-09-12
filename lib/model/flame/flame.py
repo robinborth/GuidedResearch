@@ -272,4 +272,5 @@ class Flame(L.LightningModule):
             vertices=m_out["vertices"],  # (B, V, 3)
             faces=faces,  # (F, 3)
         )
+        r_out["landmark"] = m_out["landmark"]
         return r_out

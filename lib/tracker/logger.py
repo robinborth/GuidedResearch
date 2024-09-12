@@ -300,6 +300,7 @@ class FlameLogger(WandbLogger):
         t_color: torch.Tensor,
         t_normal_image: torch.Tensor,
         t_depth_image: torch.Tensor,
+        t_landmark: torch.Tensor,
     ):
         for _, b_idx, f_idx in self.iter_debug_idx(frame_idx):
             file_name = self.log_path("render_mask", f_idx, "png")
@@ -333,6 +334,9 @@ class FlameLogger(WandbLogger):
             )
             self.save_image(file_name, render_merged[b_idx])
 
+            file_name = self.log_path("render_landmark", f_idx, "pt")
+            self.save_points(file_name, t_landmark[b_idx])
+
     def log_input_batch(
         self,
         frame_idx: torch.Tensor,
@@ -340,6 +344,7 @@ class FlameLogger(WandbLogger):
         s_point: torch.Tensor,
         s_color: torch.Tensor,
         s_normal: torch.Tensor,
+        s_landmark: torch.Tensor,
     ):
         for _, b_idx, f_idx in self.iter_debug_idx(frame_idx):
             file_name = self.log_path("batch_mask", f_idx, "png")
@@ -356,6 +361,9 @@ class FlameLogger(WandbLogger):
 
             file_name = self.log_path("batch_color", f_idx, "png")
             self.save_image(file_name, s_color[b_idx])
+
+            file_name = self.log_path("batch_landmark", f_idx, "pt")
+            self.save_points(file_name, s_landmark[b_idx])
 
     def log_metrics_stats(
         self,
@@ -426,8 +434,7 @@ class FlameLogger(WandbLogger):
     def save_points(self, file_name: str, points: torch.Tensor):
         path = Path(self.save_dir) / file_name  # type: ignore
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as f:
-            np.save(f, points.detach().cpu().numpy())
+        torch.save(points.detach().cpu(), path)
 
     def save_params(self, params: dict, frame_idx: torch.Tensor):
         assert len(frame_idx) == 1
@@ -482,6 +489,7 @@ class FlameLogger(WandbLogger):
             t_color=out["color"],
             t_normal_image=out["normal_image"],
             t_depth_image=out["depth_image"],
+            t_landmark=out["landmark"],
         )
         self.log_input_batch(
             frame_idx=batch["frame_idx"],
@@ -489,6 +497,7 @@ class FlameLogger(WandbLogger):
             s_point=batch["point"],
             s_normal=batch["normal"],
             s_color=batch["color"],
+            s_landmark=batch["landmark"],
         )
         self.save_params(
             params=params,

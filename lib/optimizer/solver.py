@@ -306,6 +306,13 @@ class LinearSystemSolver(L.LightningModule):
 class PytorchSolver(LinearSystemSolver):
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         info: dict = {}
+        x = torch.linalg.solve(A, b)
+        return x, info
+
+
+class PytorchEpsSolver(LinearSystemSolver):
+    def forward(self, A: torch.Tensor, b: torch.Tensor):
+        info: dict = {}
         # add noise to make it non-singular
         eps_A = torch.rand_like(A) * 1e-09
         eps_b = torch.rand_like(b) * 1e-09

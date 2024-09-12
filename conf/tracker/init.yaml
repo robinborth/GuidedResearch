@@ -1,0 +1,24 @@
+# @package init_tracker
+
+defaults:
+  - defaults
+  - _self_ 
+
+_target_: lib.tracker.tracker.InitTracker
+
+# loop settings
+init_idxs: ${joint_tracker.init_idxs}
+
+max_iters: 3
+max_optims: 5
+
+scheduler:
+  milestones: [0]
+  params: [[global_pose,transl]]
+
+coarse2fine:
+  milestones: [0]
+  scales: [8]
+
+default_params:
+  transl: [0.0,0.0,-0.5]

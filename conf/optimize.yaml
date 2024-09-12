@@ -4,11 +4,12 @@ defaults:
   - model: flame 
   - logger: flame_wandb 
   - data: kinect
-  - residuals: regularization 
+  - residuals: face2face
   - optimizer: gauss_newton
   - framework : icp 
   - correspondence: projective 
   - tracker:
+    - init
     - joint
     - sequential
   - hydra: default

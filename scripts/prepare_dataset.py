@@ -27,9 +27,8 @@ log = logging.getLogger()
 
 def optimize() -> None:
     log.info("==> loading config ...")
-    inf_depth: float = 10.0
     depth_factor: float = 1000
-    mask_threshold: float = 0.7
+    inf_depth: float = 0.7
     scales: list[int] = [1, 2, 4, 8]
     data_dir = "/home/borth/GuidedResearch/data/christoph_mouthmove"
     flame_dir = "/home/borth/GuidedResearch/checkpoints/flame2023_no_jaw"
@@ -56,7 +55,7 @@ def optimize() -> None:
         depth = raw_depth / depth_factor  # (H,W)
 
         # select the foreground based on a depth threshold
-        f_mask = (depth < mask_threshold) & (depth != 0)
+        f_mask = (depth < inf_depth) & (depth != 0)
         depth[~f_mask] = inf_depth
 
         # convert pointmap to normalmap
@@ -69,7 +68,6 @@ def optimize() -> None:
         # mask the default values
         color[~mask] = 255
         normal[~mask] = 0
-        depth[~mask] = 0
 
         # smooth the normal maps
         normal = biliteral_filter(
@@ -97,10 +95,16 @@ def optimize() -> None:
         landmark = landmark[media_idx].long()
         u = landmark[:, 0]
         v = landmark[:, 1]
+
         landmarks = point[v, u]
         path = Path(data_dir) / f"landmark/{idx:05}.pt"
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(landmarks, path)
+
+        landmarks_mask = mask[v, u]
+        path = Path(data_dir) / f"landmark_mask/{idx:05}.pt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(landmarks_mask, path)
 
         for scale in scales:
             # downscale the images
@@ -110,18 +114,24 @@ def optimize() -> None:
                 size=size,
             )
             down_mask = image[0] == 1.0
+
             down_color = v2.functional.resize(
                 inpt=color.permute(2, 0, 1),
                 size=size,
             ).permute(1, 2, 0)
+            down_color[~down_mask] = 255
+
             down_normal = v2.functional.resize(
                 inpt=normal.permute(2, 0, 1),
                 size=size,
             ).permute(1, 2, 0)
+            down_normal[~down_mask] = 0
+
             down_point = v2.functional.resize(
                 inpt=point.permute(2, 0, 1),
                 size=size,
             ).permute(1, 2, 0)
+            down_point[~down_mask] = 0
 
             # save results
             path = cache_dir / f"{scale}_mask" / f"{idx:05}.pt"

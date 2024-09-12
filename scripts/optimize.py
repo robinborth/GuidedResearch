@@ -59,11 +59,21 @@ def optimize(cfg: DictConfig):
         optimizer=optimizer,
     )
 
+    log.info("==> initializing initial tracking ...")
+    trainer = hydra.utils.instantiate(
+        cfg.init_tracker,
+        optimizer=framework,
+        datamodule=datamodule,
+    )
+    log.info("==> start optimization ...")
+    init_params = trainer.optimize()
+
     log.info("==> initializing joint tracking ...")
     trainer = hydra.utils.instantiate(
         cfg.joint_tracker,
         optimizer=framework,
         datamodule=datamodule,
+        default_params=init_params,
     )
     log.info("==> start optimization ...")
     joint_params = trainer.optimize()

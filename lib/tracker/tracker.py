@@ -5,11 +5,73 @@ from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
 from lib.data.synthesis import generate_params
-from lib.optimizer.framework import OptimizerFramework
+from lib.optimizer.framework import LandmarkRigidOptimizer, OptimizerFramework
+from lib.optimizer.residuals import LandmarkResiduals
 from lib.tracker.scheduler import CoarseToFineScheduler, OptimizerScheduler
 from lib.utils.progress import close_progress, reset_progress
 
 log = logging.getLogger()
+
+
+class InitTracker:
+    def __init__(
+        self,
+        datamodule: DPHMDataModule,
+        optimizer: OptimizerFramework,
+        scheduler: OptimizerScheduler,
+        coarse2fine: CoarseToFineScheduler,
+        max_iters: int = 1,
+        max_optims: int = 1,
+        init_idxs: list[int] = [],
+        default_params: dict = {},
+    ):
+        self.mode = "init"
+        self.datamodule = datamodule
+        self.coarse2fine = coarse2fine
+        self.scheduler = scheduler
+        self.max_iters = max_iters
+        self.max_optims = max_optims
+        self.optimizer = optimizer
+        self.init_idxs = init_idxs
+        self.default_params = default_params
+        assert len(init_idxs) > 0
+
+    def outer_progress(self):
+        return tqdm(total=self.max_iters, desc="Outer Loop", position=1)
+
+    def inner_progress(self):
+        return tqdm(total=self.max_optims, desc="Inner Loop", leave=True, position=2)
+
+    def optimize(self):
+        # override residuals
+        prev_residuals = self.optimizer.residuals
+        self.optimizer.residuals = LandmarkResiduals()
+
+        # build the batch
+        batch = {}
+        batch["params"] = generate_params(
+            self.optimizer.flame,
+            window_size=len(self.init_idxs),
+            default=self.default_params,
+        )
+        batch["outer_progress"] = self.outer_progress()
+        batch["inner_progress"] = self.inner_progress()
+        batch["max_iters"] = self.max_iters
+        batch["max_optims"] = self.max_optims
+        batch["mode"] = self.mode
+        batch["coarse2fine"] = self.coarse2fine
+        batch["scheduler"] = self.scheduler
+        batch["datamodule"] = self.datamodule
+
+        self.datamodule.update_idxs(self.init_idxs)
+        with torch.no_grad():
+            out = self.optimizer(batch)
+        close_progress([batch["outer_progress"], batch["inner_progress"]])
+
+        # store previous residuals
+        self.optimizer.residuals = prev_residuals
+
+        return out["params"]
 
 
 class JointTracker:
