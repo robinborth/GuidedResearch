@@ -22,6 +22,7 @@ class InitTracker:
         coarse2fine: CoarseToFineScheduler,
         max_iters: int = 1,
         max_optims: int = 1,
+        save_interval: int = 1,
         init_idxs: list[int] = [],
         default_params: dict = {},
     ):
@@ -32,6 +33,7 @@ class InitTracker:
         self.max_iters = max_iters
         self.max_optims = max_optims
         self.optimizer = optimizer
+        self.optimizer.save_interval = save_interval  # type: ignore
         self.init_idxs = init_idxs
         self.default_params = default_params
         assert len(init_idxs) > 0
@@ -83,6 +85,7 @@ class JointTracker:
         coarse2fine: CoarseToFineScheduler,
         max_iters: int = 1,
         max_optims: int = 1,
+        save_interval: int = 1,
         init_idxs: list[int] = [],
         default_params: dict = {},
     ):
@@ -93,6 +96,7 @@ class JointTracker:
         self.max_iters = max_iters
         self.max_optims = max_optims
         self.optimizer = optimizer
+        self.optimizer.save_interval = save_interval  # type: ignore
         self.init_idxs = init_idxs
         self.default_params = default_params
         assert len(init_idxs) > 0
@@ -106,11 +110,7 @@ class JointTracker:
     def optimize(self):
         # build the batch
         batch = {}
-        batch["params"] = generate_params(
-            self.optimizer.flame,
-            window_size=len(self.init_idxs),
-            default=self.default_params,
-        )
+        batch["params"] = self.default_params
         batch["outer_progress"] = self.outer_progress()
         batch["inner_progress"] = self.inner_progress()
         batch["max_iters"] = self.max_iters
@@ -136,6 +136,7 @@ class SequentialTracker:
         coarse2fine: CoarseToFineScheduler,
         max_iters: int = 1,
         max_optims: int = 1,
+        save_interval: int = 1,
         kernel_size: int = 1,
         stride: int = 1,
         dilation: int = 1,
@@ -151,6 +152,7 @@ class SequentialTracker:
         self.max_iters = max_iters
         self.max_optims = max_optims
         self.optimizer = optimizer
+        self.optimizer.save_interval = save_interval  # type: ignore
         self.default_params = {
             k: v[0].detach().cpu().tolist() for k, v in default_params.items()
         }

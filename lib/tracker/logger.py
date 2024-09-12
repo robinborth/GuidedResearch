@@ -289,6 +289,22 @@ class FlameLogger(WandbLogger):
             )
             self.save_image(file_name, error_map)
 
+    def log_live(
+        self,
+        frame_idx: torch.Tensor,
+        s_color: torch.Tensor,
+        t_mask: torch.Tensor,
+        t_color: torch.Tensor,
+    ):
+        for _, b_idx, f_idx in self.iter_debug_idx(frame_idx):
+            file_name = f"live/{f_idx:05}.png"
+            render_merged = visualize_merged(
+                s_color=s_color,
+                t_color=t_color,
+                t_mask=t_mask,
+            )
+            self.save_image(file_name, render_merged[b_idx])
+
     def log_render(
         self,
         frame_idx: torch.Tensor,
@@ -347,22 +363,22 @@ class FlameLogger(WandbLogger):
         s_landmark: torch.Tensor,
     ):
         for _, b_idx, f_idx in self.iter_debug_idx(frame_idx):
-            file_name = self.log_path("batch_mask", f_idx, "png")
+            file_name = f"{self.mode}/batch_mask/{f_idx:05}.png"
             self.save_image(file_name, s_mask[b_idx])
 
-            file_name = self.log_path("batch_depth", f_idx, "png")
+            file_name = f"{self.mode}/batch_depth/{f_idx:05}.png"
             depth = Renderer.point_to_depth(s_point)
             depth_image = Renderer.depth_to_depth_image(depth)
             self.save_image(file_name, depth_image[b_idx])
 
-            file_name = self.log_path("batch_normal", f_idx, "png")
+            file_name = f"{self.mode}/batch_normal/{f_idx:05}.png"
             normal_image = Renderer.normal_to_normal_image(s_normal, s_mask)
             self.save_image(file_name, normal_image[b_idx])
 
-            file_name = self.log_path("batch_color", f_idx, "png")
+            file_name = f"{self.mode}/batch_color/{f_idx:05}.png"
             self.save_image(file_name, s_color[b_idx])
 
-            file_name = self.log_path("batch_landmark", f_idx, "pt")
+            file_name = f"{self.mode}/batch_landmark/{f_idx:05}.pt"
             self.save_points(file_name, s_landmark[b_idx])
 
     def log_metrics_stats(
@@ -453,7 +469,7 @@ class FlameLogger(WandbLogger):
     ):
         # full screen setup
         self.capture_eval = True
-        renderer.update(scale=1)
+        renderer.update(scale=2)
         datamodule.update_dataset(
             camera=renderer.camera,
             rasterizer=renderer.rasterizer,
@@ -465,7 +481,6 @@ class FlameLogger(WandbLogger):
         # render the full model
         self.mode = "eval"
         with torch.no_grad():
-            m_out = flame(**params)
             out = flame.render(
                 renderer=renderer,
                 params=params,

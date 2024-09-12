@@ -25,18 +25,27 @@ from lib.utils.config import set_configs
 log = logging.getLogger()
 
 
-def optimize() -> None:
+@hydra.main(version_base=None, config_path="../conf", config_name="optimize")
+def optimize(cfg: DictConfig):
     log.info("==> loading config ...")
-    depth_factor: float = 1000
-    inf_depth: float = 0.7
-    scales: list[int] = [1, 2, 4, 8]
-    data_dir = "/home/borth/GuidedResearch/data/christoph_mouthmove"
-    flame_dir = "/home/borth/GuidedResearch/checkpoints/flame2023_no_jaw"
+    depth_factor: float = cfg.data.depth_factor
+    inf_depth: float = cfg.data.inf_depth
+    scales: list[int] = cfg.data.scales
+    data_dir = cfg.data.data_dir
+    flame_dir = cfg.model.flame_dir
     cache_dir = Path(data_dir) / "cache"
 
     log.info("==> initializing camera and rasterizer ...")
     K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
-    camera = Camera(K=K, width=1920, height=1080, scale=1, device="cpu")
+    camera = Camera(
+        K=K,
+        width=cfg.data.width,
+        height=cfg.data.height,
+        near=cfg.data.near,
+        far=cfg.data.far,
+        scale=1,
+        device="cpu",
+    )
 
     log.info("==> load mediapipe idx ...")
     flame_landmarks = load_static_landmark_embedding(flame_dir)
@@ -72,15 +81,15 @@ def optimize() -> None:
         # smooth the normal maps
         normal = biliteral_filter(
             image=normal,
-            dilation=30,
-            sigma_color=250,
-            sigma_space=250,
+            dilation=cfg.data.normal_dilation,
+            sigma_color=150,
+            sigma_space=150,
         )
 
         # create the point maps
         depth = biliteral_filter(
             image=depth,
-            dilation=30,
+            dilation=cfg.data.depth_dilation,
             sigma_color=150,
             sigma_space=150,
         )

@@ -322,7 +322,7 @@ class PytorchEpsSolver(LinearSystemSolver):
         valid_grad_mask = b != 0
         x = x * valid_grad_mask
         if (~valid_grad_mask).sum() >= 1:
-            print("Singular!")
+            log.info("Singular!")
         return x, info
 
 

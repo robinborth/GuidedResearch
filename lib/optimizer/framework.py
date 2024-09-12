@@ -514,6 +514,12 @@ class ICPOptimizer(OptimizerFramework):
 
             # progress logging
             self.time_tracker.start("outer_logging")
+            self.logger.log_live(
+                frame_idx=batch["frame_idx"],
+                s_color=batch["color"],
+                t_mask=out["mask"],
+                t_color=out["color"],
+            )
             if (iter_step % self.save_interval) == 0 and self.verbose:
                 self.logger.log_error(
                     frame_idx=batch["frame_idx"],

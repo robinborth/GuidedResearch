@@ -10,7 +10,8 @@ _target_: lib.tracker.tracker.InitTracker
 init_idxs: ${joint_tracker.init_idxs}
 
 max_iters: 3
-max_optims: 5
+max_optims: 10
+save_interval: 1
 
 scheduler:
   milestones: [0]

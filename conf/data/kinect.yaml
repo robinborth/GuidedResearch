@@ -3,7 +3,6 @@ _target_: lib.data.datamodule.DPHMDataModule
 
 # dataset settings
 dataset_name: christoph_mouthmove
-# data_dir: ${paths.data_dir}/DPHM-Kinect/${data.dataset_name}
 data_dir: ${paths.data_dir}/${data.dataset_name}
 sequence_length: 127
 
@@ -19,6 +18,14 @@ batch_size: 1
 num_workers: 0
 pin_memory: False
 persistent_workers: False 
+
+# prepare settings
+depth_factor: 1000
+inf_depth: 0.6
+scales: [1,2,4,8]
+normal_dilation: 30
+depth_dilation: 30
+
 
 # dataset settings
 dataset:

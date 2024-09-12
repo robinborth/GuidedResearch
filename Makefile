@@ -694,3 +694,18 @@ results_christoph2_10_params_p2p:
 	data.train_dataset.jump_size=4 \
 	data.train_dataset.start_frame=42 \
 	framework.log_frame_idx=42 \
+
+
+debug:
+	python scripts/optimize.py \
+	model=flame \
+	task_name=gauss_newton \
+	optimizer=gauss_newton \
+	residuals=face2face \
+	residuals.chain.shape_regularization.weight=5e-03 \
+	residuals.chain.expression_regularization.weight=7e-04 \
+	joint_tracker.max_iters=50 \
+	joint_tracker.max_optims=1 \
+	sequential_tracker.max_iters=10 \
+	sequential_tracker.max_optims=1 \
+	data.dataset_name=dphm_christoph_mouthmove \
