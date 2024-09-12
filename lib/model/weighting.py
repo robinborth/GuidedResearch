@@ -26,6 +26,7 @@ class ResidualWeightModule(nn.Module):
         x = torch.cat([s_point, t_point], dim=-1)  # (B, H, W, 6)
         x = x.permute(0, 3, 1, 2)  # (B, 6, H, W)
         x = torch.exp(self.cnn(x))  # (B, W, H, 1)
+        x = torch.min(x, torch.tensor(10.0))
         return x
 
 

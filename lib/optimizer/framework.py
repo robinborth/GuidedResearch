@@ -50,25 +50,25 @@ class OptimizerFramework(L.LightningModule):
         # compute the loss
         loss = self.compute_param_loss(gt_params, new_params)
         self.log(
-            f"{mode}/loss",
+            f"{mode}/params",
             loss["loss"],
-            prog_bar=True,
+            prog_bar=False,
             on_epoch=True,
             on_step=False,
             batch_size=1,
         )
         if self.current_epoch == 0:
             self.log(
-                f"{mode}/init_loss",
+                f"{mode}/init_params",
                 loss["loss"],
-                prog_bar=True,
+                prog_bar=False,
                 on_epoch=True,
                 on_step=False,
                 batch_size=1,
             )
         for p_names in self.hparams["params"].keys():
             self.log(
-                f"{mode}/loss_{p_names}",
+                f"{mode}/params_{p_names}",
                 loss[p_names].mean(),
                 on_epoch=True,
                 on_step=False,
@@ -78,7 +78,7 @@ class OptimizerFramework(L.LightningModule):
         # compute the default loss
         default_loss = self.compute_param_loss(gt_params, init_params)
         self.log(
-            f"{mode}/loss_default",
+            f"{mode}/params_default",
             default_loss["loss"],
             on_epoch=True,
             on_step=False,
@@ -112,7 +112,7 @@ class OptimizerFramework(L.LightningModule):
             self.log(
                 f"{mode}/init_point2point",
                 geometric_loss["point2point"],
-                prog_bar=True,
+                prog_bar=False,
                 on_epoch=True,
                 on_step=False,
                 batch_size=1,
@@ -177,6 +177,24 @@ class OptimizerFramework(L.LightningModule):
             self.hparams["param_weight"] * loss["loss"]
             + self.hparams["geometric_weight"] * geometric_loss["point2plane"]
         )
+
+        self.log(
+            f"{mode}/loss",
+            final_loss,
+            prog_bar=True,
+            on_step=False,
+            on_epoch=True,
+            batch_size=1,
+        )
+        if self.current_epoch == 0:
+            self.log(
+                f"{mode}/init_loss",
+                final_loss,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=1,
+            )
 
         return dict(
             loss=final_loss,
