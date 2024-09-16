@@ -16,6 +16,13 @@ log = logging.getLogger()
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="train")
+def main(cfg: DictConfig):
+    try:
+        optimize(cfg)
+    except Exception:
+        pass
+
+
 def optimize(cfg: DictConfig):
     log.info("==> loading config ...")
     cfg = set_configs(cfg)
@@ -92,4 +99,4 @@ def optimize(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    optimize()
+    main()

@@ -29,11 +29,17 @@ data:
   dataset_name: dphm_christoph_mouthmove  # dphm_christoph_mouthmove, dphm_fulgitl_rotatemouth
   train_dataset:
     jump_size: 2
+    mode: fix
     start_frame: 20
     end_frame: 100
+  val_dataset:
+    jump_size: 1
+    mode: fix
+    start_frame: 110
+    end_frame: 120
 
 framework:
-  lr: 1e-03  # 3e-04
+  lr: 5e-03  # 3e-04
   max_iters: 1
   max_optims: 1
   param_weight: 1.0
@@ -41,9 +47,9 @@ framework:
   log_frame_idx: 52
   log_interval: 20
   params:
-    global_pose: 200.0
+    global_pose: 100.0
     transl: 500.0
-    neck_pose: 30.0
+    neck_pose: 20.0
     expression_params: 1.0
   verbose: False
 
@@ -53,10 +59,10 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 1000
+  max_epochs: 2000
   # debugging
   # overfit_batches: 32
-  accumulate_grad_batches: 20
+  accumulate_grad_batches: 16
   num_sanity_val_steps: 0
   check_val_every_n_epoch: 1
   log_every_n_steps: 1

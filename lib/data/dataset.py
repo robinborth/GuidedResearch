@@ -1,18 +1,8 @@
+import random
 from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import v2
-
-from lib.data.loader import (
-    load_color,
-    load_depth,
-    load_mask,
-    load_mediapipe_landmark_2d,
-    load_mediapipe_landmark_3d,
-    load_normal,
-)
-from lib.renderer import Camera
 
 
 class DPHMDataset(Dataset):
@@ -114,6 +104,7 @@ class DPHMParamsDataset(DPHMDataset):
     def __init__(
         self,
         start_frame: int = 1,
+        mode: str = "fix",
         end_frame: int = 2,
         jump_size: int = 1,
         **kwargs,
@@ -124,12 +115,21 @@ class DPHMParamsDataset(DPHMDataset):
         self.color = self.load("color")
         self.point = self.load("point")
         self.params = self.load_params()
-        self.landmark = self.load_landmark()
         self.frame_idxs = list(self.iter_frame_idx())
         self.start_frame = start_frame
         self.end_frame = end_frame
         self.jump_size = jump_size
+        assert mode in ["fix", "range"]
+        self.mode = mode
         assert self.start_frame >= self.jump_size
+
+    def init_idx(self, idx: int):
+        frame_idx = idx + self.start_frame
+        if self.mode == "fix":
+            return frame_idx - self.jump_size
+        s_idx = frame_idx - self.jump_size
+        e_idx = frame_idx + self.jump_size
+        return random.randint(s_idx, e_idx)
 
     def __len__(self):
         return self.end_frame - self.start_frame
@@ -141,10 +141,10 @@ class DPHMParamsDataset(DPHMDataset):
         point = self.point[frame_idx]
         normal = self.normal[frame_idx]
         color = self.color[frame_idx]
-        landmark = self.landmark[frame_idx]
         gt_params = self.params[frame_idx]
-        params = self.params[frame_idx - self.jump_size]
-        init_color = self.color[frame_idx - self.jump_size]
+        init_idx = self.init_idx(idx)
+        params = self.params[init_idx]
+        init_color = self.color[init_idx]
         return {
             "frame_idx": frame_idx,
             "mask": mask,

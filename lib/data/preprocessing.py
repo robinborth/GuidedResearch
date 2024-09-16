@@ -41,11 +41,12 @@ def point2normal(point: torch.Tensor):
     point = point.clone()
 
     # make sure that on the boundary is nothing wrong calculated
-    point[point.sum(-1) == 0] = torch.nan  # some large value
+    # point_mask = point.sum(-1) != 0
+    # point[~point_mask] = torch.nan  # some large value
 
     H, W, _ = point.shape
-    normals = torch.ones_like(point)
-    normals *= -1  # make sure that the default normal looks to the camera
+    normals = torch.zeros_like(point)
+    normals[..., 2] = -1  # make sure that the default normal looks to the camera
 
     x_right = torch.arange(2, W)
     x_left = torch.arange(0, W - 2)
@@ -59,18 +60,22 @@ def point2normal(point: torch.Tensor):
     dy = point[y_right, :, 1] - point[y_left, :, 1]
     normals[1:-1, :, 1] = dzy / dy
 
-    # normalized between [-1, 1] and remove artefacs
-    normals = normals / torch.norm(normals, dim=-1).unsqueeze(-1)
+    # remove artefacs
     normals = torch.nan_to_num(normals, 0)
     normals[:1, :, :] = 0
     normals[-1:, :, :] = 0
     normals[:, :1, :] = 0
     normals[:, -1:, :] = 0
 
-    mask = normals.sum(-1) != 0
+    # create the maks based on the valid normal values
+    normal_mask = normals.sum(-1) != 0
+    normals[~normal_mask] = 0.0
 
     # to make them right-hand and follow camera space convention +X right +Y up
     # +Z towards the camera
     normals = -normals
 
-    return normals, mask.to(normals.device)
+    # normalized between [-1, 1]
+    normals = torch.nn.functional.normalize(normals, dim=-1)
+
+    return normals, normal_mask

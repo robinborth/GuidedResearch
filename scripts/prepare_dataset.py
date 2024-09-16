@@ -65,18 +65,11 @@ def optimize(cfg: DictConfig):
 
         # select the foreground based on a depth threshold
         f_mask = (depth < inf_depth) & (depth != 0)
-        depth[~f_mask] = inf_depth
 
         # convert pointmap to normalmap
+        depth[~f_mask] = depth[f_mask].max()
         point, _ = camera.depth_map_transform(depth)
         normal, n_mask = point2normal(point)
-
-        # create the final mask based on normal and depth
-        mask = f_mask & n_mask
-
-        # mask the default values
-        color[~mask] = 255
-        normal[~mask] = 0
 
         # smooth the normal maps
         normal = biliteral_filter(
@@ -86,14 +79,12 @@ def optimize(cfg: DictConfig):
             sigma_space=150,
         )
 
-        # create the point maps
-        depth = biliteral_filter(
-            image=depth,
-            dilation=cfg.data.depth_dilation,
-            sigma_color=150,
-            sigma_space=150,
-        )
-        point, _ = camera.depth_map_transform(depth)
+        # create the final mask based on normal and depth
+        mask = f_mask & n_mask
+
+        # mask the default values
+        color[~mask] = 255
+        normal[~mask] = 0
         point[~mask] = 0
 
         # create landmarks
@@ -104,12 +95,10 @@ def optimize(cfg: DictConfig):
         landmark = landmark[media_idx].long()
         u = landmark[:, 0]
         v = landmark[:, 1]
-
         landmarks = point[v, u]
         path = Path(data_dir) / f"landmark/{idx:05}.pt"
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(landmarks, path)
-
         landmarks_mask = mask[v, u]
         path = Path(data_dir) / f"landmark_mask/{idx:05}.pt"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -134,6 +123,7 @@ def optimize(cfg: DictConfig):
                 inpt=normal.permute(2, 0, 1),
                 size=size,
             ).permute(1, 2, 0)
+            down_normal = torch.nn.functional.normalize(down_normal, dim=-1)
             down_normal[~down_mask] = 0
 
             down_point = v2.functional.resize(

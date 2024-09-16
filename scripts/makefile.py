@@ -76,24 +76,95 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    values = [1, 2, 3, 4, 5]
-    prefixs = values
+    values = [
+        2e-03,
+        1e-03,
+        7e-04,
+    ]
+    prefixs = float_to_scientific(values)
 
-    group_name = "train_iters"
+    # group_name = "train__acc32"
+    # template_generator = """
+    # python scripts/training.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # framework.max_iters=1 \\
+    # framework.max_optims=1 \\
+    # framework.lr={value} \\
+    # trainer.max_epochs=200 \\
+    # trainer.accumulate_grad_batches=32 \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    # group_name = "train_small"
+    # template_generator = """
+    # python scripts/training.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # framework.max_iters=1 \\
+    # framework.max_optims=1 \\
+    # framework.lr={value} \\
+    # data.train_dataset.jump_size=2 \\
+    # data.train_dataset.mode=fix \\
+    # data.train_dataset.start_frame=52 \\
+    # trainer.max_epochs=200 \\
+    # trainer.accumulate_grad_batches=10 \\
+    # +trainer.overfit_batches=10 \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    group_name = "train_fix"
     template_generator = """
     python scripts/training.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.max_iters={value} \\
+    framework.max_iters=1 \\
     framework.max_optims=1 \\
-    framework.lr=1e-03 \\
-    trainer.max_epochs=500 \\
-    trainer.overfit_batches=8 \\
-    trainer.accumulate_grad_batches=8 \\
+    framework.lr={value} \\
+    data.train_dataset.jump_size=2 \\
+    data.train_dataset.mode=fix \\
+    trainer.max_epochs=200 \\
+    trainer.accumulate_grad_batches=16 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    # group_name = "train_range"
+    # template_generator = """
+    # python scripts/training.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # framework.max_iters=1 \\
+    # framework.max_optims=1 \\
+    # framework.lr={value} \\
+    # data.train_dataset.jump_size=2 \\
+    # data.train_dataset.mode=range \\
+    # trainer.max_epochs=200 \\
+    # trainer.accumulate_grad_batches=10 \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    # group_name = "train__acc8"
+    # template_generator = """
+    # python scripts/training.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # framework.max_iters=1 \\
+    # framework.max_optims=1 \\
+    # framework.lr={value} \\
+    # trainer.max_epochs=200 \\
+    # trainer.accumulate_grad_batches=8 \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
 
     with open("Makefile.abl", "w") as f:
         f.write(build_makefile(groups))
