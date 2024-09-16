@@ -1,3 +1,8 @@
+from pathlib import Path
+
+SUFFIX = "abl"
+
+
 def float_to_scientific(values):
     return [f"{v:.1E}".replace(".", "-") for v in values]
 
@@ -5,9 +10,9 @@ def float_to_scientific(values):
 def generate_banner(group_names: list[str]):
     b = ""
     b += "##########################################################################\n"
-    b += "# make all -f Makefile.abl\n"
+    b += f"# make all -f Makefile.{SUFFIX}\n"
     for i, group in enumerate(group_names):
-        b += f"# GROUP{i}: make {group} -f Makefile.abl\n"
+        b += f"# GROUP{i}: make {group} -f Makefile.{SUFFIX}\n"
     b += "##########################################################################\n"
     return b
 
@@ -76,125 +81,36 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    values = [
-        0.90,
-        0.95,
-        0.98,
-    ]
-    prefixs = float_to_scientific(values)
+    data_dir = Path("/home/borth/GuidedResearch/data/dphm_kinect")
+    dataset_names = sorted(list(p.name for p in data_dir.iterdir()))
 
-    # group_name = "train__acc32"
-    # template_generator = """
-    # python scripts/training.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # framework.max_iters=1 \\
-    # framework.max_optims=1 \\
-    # framework.lr={value} \\
-    # trainer.max_epochs=200 \\
-    # trainer.accumulate_grad_batches=32 \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
+    values = dataset_names
+    prefixs = values
 
-    # group_name = "train_small"
-    # template_generator = """
-    # python scripts/training.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # framework.max_iters=1 \\
-    # framework.max_optims=1 \\
-    # framework.lr={value} \\
-    # data.train_dataset.jump_size=2 \\
-    # data.train_dataset.mode=fix \\
-    # data.train_dataset.start_frame=52 \\
-    # trainer.max_epochs=200 \\
-    # trainer.accumulate_grad_batches=10 \\
-    # +trainer.overfit_batches=10 \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
+    group_name = "prepare_dataset"
+    template_generator = """
+    python scripts/prepare_dataset.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    data.dataset_name={value} \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    group_name = "optimize_c1"
+    group_name = "optimize"
     template_generator = """
     python scripts/optimize.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    residuals=face2face \\
-	residuals.chain.shape_regularization.weight=5e-03 \\
-	residuals.chain.expression_regularization.weight=1e-03 \\
-    correspondence.d_threshold=0.05 \\
-    correspondence.n_threshold={value} \\
+    data.dataset_name={value} \\
+    store_params=true \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    group_name = "optimize_c2"
-    template_generator = """
-    python scripts/optimize.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    residuals=face2face \\
-	residuals.chain.shape_regularization.weight=5e-03 \\
-	residuals.chain.expression_regularization.weight=1e-03 \\
-    correspondence.d_threshold=0.01 \\
-    correspondence.n_threshold={value} \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    group_name = "optimize_c3"
-    template_generator = """
-    python scripts/optimize.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    residuals=face2face \\
-	residuals.chain.shape_regularization.weight=1e-02 \\
-	residuals.chain.expression_regularization.weight=1e-03 \\
-    correspondence.d_threshold=0.05 \\
-    correspondence.n_threshold={value} \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    # group_name = "train_range"
-    # template_generator = """
-    # python scripts/training.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # framework.max_iters=1 \\
-    # framework.max_optims=1 \\
-    # framework.lr={value} \\
-    # data.train_dataset.jump_size=2 \\
-    # data.train_dataset.mode=range \\
-    # trainer.max_epochs=200 \\
-    # trainer.accumulate_grad_batches=10 \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    # group_name = "train__acc8"
-    # template_generator = """
-    # python scripts/training.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # framework.max_iters=1 \\
-    # framework.max_optims=1 \\
-    # framework.lr={value} \\
-    # trainer.max_epochs=200 \\
-    # trainer.accumulate_grad_batches=8 \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    with open("Makefile.abl", "w") as f:
+    with open(f"Makefile.{SUFFIX}", "w") as f:
         f.write(build_makefile(groups))
 
 

@@ -29,7 +29,6 @@ train_dataset:
   end_frame: 110
   jump_size: 1
   data_dir: ${data.data_dir}
-  sequence_length: ${data.sequence_length}
   camera: ???  # the camera is shared
 
 # dataset settings
@@ -40,7 +39,6 @@ val_dataset:
   end_frame: 120
   jump_size: 1
   data_dir: ${data.data_dir}
-  sequence_length: ${data.sequence_length}
   camera: ???  # the camera is shared
 
 renderer: ???

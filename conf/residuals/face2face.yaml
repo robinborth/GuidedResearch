@@ -8,8 +8,8 @@ chain:
   shape_regularization: 
     _target_: lib.optimizer.residuals.RegularizationResiduals
     name: shape_params
-    weight: 1e-01  # 5e-03 
+    weight: 5e-03  # 5e-03 
   expression_regularization:
     _target_: lib.optimizer.residuals.RegularizationResiduals
     name: expression_params
-    weight: 1e-01  # 7e-04
+    weight: 1e-03  # 7e-04

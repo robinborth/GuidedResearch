@@ -10,10 +10,9 @@ class DPHMDataset(Dataset):
         self,
         scale: int = 1,
         data_dir: str = "/data",
-        sequence_length: int = 1,
         **kwargs,
     ):
-        self.sequence_length = sequence_length
+        self.sequence_length = len(list((Path(data_dir) / "depth").iterdir()))
         self.scale = scale
         self.data_dir = data_dir
 

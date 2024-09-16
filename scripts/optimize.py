@@ -1,4 +1,6 @@
 import logging
+import shutil
+from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
@@ -105,6 +107,16 @@ def optimize(cfg: DictConfig):
         logger.log_tracking_video("render_merged", framerate=20)
         logger.log_tracking_video("error_point_to_plane", framerate=20)
         logger.log_tracking_video("batch_color", framerate=20)
+
+    if cfg.store_params:
+        log.info("==> store flame params ...")
+        source_dir = Path(logger.save_dir) / "params"  # type: ignore
+        target_dir = Path(cfg.data.data_dir) / "params"
+        shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
+        log.info("==> store track video ...")
+        source_dir = Path(logger.save_dir) / "video"  # type: ignore
+        target_dir = Path(cfg.data.data_dir) / "video"
+        shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
 
 
 if __name__ == "__main__":

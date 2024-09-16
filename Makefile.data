@@ -1,0 +1,2218 @@
+##########################################################################
+# make all -f Makefile.data
+# GROUP0: make prepare_dataset -f Makefile.data
+# GROUP1: make optimize -f Makefile.data
+##########################################################################
+
+.PHONY: all prepare_dataset__mahabmarhai_eyeblink prepare_dataset__mahabmarhai_fastalk prepare_dataset__mahabmarhai_mouthmove prepare_dataset__mahabmarhai_rotatemouth prepare_dataset__mahabmarhai_smile prepare_dataset__manuel_eyeblink prepare_dataset__manuel_fastalk prepare_dataset__manuel_mouthmove prepare_dataset__manuel_rotatemouth prepare_dataset__manuel_smile prepare_dataset__medhansh_eyeblink prepare_dataset__medhansh_fastalk prepare_dataset__medhansh_mouthmove prepare_dataset__medhansh_rotatemouth prepare_dataset__medhansh_smile prepare_dataset__michaeldyer_eyeblink2 prepare_dataset__michaeldyer_fastalk2 prepare_dataset__michaeldyer_mouthmove2 prepare_dataset__michaeldyer_rotatemouth2 prepare_dataset__michaeldyer_smile2 prepare_dataset__mohak_eyeblink prepare_dataset__mohak_fastalk prepare_dataset__mohak_mouthmove prepare_dataset__mohak_rotatemouth prepare_dataset__mohak_smile prepare_dataset__mykola_eyeblink prepare_dataset__mykola_fastalk prepare_dataset__mykola_mouthmove prepare_dataset__mykola_rotatemouth prepare_dataset__mykola_smile prepare_dataset__neha_rao_eyeblink prepare_dataset__neha_rao_mouthmove prepare_dataset__neha_rao_rotatemouth prepare_dataset__neha_rao_smile prepare_dataset__nikolas_eyeblink prepare_dataset__nikolas_fastalk prepare_dataset__nikolas_mouthmove prepare_dataset__nikolas_rotatemouth prepare_dataset__nikolas_smile prepare_dataset__seddik_houimli_eyeblink prepare_dataset__seddik_houimli_fastalk prepare_dataset__seddik_houimli_mouthmove prepare_dataset__seddik_houimli_rotatemouth prepare_dataset__seddik_houimli_smile prepare_dataset__siyunliang_eyeblink prepare_dataset__siyunliang_fastalk prepare_dataset__siyunliang_mouthmove prepare_dataset__siyunliang_rotatemouth prepare_dataset__siyunliang_smile prepare_dataset__umur_gogebakan_eyeblink prepare_dataset__umur_gogebakan_fastalk prepare_dataset__umur_gogebakan_mouthmove prepare_dataset__umur_gogebakan_rotatemouth prepare_dataset__umur_gogebakan_smile prepare_dataset__viet_eyeblink prepare_dataset__viet_fastalk prepare_dataset__viet_mouthmove prepare_dataset__viet_rotatemouth prepare_dataset__viet_smile prepare_dataset__weicao_angry prepare_dataset__weicao_fastalk prepare_dataset__weicao_mouthmove prepare_dataset__weicao_mouthmovelarge prepare_dataset__weicao_random2 prepare_dataset__weicao_rotatemouth prepare_dataset__weicao_smile prepare_dataset__weicao_smile2 prepare_dataset__weicao_talk optimize__ali_kocal_eyeblink optimize__ali_kocal_fastalk optimize__ali_kocal_mouthmove optimize__ali_kocal_rotatemouth optimize__ali_kocal_smile optimize__aria_talebizadeh_eyeblink optimize__aria_talebizadeh_fastalk optimize__aria_talebizadeh_mouthmove optimize__aria_talebizadeh_rotatemouth optimize__aria_talebizadeh_smile optimize__arnefucks_eyeblink optimize__arnefucks_fastalk optimize__arnefucks_mouthmove optimize__arnefucks_rotatemouth optimize__arnefucks_smile optimize__changluo_angry optimize__changluo_fastalk optimize__changluo_mouthmovelarge optimize__changluo_random2 optimize__changluo_rotatemouth optimize__changluo_smile optimize__changluo_talk optimize__christoph_eyeblink optimize__christoph_fastalk optimize__christoph_mouthmove optimize__christoph_rotatemouth optimize__christoph_smile optimize__elias_wohlgemuth_eyeblink optimize__elias_wohlgemuth_fastalk optimize__elias_wohlgemuth_mouthmove optimize__elias_wohlgemuth_rotatemouth optimize__elias_wohlgemuth_smile optimize__felix_eyeblink optimize__felix_fastalk optimize__felix_mouthmove optimize__felix_rotatemouth optimize__felix_smile optimize__haoxuan_eyeblink optimize__haoxuan_fastalk optimize__haoxuan_mouthmove optimize__haoxuan_rotatemouth optimize__haoxuan_smile optimize__honglixu_eyeblink optimize__honglixu_fastalk optimize__honglixu_mouthmove optimize__honglixu_rotatemouth optimize__honglixu_smile optimize__innocenzo_fulgintl_eyeblink optimize__innocenzo_fulgintl_fastalk optimize__innocenzo_fulgintl_mouthmove optimize__innocenzo_fulgintl_rotatemouth optimize__innocenzo_fulgintl_smile optimize__leni_rohe_eyeblink optimize__leni_rohe_mouthmove optimize__leni_rohe_rotatemouth optimize__leni_rohe_smile optimize__madhav_agarwal_eyeblink optimize__madhav_agarwal_fastalk optimize__madhav_agarwal_mouthmove optimize__madhav_agarwal_rotatemouth optimize__madhav_agarwal_smile optimize__mahabmarhai_eyeblink optimize__mahabmarhai_fastalk optimize__mahabmarhai_mouthmove optimize__mahabmarhai_rotatemouth optimize__mahabmarhai_smile optimize__manuel_eyeblink optimize__manuel_fastalk optimize__manuel_mouthmove optimize__manuel_rotatemouth optimize__manuel_smile optimize__medhansh_eyeblink optimize__medhansh_fastalk optimize__medhansh_mouthmove optimize__medhansh_rotatemouth optimize__medhansh_smile optimize__michaeldyer_eyeblink2 optimize__michaeldyer_fastalk2 optimize__michaeldyer_mouthmove2 optimize__michaeldyer_rotatemouth2 optimize__michaeldyer_smile2 optimize__mohak_eyeblink optimize__mohak_fastalk optimize__mohak_mouthmove optimize__mohak_rotatemouth optimize__mohak_smile optimize__mykola_eyeblink optimize__mykola_fastalk optimize__mykola_mouthmove optimize__mykola_rotatemouth optimize__mykola_smile optimize__neha_rao_eyeblink optimize__neha_rao_mouthmove optimize__neha_rao_rotatemouth optimize__neha_rao_smile optimize__nikolas_eyeblink optimize__nikolas_fastalk optimize__nikolas_mouthmove optimize__nikolas_rotatemouth optimize__nikolas_smile optimize__seddik_houimli_eyeblink optimize__seddik_houimli_fastalk optimize__seddik_houimli_mouthmove optimize__seddik_houimli_rotatemouth optimize__seddik_houimli_smile optimize__siyunliang_eyeblink optimize__siyunliang_fastalk optimize__siyunliang_mouthmove optimize__siyunliang_rotatemouth optimize__siyunliang_smile optimize__umur_gogebakan_eyeblink optimize__umur_gogebakan_fastalk optimize__umur_gogebakan_mouthmove optimize__umur_gogebakan_rotatemouth optimize__umur_gogebakan_smile optimize__viet_eyeblink optimize__viet_fastalk optimize__viet_mouthmove optimize__viet_rotatemouth optimize__viet_smile optimize__weicao_angry optimize__weicao_fastalk optimize__weicao_mouthmove optimize__weicao_mouthmovelarge optimize__weicao_random2 optimize__weicao_rotatemouth optimize__weicao_smile optimize__weicao_smile2 optimize__weicao_talk
+all: prepare_dataset__mahabmarhai_eyeblink prepare_dataset__mahabmarhai_fastalk prepare_dataset__mahabmarhai_mouthmove prepare_dataset__mahabmarhai_rotatemouth prepare_dataset__mahabmarhai_smile prepare_dataset__manuel_eyeblink prepare_dataset__manuel_fastalk prepare_dataset__manuel_mouthmove prepare_dataset__manuel_rotatemouth prepare_dataset__manuel_smile prepare_dataset__medhansh_eyeblink prepare_dataset__medhansh_fastalk prepare_dataset__medhansh_mouthmove prepare_dataset__medhansh_rotatemouth prepare_dataset__medhansh_smile prepare_dataset__michaeldyer_eyeblink2 prepare_dataset__michaeldyer_fastalk2 prepare_dataset__michaeldyer_mouthmove2 prepare_dataset__michaeldyer_rotatemouth2 prepare_dataset__michaeldyer_smile2 prepare_dataset__mohak_eyeblink prepare_dataset__mohak_fastalk prepare_dataset__mohak_mouthmove prepare_dataset__mohak_rotatemouth prepare_dataset__mohak_smile prepare_dataset__mykola_eyeblink prepare_dataset__mykola_fastalk prepare_dataset__mykola_mouthmove prepare_dataset__mykola_rotatemouth prepare_dataset__mykola_smile prepare_dataset__neha_rao_eyeblink prepare_dataset__neha_rao_mouthmove prepare_dataset__neha_rao_rotatemouth prepare_dataset__neha_rao_smile prepare_dataset__nikolas_eyeblink prepare_dataset__nikolas_fastalk prepare_dataset__nikolas_mouthmove prepare_dataset__nikolas_rotatemouth prepare_dataset__nikolas_smile prepare_dataset__seddik_houimli_eyeblink prepare_dataset__seddik_houimli_fastalk prepare_dataset__seddik_houimli_mouthmove prepare_dataset__seddik_houimli_rotatemouth prepare_dataset__seddik_houimli_smile prepare_dataset__siyunliang_eyeblink prepare_dataset__siyunliang_fastalk prepare_dataset__siyunliang_mouthmove prepare_dataset__siyunliang_rotatemouth prepare_dataset__siyunliang_smile prepare_dataset__umur_gogebakan_eyeblink prepare_dataset__umur_gogebakan_fastalk prepare_dataset__umur_gogebakan_mouthmove prepare_dataset__umur_gogebakan_rotatemouth prepare_dataset__umur_gogebakan_smile prepare_dataset__viet_eyeblink prepare_dataset__viet_fastalk prepare_dataset__viet_mouthmove prepare_dataset__viet_rotatemouth prepare_dataset__viet_smile prepare_dataset__weicao_angry prepare_dataset__weicao_fastalk prepare_dataset__weicao_mouthmove prepare_dataset__weicao_mouthmovelarge prepare_dataset__weicao_random2 prepare_dataset__weicao_rotatemouth prepare_dataset__weicao_smile prepare_dataset__weicao_smile2 prepare_dataset__weicao_talk optimize__ali_kocal_eyeblink optimize__ali_kocal_fastalk optimize__ali_kocal_mouthmove optimize__ali_kocal_rotatemouth optimize__ali_kocal_smile optimize__aria_talebizadeh_eyeblink optimize__aria_talebizadeh_fastalk optimize__aria_talebizadeh_mouthmove optimize__aria_talebizadeh_rotatemouth optimize__aria_talebizadeh_smile optimize__arnefucks_eyeblink optimize__arnefucks_fastalk optimize__arnefucks_mouthmove optimize__arnefucks_rotatemouth optimize__arnefucks_smile optimize__changluo_angry optimize__changluo_fastalk optimize__changluo_mouthmovelarge optimize__changluo_random2 optimize__changluo_rotatemouth optimize__changluo_smile optimize__changluo_talk optimize__christoph_eyeblink optimize__christoph_fastalk optimize__christoph_mouthmove optimize__christoph_rotatemouth optimize__christoph_smile optimize__elias_wohlgemuth_eyeblink optimize__elias_wohlgemuth_fastalk optimize__elias_wohlgemuth_mouthmove optimize__elias_wohlgemuth_rotatemouth optimize__elias_wohlgemuth_smile optimize__felix_eyeblink optimize__felix_fastalk optimize__felix_mouthmove optimize__felix_rotatemouth optimize__felix_smile optimize__haoxuan_eyeblink optimize__haoxuan_fastalk optimize__haoxuan_mouthmove optimize__haoxuan_rotatemouth optimize__haoxuan_smile optimize__honglixu_eyeblink optimize__honglixu_fastalk optimize__honglixu_mouthmove optimize__honglixu_rotatemouth optimize__honglixu_smile optimize__innocenzo_fulgintl_eyeblink optimize__innocenzo_fulgintl_fastalk optimize__innocenzo_fulgintl_mouthmove optimize__innocenzo_fulgintl_rotatemouth optimize__innocenzo_fulgintl_smile optimize__leni_rohe_eyeblink optimize__leni_rohe_mouthmove optimize__leni_rohe_rotatemouth optimize__leni_rohe_smile optimize__madhav_agarwal_eyeblink optimize__madhav_agarwal_fastalk optimize__madhav_agarwal_mouthmove optimize__madhav_agarwal_rotatemouth optimize__madhav_agarwal_smile optimize__mahabmarhai_eyeblink optimize__mahabmarhai_fastalk optimize__mahabmarhai_mouthmove optimize__mahabmarhai_rotatemouth optimize__mahabmarhai_smile optimize__manuel_eyeblink optimize__manuel_fastalk optimize__manuel_mouthmove optimize__manuel_rotatemouth optimize__manuel_smile optimize__medhansh_eyeblink optimize__medhansh_fastalk optimize__medhansh_mouthmove optimize__medhansh_rotatemouth optimize__medhansh_smile optimize__michaeldyer_eyeblink2 optimize__michaeldyer_fastalk2 optimize__michaeldyer_mouthmove2 optimize__michaeldyer_rotatemouth2 optimize__michaeldyer_smile2 optimize__mohak_eyeblink optimize__mohak_fastalk optimize__mohak_mouthmove optimize__mohak_rotatemouth optimize__mohak_smile optimize__mykola_eyeblink optimize__mykola_fastalk optimize__mykola_mouthmove optimize__mykola_rotatemouth optimize__mykola_smile optimize__neha_rao_eyeblink optimize__neha_rao_mouthmove optimize__neha_rao_rotatemouth optimize__neha_rao_smile optimize__nikolas_eyeblink optimize__nikolas_fastalk optimize__nikolas_mouthmove optimize__nikolas_rotatemouth optimize__nikolas_smile optimize__seddik_houimli_eyeblink optimize__seddik_houimli_fastalk optimize__seddik_houimli_mouthmove optimize__seddik_houimli_rotatemouth optimize__seddik_houimli_smile optimize__siyunliang_eyeblink optimize__siyunliang_fastalk optimize__siyunliang_mouthmove optimize__siyunliang_rotatemouth optimize__siyunliang_smile optimize__umur_gogebakan_eyeblink optimize__umur_gogebakan_fastalk optimize__umur_gogebakan_mouthmove optimize__umur_gogebakan_rotatemouth optimize__umur_gogebakan_smile optimize__viet_eyeblink optimize__viet_fastalk optimize__viet_mouthmove optimize__viet_rotatemouth optimize__viet_smile optimize__weicao_angry optimize__weicao_fastalk optimize__weicao_mouthmove optimize__weicao_mouthmovelarge optimize__weicao_random2 optimize__weicao_rotatemouth optimize__weicao_smile optimize__weicao_smile2 optimize__weicao_talk
+
+##########################################################################
+# prepare_dataset
+##########################################################################
+
+
+prepare_dataset: prepare_dataset__mahabmarhai_eyeblink prepare_dataset__mahabmarhai_fastalk prepare_dataset__mahabmarhai_mouthmove prepare_dataset__mahabmarhai_rotatemouth prepare_dataset__mahabmarhai_smile prepare_dataset__manuel_eyeblink prepare_dataset__manuel_fastalk prepare_dataset__manuel_mouthmove prepare_dataset__manuel_rotatemouth prepare_dataset__manuel_smile prepare_dataset__medhansh_eyeblink prepare_dataset__medhansh_fastalk prepare_dataset__medhansh_mouthmove prepare_dataset__medhansh_rotatemouth prepare_dataset__medhansh_smile prepare_dataset__michaeldyer_eyeblink2 prepare_dataset__michaeldyer_fastalk2 prepare_dataset__michaeldyer_mouthmove2 prepare_dataset__michaeldyer_rotatemouth2 prepare_dataset__michaeldyer_smile2 prepare_dataset__mohak_eyeblink prepare_dataset__mohak_fastalk prepare_dataset__mohak_mouthmove prepare_dataset__mohak_rotatemouth prepare_dataset__mohak_smile prepare_dataset__mykola_eyeblink prepare_dataset__mykola_fastalk prepare_dataset__mykola_mouthmove prepare_dataset__mykola_rotatemouth prepare_dataset__mykola_smile prepare_dataset__neha_rao_eyeblink prepare_dataset__neha_rao_mouthmove prepare_dataset__neha_rao_rotatemouth prepare_dataset__neha_rao_smile prepare_dataset__nikolas_eyeblink prepare_dataset__nikolas_fastalk prepare_dataset__nikolas_mouthmove prepare_dataset__nikolas_rotatemouth prepare_dataset__nikolas_smile prepare_dataset__seddik_houimli_eyeblink prepare_dataset__seddik_houimli_fastalk prepare_dataset__seddik_houimli_mouthmove prepare_dataset__seddik_houimli_rotatemouth prepare_dataset__seddik_houimli_smile prepare_dataset__siyunliang_eyeblink prepare_dataset__siyunliang_fastalk prepare_dataset__siyunliang_mouthmove prepare_dataset__siyunliang_rotatemouth prepare_dataset__siyunliang_smile prepare_dataset__umur_gogebakan_eyeblink prepare_dataset__umur_gogebakan_fastalk prepare_dataset__umur_gogebakan_mouthmove prepare_dataset__umur_gogebakan_rotatemouth prepare_dataset__umur_gogebakan_smile prepare_dataset__viet_eyeblink prepare_dataset__viet_fastalk prepare_dataset__viet_mouthmove prepare_dataset__viet_rotatemouth prepare_dataset__viet_smile prepare_dataset__weicao_angry prepare_dataset__weicao_fastalk prepare_dataset__weicao_mouthmove prepare_dataset__weicao_mouthmovelarge prepare_dataset__weicao_random2 prepare_dataset__weicao_rotatemouth prepare_dataset__weicao_smile prepare_dataset__weicao_smile2 prepare_dataset__weicao_talk
+
+prepare_dataset__ali_kocal_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__ali_kocal_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__ali_kocal_eyeblink] \
+	task_name=prepare_dataset__ali_kocal_eyeblink \
+	data.dataset_name=ali_kocal_eyeblink \
+
+prepare_dataset__ali_kocal_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__ali_kocal_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__ali_kocal_fastalk] \
+	task_name=prepare_dataset__ali_kocal_fastalk \
+	data.dataset_name=ali_kocal_fastalk \
+
+prepare_dataset__ali_kocal_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__ali_kocal_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__ali_kocal_mouthmove] \
+	task_name=prepare_dataset__ali_kocal_mouthmove \
+	data.dataset_name=ali_kocal_mouthmove \
+
+prepare_dataset__ali_kocal_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__ali_kocal_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__ali_kocal_rotatemouth] \
+	task_name=prepare_dataset__ali_kocal_rotatemouth \
+	data.dataset_name=ali_kocal_rotatemouth \
+
+prepare_dataset__ali_kocal_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__ali_kocal_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__ali_kocal_smile] \
+	task_name=prepare_dataset__ali_kocal_smile \
+	data.dataset_name=ali_kocal_smile \
+
+prepare_dataset__aria_talebizadeh_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__aria_talebizadeh_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__aria_talebizadeh_eyeblink] \
+	task_name=prepare_dataset__aria_talebizadeh_eyeblink \
+	data.dataset_name=aria_talebizadeh_eyeblink \
+
+prepare_dataset__aria_talebizadeh_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__aria_talebizadeh_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__aria_talebizadeh_fastalk] \
+	task_name=prepare_dataset__aria_talebizadeh_fastalk \
+	data.dataset_name=aria_talebizadeh_fastalk \
+
+prepare_dataset__aria_talebizadeh_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__aria_talebizadeh_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__aria_talebizadeh_mouthmove] \
+	task_name=prepare_dataset__aria_talebizadeh_mouthmove \
+	data.dataset_name=aria_talebizadeh_mouthmove \
+
+prepare_dataset__aria_talebizadeh_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__aria_talebizadeh_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__aria_talebizadeh_rotatemouth] \
+	task_name=prepare_dataset__aria_talebizadeh_rotatemouth \
+	data.dataset_name=aria_talebizadeh_rotatemouth \
+
+prepare_dataset__aria_talebizadeh_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__aria_talebizadeh_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__aria_talebizadeh_smile] \
+	task_name=prepare_dataset__aria_talebizadeh_smile \
+	data.dataset_name=aria_talebizadeh_smile \
+
+prepare_dataset__arnefucks_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__arnefucks_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__arnefucks_eyeblink] \
+	task_name=prepare_dataset__arnefucks_eyeblink \
+	data.dataset_name=arnefucks_eyeblink \
+
+prepare_dataset__arnefucks_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__arnefucks_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__arnefucks_fastalk] \
+	task_name=prepare_dataset__arnefucks_fastalk \
+	data.dataset_name=arnefucks_fastalk \
+
+prepare_dataset__arnefucks_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__arnefucks_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__arnefucks_mouthmove] \
+	task_name=prepare_dataset__arnefucks_mouthmove \
+	data.dataset_name=arnefucks_mouthmove \
+
+prepare_dataset__arnefucks_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__arnefucks_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__arnefucks_rotatemouth] \
+	task_name=prepare_dataset__arnefucks_rotatemouth \
+	data.dataset_name=arnefucks_rotatemouth \
+
+prepare_dataset__arnefucks_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__arnefucks_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__arnefucks_smile] \
+	task_name=prepare_dataset__arnefucks_smile \
+	data.dataset_name=arnefucks_smile \
+
+prepare_dataset__changluo_angry:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__changluo_angry \
+	logger.tags=[prepare_dataset,prepare_dataset__changluo_angry] \
+	task_name=prepare_dataset__changluo_angry \
+	data.dataset_name=changluo_angry \
+
+prepare_dataset__changluo_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__changluo_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__changluo_fastalk] \
+	task_name=prepare_dataset__changluo_fastalk \
+	data.dataset_name=changluo_fastalk \
+
+prepare_dataset__changluo_mouthmovelarge:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__changluo_mouthmovelarge \
+	logger.tags=[prepare_dataset,prepare_dataset__changluo_mouthmovelarge] \
+	task_name=prepare_dataset__changluo_mouthmovelarge \
+	data.dataset_name=changluo_mouthmovelarge \
+
+prepare_dataset__changluo_random2:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__changluo_random2 \
+	logger.tags=[prepare_dataset,prepare_dataset__changluo_random2] \
+	task_name=prepare_dataset__changluo_random2 \
+	data.dataset_name=changluo_random2 \
+
+prepare_dataset__changluo_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__changluo_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__changluo_rotatemouth] \
+	task_name=prepare_dataset__changluo_rotatemouth \
+	data.dataset_name=changluo_rotatemouth \
+
+prepare_dataset__changluo_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__changluo_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__changluo_smile] \
+	task_name=prepare_dataset__changluo_smile \
+	data.dataset_name=changluo_smile \
+
+prepare_dataset__changluo_talk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__changluo_talk \
+	logger.tags=[prepare_dataset,prepare_dataset__changluo_talk] \
+	task_name=prepare_dataset__changluo_talk \
+	data.dataset_name=changluo_talk \
+
+prepare_dataset__christoph_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__christoph_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__christoph_eyeblink] \
+	task_name=prepare_dataset__christoph_eyeblink \
+	data.dataset_name=christoph_eyeblink \
+
+prepare_dataset__christoph_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__christoph_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__christoph_fastalk] \
+	task_name=prepare_dataset__christoph_fastalk \
+	data.dataset_name=christoph_fastalk \
+
+prepare_dataset__christoph_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__christoph_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__christoph_mouthmove] \
+	task_name=prepare_dataset__christoph_mouthmove \
+	data.dataset_name=christoph_mouthmove \
+
+prepare_dataset__christoph_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__christoph_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__christoph_rotatemouth] \
+	task_name=prepare_dataset__christoph_rotatemouth \
+	data.dataset_name=christoph_rotatemouth \
+
+prepare_dataset__christoph_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__christoph_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__christoph_smile] \
+	task_name=prepare_dataset__christoph_smile \
+	data.dataset_name=christoph_smile \
+
+prepare_dataset__elias_wohlgemuth_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__elias_wohlgemuth_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__elias_wohlgemuth_eyeblink] \
+	task_name=prepare_dataset__elias_wohlgemuth_eyeblink \
+	data.dataset_name=elias_wohlgemuth_eyeblink \
+
+prepare_dataset__elias_wohlgemuth_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__elias_wohlgemuth_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__elias_wohlgemuth_fastalk] \
+	task_name=prepare_dataset__elias_wohlgemuth_fastalk \
+	data.dataset_name=elias_wohlgemuth_fastalk \
+
+prepare_dataset__elias_wohlgemuth_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__elias_wohlgemuth_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__elias_wohlgemuth_mouthmove] \
+	task_name=prepare_dataset__elias_wohlgemuth_mouthmove \
+	data.dataset_name=elias_wohlgemuth_mouthmove \
+
+prepare_dataset__elias_wohlgemuth_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__elias_wohlgemuth_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__elias_wohlgemuth_rotatemouth] \
+	task_name=prepare_dataset__elias_wohlgemuth_rotatemouth \
+	data.dataset_name=elias_wohlgemuth_rotatemouth \
+
+prepare_dataset__elias_wohlgemuth_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__elias_wohlgemuth_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__elias_wohlgemuth_smile] \
+	task_name=prepare_dataset__elias_wohlgemuth_smile \
+	data.dataset_name=elias_wohlgemuth_smile \
+
+prepare_dataset__felix_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__felix_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__felix_eyeblink] \
+	task_name=prepare_dataset__felix_eyeblink \
+	data.dataset_name=felix_eyeblink \
+
+prepare_dataset__felix_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__felix_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__felix_fastalk] \
+	task_name=prepare_dataset__felix_fastalk \
+	data.dataset_name=felix_fastalk \
+
+prepare_dataset__felix_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__felix_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__felix_mouthmove] \
+	task_name=prepare_dataset__felix_mouthmove \
+	data.dataset_name=felix_mouthmove \
+
+prepare_dataset__felix_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__felix_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__felix_rotatemouth] \
+	task_name=prepare_dataset__felix_rotatemouth \
+	data.dataset_name=felix_rotatemouth \
+
+prepare_dataset__felix_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__felix_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__felix_smile] \
+	task_name=prepare_dataset__felix_smile \
+	data.dataset_name=felix_smile \
+
+prepare_dataset__haoxuan_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__haoxuan_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__haoxuan_eyeblink] \
+	task_name=prepare_dataset__haoxuan_eyeblink \
+	data.dataset_name=haoxuan_eyeblink \
+
+prepare_dataset__haoxuan_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__haoxuan_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__haoxuan_fastalk] \
+	task_name=prepare_dataset__haoxuan_fastalk \
+	data.dataset_name=haoxuan_fastalk \
+
+prepare_dataset__haoxuan_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__haoxuan_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__haoxuan_mouthmove] \
+	task_name=prepare_dataset__haoxuan_mouthmove \
+	data.dataset_name=haoxuan_mouthmove \
+
+prepare_dataset__haoxuan_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__haoxuan_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__haoxuan_rotatemouth] \
+	task_name=prepare_dataset__haoxuan_rotatemouth \
+	data.dataset_name=haoxuan_rotatemouth \
+
+prepare_dataset__haoxuan_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__haoxuan_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__haoxuan_smile] \
+	task_name=prepare_dataset__haoxuan_smile \
+	data.dataset_name=haoxuan_smile \
+
+prepare_dataset__honglixu_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__honglixu_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__honglixu_eyeblink] \
+	task_name=prepare_dataset__honglixu_eyeblink \
+	data.dataset_name=honglixu_eyeblink \
+
+prepare_dataset__honglixu_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__honglixu_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__honglixu_fastalk] \
+	task_name=prepare_dataset__honglixu_fastalk \
+	data.dataset_name=honglixu_fastalk \
+
+prepare_dataset__honglixu_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__honglixu_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__honglixu_mouthmove] \
+	task_name=prepare_dataset__honglixu_mouthmove \
+	data.dataset_name=honglixu_mouthmove \
+
+prepare_dataset__honglixu_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__honglixu_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__honglixu_rotatemouth] \
+	task_name=prepare_dataset__honglixu_rotatemouth \
+	data.dataset_name=honglixu_rotatemouth \
+
+prepare_dataset__honglixu_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__honglixu_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__honglixu_smile] \
+	task_name=prepare_dataset__honglixu_smile \
+	data.dataset_name=honglixu_smile \
+
+prepare_dataset__innocenzo_fulgintl_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__innocenzo_fulgintl_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__innocenzo_fulgintl_eyeblink] \
+	task_name=prepare_dataset__innocenzo_fulgintl_eyeblink \
+	data.dataset_name=innocenzo_fulgintl_eyeblink \
+
+prepare_dataset__innocenzo_fulgintl_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__innocenzo_fulgintl_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__innocenzo_fulgintl_fastalk] \
+	task_name=prepare_dataset__innocenzo_fulgintl_fastalk \
+	data.dataset_name=innocenzo_fulgintl_fastalk \
+
+prepare_dataset__innocenzo_fulgintl_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__innocenzo_fulgintl_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__innocenzo_fulgintl_mouthmove] \
+	task_name=prepare_dataset__innocenzo_fulgintl_mouthmove \
+	data.dataset_name=innocenzo_fulgintl_mouthmove \
+
+prepare_dataset__innocenzo_fulgintl_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__innocenzo_fulgintl_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__innocenzo_fulgintl_rotatemouth] \
+	task_name=prepare_dataset__innocenzo_fulgintl_rotatemouth \
+	data.dataset_name=innocenzo_fulgintl_rotatemouth \
+
+prepare_dataset__innocenzo_fulgintl_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__innocenzo_fulgintl_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__innocenzo_fulgintl_smile] \
+	task_name=prepare_dataset__innocenzo_fulgintl_smile \
+	data.dataset_name=innocenzo_fulgintl_smile \
+
+prepare_dataset__leni_rohe_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__leni_rohe_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__leni_rohe_eyeblink] \
+	task_name=prepare_dataset__leni_rohe_eyeblink \
+	data.dataset_name=leni_rohe_eyeblink \
+
+prepare_dataset__leni_rohe_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__leni_rohe_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__leni_rohe_mouthmove] \
+	task_name=prepare_dataset__leni_rohe_mouthmove \
+	data.dataset_name=leni_rohe_mouthmove \
+
+prepare_dataset__leni_rohe_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__leni_rohe_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__leni_rohe_rotatemouth] \
+	task_name=prepare_dataset__leni_rohe_rotatemouth \
+	data.dataset_name=leni_rohe_rotatemouth \
+
+prepare_dataset__leni_rohe_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__leni_rohe_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__leni_rohe_smile] \
+	task_name=prepare_dataset__leni_rohe_smile \
+	data.dataset_name=leni_rohe_smile \
+
+prepare_dataset__madhav_agarwal_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__madhav_agarwal_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__madhav_agarwal_eyeblink] \
+	task_name=prepare_dataset__madhav_agarwal_eyeblink \
+	data.dataset_name=madhav_agarwal_eyeblink \
+
+prepare_dataset__madhav_agarwal_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__madhav_agarwal_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__madhav_agarwal_fastalk] \
+	task_name=prepare_dataset__madhav_agarwal_fastalk \
+	data.dataset_name=madhav_agarwal_fastalk \
+
+prepare_dataset__madhav_agarwal_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__madhav_agarwal_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__madhav_agarwal_mouthmove] \
+	task_name=prepare_dataset__madhav_agarwal_mouthmove \
+	data.dataset_name=madhav_agarwal_mouthmove \
+
+prepare_dataset__madhav_agarwal_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__madhav_agarwal_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__madhav_agarwal_rotatemouth] \
+	task_name=prepare_dataset__madhav_agarwal_rotatemouth \
+	data.dataset_name=madhav_agarwal_rotatemouth \
+
+prepare_dataset__madhav_agarwal_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__madhav_agarwal_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__madhav_agarwal_smile] \
+	task_name=prepare_dataset__madhav_agarwal_smile \
+	data.dataset_name=madhav_agarwal_smile \
+
+prepare_dataset__mahabmarhai_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mahabmarhai_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__mahabmarhai_eyeblink] \
+	task_name=prepare_dataset__mahabmarhai_eyeblink \
+	data.dataset_name=mahabmarhai_eyeblink \
+
+prepare_dataset__mahabmarhai_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mahabmarhai_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__mahabmarhai_fastalk] \
+	task_name=prepare_dataset__mahabmarhai_fastalk \
+	data.dataset_name=mahabmarhai_fastalk \
+
+prepare_dataset__mahabmarhai_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mahabmarhai_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__mahabmarhai_mouthmove] \
+	task_name=prepare_dataset__mahabmarhai_mouthmove \
+	data.dataset_name=mahabmarhai_mouthmove \
+
+prepare_dataset__mahabmarhai_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mahabmarhai_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__mahabmarhai_rotatemouth] \
+	task_name=prepare_dataset__mahabmarhai_rotatemouth \
+	data.dataset_name=mahabmarhai_rotatemouth \
+
+prepare_dataset__mahabmarhai_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mahabmarhai_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__mahabmarhai_smile] \
+	task_name=prepare_dataset__mahabmarhai_smile \
+	data.dataset_name=mahabmarhai_smile \
+
+prepare_dataset__manuel_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__manuel_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__manuel_eyeblink] \
+	task_name=prepare_dataset__manuel_eyeblink \
+	data.dataset_name=manuel_eyeblink \
+
+prepare_dataset__manuel_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__manuel_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__manuel_fastalk] \
+	task_name=prepare_dataset__manuel_fastalk \
+	data.dataset_name=manuel_fastalk \
+
+prepare_dataset__manuel_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__manuel_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__manuel_mouthmove] \
+	task_name=prepare_dataset__manuel_mouthmove \
+	data.dataset_name=manuel_mouthmove \
+
+prepare_dataset__manuel_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__manuel_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__manuel_rotatemouth] \
+	task_name=prepare_dataset__manuel_rotatemouth \
+	data.dataset_name=manuel_rotatemouth \
+
+prepare_dataset__manuel_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__manuel_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__manuel_smile] \
+	task_name=prepare_dataset__manuel_smile \
+	data.dataset_name=manuel_smile \
+
+prepare_dataset__medhansh_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__medhansh_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__medhansh_eyeblink] \
+	task_name=prepare_dataset__medhansh_eyeblink \
+	data.dataset_name=medhansh_eyeblink \
+
+prepare_dataset__medhansh_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__medhansh_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__medhansh_fastalk] \
+	task_name=prepare_dataset__medhansh_fastalk \
+	data.dataset_name=medhansh_fastalk \
+
+prepare_dataset__medhansh_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__medhansh_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__medhansh_mouthmove] \
+	task_name=prepare_dataset__medhansh_mouthmove \
+	data.dataset_name=medhansh_mouthmove \
+
+prepare_dataset__medhansh_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__medhansh_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__medhansh_rotatemouth] \
+	task_name=prepare_dataset__medhansh_rotatemouth \
+	data.dataset_name=medhansh_rotatemouth \
+
+prepare_dataset__medhansh_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__medhansh_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__medhansh_smile] \
+	task_name=prepare_dataset__medhansh_smile \
+	data.dataset_name=medhansh_smile \
+
+prepare_dataset__michaeldyer_eyeblink2:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__michaeldyer_eyeblink2 \
+	logger.tags=[prepare_dataset,prepare_dataset__michaeldyer_eyeblink2] \
+	task_name=prepare_dataset__michaeldyer_eyeblink2 \
+	data.dataset_name=michaeldyer_eyeblink2 \
+
+prepare_dataset__michaeldyer_fastalk2:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__michaeldyer_fastalk2 \
+	logger.tags=[prepare_dataset,prepare_dataset__michaeldyer_fastalk2] \
+	task_name=prepare_dataset__michaeldyer_fastalk2 \
+	data.dataset_name=michaeldyer_fastalk2 \
+
+prepare_dataset__michaeldyer_mouthmove2:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__michaeldyer_mouthmove2 \
+	logger.tags=[prepare_dataset,prepare_dataset__michaeldyer_mouthmove2] \
+	task_name=prepare_dataset__michaeldyer_mouthmove2 \
+	data.dataset_name=michaeldyer_mouthmove2 \
+
+prepare_dataset__michaeldyer_rotatemouth2:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__michaeldyer_rotatemouth2 \
+	logger.tags=[prepare_dataset,prepare_dataset__michaeldyer_rotatemouth2] \
+	task_name=prepare_dataset__michaeldyer_rotatemouth2 \
+	data.dataset_name=michaeldyer_rotatemouth2 \
+
+prepare_dataset__michaeldyer_smile2:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__michaeldyer_smile2 \
+	logger.tags=[prepare_dataset,prepare_dataset__michaeldyer_smile2] \
+	task_name=prepare_dataset__michaeldyer_smile2 \
+	data.dataset_name=michaeldyer_smile2 \
+
+prepare_dataset__mohak_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mohak_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__mohak_eyeblink] \
+	task_name=prepare_dataset__mohak_eyeblink \
+	data.dataset_name=mohak_eyeblink \
+
+prepare_dataset__mohak_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mohak_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__mohak_fastalk] \
+	task_name=prepare_dataset__mohak_fastalk \
+	data.dataset_name=mohak_fastalk \
+
+prepare_dataset__mohak_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mohak_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__mohak_mouthmove] \
+	task_name=prepare_dataset__mohak_mouthmove \
+	data.dataset_name=mohak_mouthmove \
+
+prepare_dataset__mohak_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mohak_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__mohak_rotatemouth] \
+	task_name=prepare_dataset__mohak_rotatemouth \
+	data.dataset_name=mohak_rotatemouth \
+
+prepare_dataset__mohak_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mohak_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__mohak_smile] \
+	task_name=prepare_dataset__mohak_smile \
+	data.dataset_name=mohak_smile \
+
+prepare_dataset__mykola_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mykola_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__mykola_eyeblink] \
+	task_name=prepare_dataset__mykola_eyeblink \
+	data.dataset_name=mykola_eyeblink \
+
+prepare_dataset__mykola_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mykola_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__mykola_fastalk] \
+	task_name=prepare_dataset__mykola_fastalk \
+	data.dataset_name=mykola_fastalk \
+
+prepare_dataset__mykola_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mykola_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__mykola_mouthmove] \
+	task_name=prepare_dataset__mykola_mouthmove \
+	data.dataset_name=mykola_mouthmove \
+
+prepare_dataset__mykola_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mykola_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__mykola_rotatemouth] \
+	task_name=prepare_dataset__mykola_rotatemouth \
+	data.dataset_name=mykola_rotatemouth \
+
+prepare_dataset__mykola_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__mykola_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__mykola_smile] \
+	task_name=prepare_dataset__mykola_smile \
+	data.dataset_name=mykola_smile \
+
+prepare_dataset__neha_rao_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__neha_rao_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__neha_rao_eyeblink] \
+	task_name=prepare_dataset__neha_rao_eyeblink \
+	data.dataset_name=neha_rao_eyeblink \
+
+prepare_dataset__neha_rao_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__neha_rao_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__neha_rao_mouthmove] \
+	task_name=prepare_dataset__neha_rao_mouthmove \
+	data.dataset_name=neha_rao_mouthmove \
+
+prepare_dataset__neha_rao_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__neha_rao_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__neha_rao_rotatemouth] \
+	task_name=prepare_dataset__neha_rao_rotatemouth \
+	data.dataset_name=neha_rao_rotatemouth \
+
+prepare_dataset__neha_rao_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__neha_rao_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__neha_rao_smile] \
+	task_name=prepare_dataset__neha_rao_smile \
+	data.dataset_name=neha_rao_smile \
+
+prepare_dataset__nikolas_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__nikolas_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__nikolas_eyeblink] \
+	task_name=prepare_dataset__nikolas_eyeblink \
+	data.dataset_name=nikolas_eyeblink \
+
+prepare_dataset__nikolas_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__nikolas_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__nikolas_fastalk] \
+	task_name=prepare_dataset__nikolas_fastalk \
+	data.dataset_name=nikolas_fastalk \
+
+prepare_dataset__nikolas_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__nikolas_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__nikolas_mouthmove] \
+	task_name=prepare_dataset__nikolas_mouthmove \
+	data.dataset_name=nikolas_mouthmove \
+
+prepare_dataset__nikolas_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__nikolas_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__nikolas_rotatemouth] \
+	task_name=prepare_dataset__nikolas_rotatemouth \
+	data.dataset_name=nikolas_rotatemouth \
+
+prepare_dataset__nikolas_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__nikolas_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__nikolas_smile] \
+	task_name=prepare_dataset__nikolas_smile \
+	data.dataset_name=nikolas_smile \
+
+prepare_dataset__seddik_houimli_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__seddik_houimli_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__seddik_houimli_eyeblink] \
+	task_name=prepare_dataset__seddik_houimli_eyeblink \
+	data.dataset_name=seddik_houimli_eyeblink \
+
+prepare_dataset__seddik_houimli_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__seddik_houimli_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__seddik_houimli_fastalk] \
+	task_name=prepare_dataset__seddik_houimli_fastalk \
+	data.dataset_name=seddik_houimli_fastalk \
+
+prepare_dataset__seddik_houimli_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__seddik_houimli_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__seddik_houimli_mouthmove] \
+	task_name=prepare_dataset__seddik_houimli_mouthmove \
+	data.dataset_name=seddik_houimli_mouthmove \
+
+prepare_dataset__seddik_houimli_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__seddik_houimli_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__seddik_houimli_rotatemouth] \
+	task_name=prepare_dataset__seddik_houimli_rotatemouth \
+	data.dataset_name=seddik_houimli_rotatemouth \
+
+prepare_dataset__seddik_houimli_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__seddik_houimli_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__seddik_houimli_smile] \
+	task_name=prepare_dataset__seddik_houimli_smile \
+	data.dataset_name=seddik_houimli_smile \
+
+prepare_dataset__siyunliang_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__siyunliang_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__siyunliang_eyeblink] \
+	task_name=prepare_dataset__siyunliang_eyeblink \
+	data.dataset_name=siyunliang_eyeblink \
+
+prepare_dataset__siyunliang_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__siyunliang_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__siyunliang_fastalk] \
+	task_name=prepare_dataset__siyunliang_fastalk \
+	data.dataset_name=siyunliang_fastalk \
+
+prepare_dataset__siyunliang_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__siyunliang_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__siyunliang_mouthmove] \
+	task_name=prepare_dataset__siyunliang_mouthmove \
+	data.dataset_name=siyunliang_mouthmove \
+
+prepare_dataset__siyunliang_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__siyunliang_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__siyunliang_rotatemouth] \
+	task_name=prepare_dataset__siyunliang_rotatemouth \
+	data.dataset_name=siyunliang_rotatemouth \
+
+prepare_dataset__siyunliang_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__siyunliang_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__siyunliang_smile] \
+	task_name=prepare_dataset__siyunliang_smile \
+	data.dataset_name=siyunliang_smile \
+
+prepare_dataset__umur_gogebakan_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__umur_gogebakan_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__umur_gogebakan_eyeblink] \
+	task_name=prepare_dataset__umur_gogebakan_eyeblink \
+	data.dataset_name=umur_gogebakan_eyeblink \
+
+prepare_dataset__umur_gogebakan_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__umur_gogebakan_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__umur_gogebakan_fastalk] \
+	task_name=prepare_dataset__umur_gogebakan_fastalk \
+	data.dataset_name=umur_gogebakan_fastalk \
+
+prepare_dataset__umur_gogebakan_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__umur_gogebakan_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__umur_gogebakan_mouthmove] \
+	task_name=prepare_dataset__umur_gogebakan_mouthmove \
+	data.dataset_name=umur_gogebakan_mouthmove \
+
+prepare_dataset__umur_gogebakan_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__umur_gogebakan_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__umur_gogebakan_rotatemouth] \
+	task_name=prepare_dataset__umur_gogebakan_rotatemouth \
+	data.dataset_name=umur_gogebakan_rotatemouth \
+
+prepare_dataset__umur_gogebakan_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__umur_gogebakan_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__umur_gogebakan_smile] \
+	task_name=prepare_dataset__umur_gogebakan_smile \
+	data.dataset_name=umur_gogebakan_smile \
+
+prepare_dataset__viet_eyeblink:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__viet_eyeblink \
+	logger.tags=[prepare_dataset,prepare_dataset__viet_eyeblink] \
+	task_name=prepare_dataset__viet_eyeblink \
+	data.dataset_name=viet_eyeblink \
+
+prepare_dataset__viet_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__viet_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__viet_fastalk] \
+	task_name=prepare_dataset__viet_fastalk \
+	data.dataset_name=viet_fastalk \
+
+prepare_dataset__viet_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__viet_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__viet_mouthmove] \
+	task_name=prepare_dataset__viet_mouthmove \
+	data.dataset_name=viet_mouthmove \
+
+prepare_dataset__viet_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__viet_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__viet_rotatemouth] \
+	task_name=prepare_dataset__viet_rotatemouth \
+	data.dataset_name=viet_rotatemouth \
+
+prepare_dataset__viet_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__viet_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__viet_smile] \
+	task_name=prepare_dataset__viet_smile \
+	data.dataset_name=viet_smile \
+
+prepare_dataset__weicao_angry:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_angry \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_angry] \
+	task_name=prepare_dataset__weicao_angry \
+	data.dataset_name=weicao_angry \
+
+prepare_dataset__weicao_fastalk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_fastalk \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_fastalk] \
+	task_name=prepare_dataset__weicao_fastalk \
+	data.dataset_name=weicao_fastalk \
+
+prepare_dataset__weicao_mouthmove:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_mouthmove \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_mouthmove] \
+	task_name=prepare_dataset__weicao_mouthmove \
+	data.dataset_name=weicao_mouthmove \
+
+prepare_dataset__weicao_mouthmovelarge:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_mouthmovelarge \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_mouthmovelarge] \
+	task_name=prepare_dataset__weicao_mouthmovelarge \
+	data.dataset_name=weicao_mouthmovelarge \
+
+prepare_dataset__weicao_random2:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_random2 \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_random2] \
+	task_name=prepare_dataset__weicao_random2 \
+	data.dataset_name=weicao_random2 \
+
+prepare_dataset__weicao_rotatemouth:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_rotatemouth \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_rotatemouth] \
+	task_name=prepare_dataset__weicao_rotatemouth \
+	data.dataset_name=weicao_rotatemouth \
+
+prepare_dataset__weicao_smile:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_smile \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_smile] \
+	task_name=prepare_dataset__weicao_smile \
+	data.dataset_name=weicao_smile \
+
+prepare_dataset__weicao_smile2:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_smile2 \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_smile2] \
+	task_name=prepare_dataset__weicao_smile2 \
+	data.dataset_name=weicao_smile2 \
+
+prepare_dataset__weicao_talk:
+	python scripts/prepare_dataset.py \
+	logger.group=prepare_dataset \
+	logger.name=prepare_dataset__weicao_talk \
+	logger.tags=[prepare_dataset,prepare_dataset__weicao_talk] \
+	task_name=prepare_dataset__weicao_talk \
+	data.dataset_name=weicao_talk \
+
+
+##########################################################################
+# optimize
+##########################################################################
+
+
+optimize: optimize__ali_kocal_eyeblink optimize__ali_kocal_fastalk optimize__ali_kocal_mouthmove optimize__ali_kocal_rotatemouth optimize__ali_kocal_smile optimize__aria_talebizadeh_eyeblink optimize__aria_talebizadeh_fastalk optimize__aria_talebizadeh_mouthmove optimize__aria_talebizadeh_rotatemouth optimize__aria_talebizadeh_smile optimize__arnefucks_eyeblink optimize__arnefucks_fastalk optimize__arnefucks_mouthmove optimize__arnefucks_rotatemouth optimize__arnefucks_smile optimize__changluo_angry optimize__changluo_fastalk optimize__changluo_mouthmovelarge optimize__changluo_random2 optimize__changluo_rotatemouth optimize__changluo_smile optimize__changluo_talk optimize__christoph_eyeblink optimize__christoph_fastalk optimize__christoph_mouthmove optimize__christoph_rotatemouth optimize__christoph_smile optimize__elias_wohlgemuth_eyeblink optimize__elias_wohlgemuth_fastalk optimize__elias_wohlgemuth_mouthmove optimize__elias_wohlgemuth_rotatemouth optimize__elias_wohlgemuth_smile optimize__felix_eyeblink optimize__felix_fastalk optimize__felix_mouthmove optimize__felix_rotatemouth optimize__felix_smile optimize__haoxuan_eyeblink optimize__haoxuan_fastalk optimize__haoxuan_mouthmove optimize__haoxuan_rotatemouth optimize__haoxuan_smile optimize__honglixu_eyeblink optimize__honglixu_fastalk optimize__honglixu_mouthmove optimize__honglixu_rotatemouth optimize__honglixu_smile optimize__innocenzo_fulgintl_eyeblink optimize__innocenzo_fulgintl_fastalk optimize__innocenzo_fulgintl_mouthmove optimize__innocenzo_fulgintl_rotatemouth optimize__innocenzo_fulgintl_smile optimize__leni_rohe_eyeblink optimize__leni_rohe_mouthmove optimize__leni_rohe_rotatemouth optimize__leni_rohe_smile optimize__madhav_agarwal_eyeblink optimize__madhav_agarwal_fastalk optimize__madhav_agarwal_mouthmove optimize__madhav_agarwal_rotatemouth optimize__madhav_agarwal_smile optimize__mahabmarhai_eyeblink optimize__mahabmarhai_fastalk optimize__mahabmarhai_mouthmove optimize__mahabmarhai_rotatemouth optimize__mahabmarhai_smile optimize__manuel_eyeblink optimize__manuel_fastalk optimize__manuel_mouthmove optimize__manuel_rotatemouth optimize__manuel_smile optimize__medhansh_eyeblink optimize__medhansh_fastalk optimize__medhansh_mouthmove optimize__medhansh_rotatemouth optimize__medhansh_smile optimize__michaeldyer_eyeblink2 optimize__michaeldyer_fastalk2 optimize__michaeldyer_mouthmove2 optimize__michaeldyer_rotatemouth2 optimize__michaeldyer_smile2 optimize__mohak_eyeblink optimize__mohak_fastalk optimize__mohak_mouthmove optimize__mohak_rotatemouth optimize__mohak_smile optimize__mykola_eyeblink optimize__mykola_fastalk optimize__mykola_mouthmove optimize__mykola_rotatemouth optimize__mykola_smile optimize__neha_rao_eyeblink optimize__neha_rao_mouthmove optimize__neha_rao_rotatemouth optimize__neha_rao_smile optimize__nikolas_eyeblink optimize__nikolas_fastalk optimize__nikolas_mouthmove optimize__nikolas_rotatemouth optimize__nikolas_smile optimize__seddik_houimli_eyeblink optimize__seddik_houimli_fastalk optimize__seddik_houimli_mouthmove optimize__seddik_houimli_rotatemouth optimize__seddik_houimli_smile optimize__siyunliang_eyeblink optimize__siyunliang_fastalk optimize__siyunliang_mouthmove optimize__siyunliang_rotatemouth optimize__siyunliang_smile optimize__umur_gogebakan_eyeblink optimize__umur_gogebakan_fastalk optimize__umur_gogebakan_mouthmove optimize__umur_gogebakan_rotatemouth optimize__umur_gogebakan_smile optimize__viet_eyeblink optimize__viet_fastalk optimize__viet_mouthmove optimize__viet_rotatemouth optimize__viet_smile optimize__weicao_angry optimize__weicao_fastalk optimize__weicao_mouthmove optimize__weicao_mouthmovelarge optimize__weicao_random2 optimize__weicao_rotatemouth optimize__weicao_smile optimize__weicao_smile2 optimize__weicao_talk
+
+optimize__ali_kocal_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__ali_kocal_eyeblink \
+	logger.tags=[optimize,optimize__ali_kocal_eyeblink] \
+	task_name=optimize__ali_kocal_eyeblink \
+	data.dataset_name=ali_kocal_eyeblink \
+	store_params=true \
+
+optimize__ali_kocal_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__ali_kocal_fastalk \
+	logger.tags=[optimize,optimize__ali_kocal_fastalk] \
+	task_name=optimize__ali_kocal_fastalk \
+	data.dataset_name=ali_kocal_fastalk \
+	store_params=true \
+
+optimize__ali_kocal_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__ali_kocal_mouthmove \
+	logger.tags=[optimize,optimize__ali_kocal_mouthmove] \
+	task_name=optimize__ali_kocal_mouthmove \
+	data.dataset_name=ali_kocal_mouthmove \
+	store_params=true \
+
+optimize__ali_kocal_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__ali_kocal_rotatemouth \
+	logger.tags=[optimize,optimize__ali_kocal_rotatemouth] \
+	task_name=optimize__ali_kocal_rotatemouth \
+	data.dataset_name=ali_kocal_rotatemouth \
+	store_params=true \
+
+optimize__ali_kocal_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__ali_kocal_smile \
+	logger.tags=[optimize,optimize__ali_kocal_smile] \
+	task_name=optimize__ali_kocal_smile \
+	data.dataset_name=ali_kocal_smile \
+	store_params=true \
+
+optimize__aria_talebizadeh_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__aria_talebizadeh_eyeblink \
+	logger.tags=[optimize,optimize__aria_talebizadeh_eyeblink] \
+	task_name=optimize__aria_talebizadeh_eyeblink \
+	data.dataset_name=aria_talebizadeh_eyeblink \
+	store_params=true \
+
+optimize__aria_talebizadeh_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__aria_talebizadeh_fastalk \
+	logger.tags=[optimize,optimize__aria_talebizadeh_fastalk] \
+	task_name=optimize__aria_talebizadeh_fastalk \
+	data.dataset_name=aria_talebizadeh_fastalk \
+	store_params=true \
+
+optimize__aria_talebizadeh_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__aria_talebizadeh_mouthmove \
+	logger.tags=[optimize,optimize__aria_talebizadeh_mouthmove] \
+	task_name=optimize__aria_talebizadeh_mouthmove \
+	data.dataset_name=aria_talebizadeh_mouthmove \
+	store_params=true \
+
+optimize__aria_talebizadeh_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__aria_talebizadeh_rotatemouth \
+	logger.tags=[optimize,optimize__aria_talebizadeh_rotatemouth] \
+	task_name=optimize__aria_talebizadeh_rotatemouth \
+	data.dataset_name=aria_talebizadeh_rotatemouth \
+	store_params=true \
+
+optimize__aria_talebizadeh_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__aria_talebizadeh_smile \
+	logger.tags=[optimize,optimize__aria_talebizadeh_smile] \
+	task_name=optimize__aria_talebizadeh_smile \
+	data.dataset_name=aria_talebizadeh_smile \
+	store_params=true \
+
+optimize__arnefucks_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__arnefucks_eyeblink \
+	logger.tags=[optimize,optimize__arnefucks_eyeblink] \
+	task_name=optimize__arnefucks_eyeblink \
+	data.dataset_name=arnefucks_eyeblink \
+	store_params=true \
+
+optimize__arnefucks_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__arnefucks_fastalk \
+	logger.tags=[optimize,optimize__arnefucks_fastalk] \
+	task_name=optimize__arnefucks_fastalk \
+	data.dataset_name=arnefucks_fastalk \
+	store_params=true \
+
+optimize__arnefucks_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__arnefucks_mouthmove \
+	logger.tags=[optimize,optimize__arnefucks_mouthmove] \
+	task_name=optimize__arnefucks_mouthmove \
+	data.dataset_name=arnefucks_mouthmove \
+	store_params=true \
+
+optimize__arnefucks_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__arnefucks_rotatemouth \
+	logger.tags=[optimize,optimize__arnefucks_rotatemouth] \
+	task_name=optimize__arnefucks_rotatemouth \
+	data.dataset_name=arnefucks_rotatemouth \
+	store_params=true \
+
+optimize__arnefucks_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__arnefucks_smile \
+	logger.tags=[optimize,optimize__arnefucks_smile] \
+	task_name=optimize__arnefucks_smile \
+	data.dataset_name=arnefucks_smile \
+	store_params=true \
+
+optimize__changluo_angry:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__changluo_angry \
+	logger.tags=[optimize,optimize__changluo_angry] \
+	task_name=optimize__changluo_angry \
+	data.dataset_name=changluo_angry \
+	store_params=true \
+
+optimize__changluo_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__changluo_fastalk \
+	logger.tags=[optimize,optimize__changluo_fastalk] \
+	task_name=optimize__changluo_fastalk \
+	data.dataset_name=changluo_fastalk \
+	store_params=true \
+
+optimize__changluo_mouthmovelarge:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__changluo_mouthmovelarge \
+	logger.tags=[optimize,optimize__changluo_mouthmovelarge] \
+	task_name=optimize__changluo_mouthmovelarge \
+	data.dataset_name=changluo_mouthmovelarge \
+	store_params=true \
+
+optimize__changluo_random2:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__changluo_random2 \
+	logger.tags=[optimize,optimize__changluo_random2] \
+	task_name=optimize__changluo_random2 \
+	data.dataset_name=changluo_random2 \
+	store_params=true \
+
+optimize__changluo_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__changluo_rotatemouth \
+	logger.tags=[optimize,optimize__changluo_rotatemouth] \
+	task_name=optimize__changluo_rotatemouth \
+	data.dataset_name=changluo_rotatemouth \
+	store_params=true \
+
+optimize__changluo_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__changluo_smile \
+	logger.tags=[optimize,optimize__changluo_smile] \
+	task_name=optimize__changluo_smile \
+	data.dataset_name=changluo_smile \
+	store_params=true \
+
+optimize__changluo_talk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__changluo_talk \
+	logger.tags=[optimize,optimize__changluo_talk] \
+	task_name=optimize__changluo_talk \
+	data.dataset_name=changluo_talk \
+	store_params=true \
+
+optimize__christoph_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__christoph_eyeblink \
+	logger.tags=[optimize,optimize__christoph_eyeblink] \
+	task_name=optimize__christoph_eyeblink \
+	data.dataset_name=christoph_eyeblink \
+	store_params=true \
+
+optimize__christoph_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__christoph_fastalk \
+	logger.tags=[optimize,optimize__christoph_fastalk] \
+	task_name=optimize__christoph_fastalk \
+	data.dataset_name=christoph_fastalk \
+	store_params=true \
+
+optimize__christoph_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__christoph_mouthmove \
+	logger.tags=[optimize,optimize__christoph_mouthmove] \
+	task_name=optimize__christoph_mouthmove \
+	data.dataset_name=christoph_mouthmove \
+	store_params=true \
+
+optimize__christoph_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__christoph_rotatemouth \
+	logger.tags=[optimize,optimize__christoph_rotatemouth] \
+	task_name=optimize__christoph_rotatemouth \
+	data.dataset_name=christoph_rotatemouth \
+	store_params=true \
+
+optimize__christoph_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__christoph_smile \
+	logger.tags=[optimize,optimize__christoph_smile] \
+	task_name=optimize__christoph_smile \
+	data.dataset_name=christoph_smile \
+	store_params=true \
+
+optimize__elias_wohlgemuth_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__elias_wohlgemuth_eyeblink \
+	logger.tags=[optimize,optimize__elias_wohlgemuth_eyeblink] \
+	task_name=optimize__elias_wohlgemuth_eyeblink \
+	data.dataset_name=elias_wohlgemuth_eyeblink \
+	store_params=true \
+
+optimize__elias_wohlgemuth_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__elias_wohlgemuth_fastalk \
+	logger.tags=[optimize,optimize__elias_wohlgemuth_fastalk] \
+	task_name=optimize__elias_wohlgemuth_fastalk \
+	data.dataset_name=elias_wohlgemuth_fastalk \
+	store_params=true \
+
+optimize__elias_wohlgemuth_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__elias_wohlgemuth_mouthmove \
+	logger.tags=[optimize,optimize__elias_wohlgemuth_mouthmove] \
+	task_name=optimize__elias_wohlgemuth_mouthmove \
+	data.dataset_name=elias_wohlgemuth_mouthmove \
+	store_params=true \
+
+optimize__elias_wohlgemuth_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__elias_wohlgemuth_rotatemouth \
+	logger.tags=[optimize,optimize__elias_wohlgemuth_rotatemouth] \
+	task_name=optimize__elias_wohlgemuth_rotatemouth \
+	data.dataset_name=elias_wohlgemuth_rotatemouth \
+	store_params=true \
+
+optimize__elias_wohlgemuth_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__elias_wohlgemuth_smile \
+	logger.tags=[optimize,optimize__elias_wohlgemuth_smile] \
+	task_name=optimize__elias_wohlgemuth_smile \
+	data.dataset_name=elias_wohlgemuth_smile \
+	store_params=true \
+
+optimize__felix_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__felix_eyeblink \
+	logger.tags=[optimize,optimize__felix_eyeblink] \
+	task_name=optimize__felix_eyeblink \
+	data.dataset_name=felix_eyeblink \
+	store_params=true \
+
+optimize__felix_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__felix_fastalk \
+	logger.tags=[optimize,optimize__felix_fastalk] \
+	task_name=optimize__felix_fastalk \
+	data.dataset_name=felix_fastalk \
+	store_params=true \
+
+optimize__felix_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__felix_mouthmove \
+	logger.tags=[optimize,optimize__felix_mouthmove] \
+	task_name=optimize__felix_mouthmove \
+	data.dataset_name=felix_mouthmove \
+	store_params=true \
+
+optimize__felix_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__felix_rotatemouth \
+	logger.tags=[optimize,optimize__felix_rotatemouth] \
+	task_name=optimize__felix_rotatemouth \
+	data.dataset_name=felix_rotatemouth \
+	store_params=true \
+
+optimize__felix_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__felix_smile \
+	logger.tags=[optimize,optimize__felix_smile] \
+	task_name=optimize__felix_smile \
+	data.dataset_name=felix_smile \
+	store_params=true \
+
+optimize__haoxuan_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__haoxuan_eyeblink \
+	logger.tags=[optimize,optimize__haoxuan_eyeblink] \
+	task_name=optimize__haoxuan_eyeblink \
+	data.dataset_name=haoxuan_eyeblink \
+	store_params=true \
+
+optimize__haoxuan_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__haoxuan_fastalk \
+	logger.tags=[optimize,optimize__haoxuan_fastalk] \
+	task_name=optimize__haoxuan_fastalk \
+	data.dataset_name=haoxuan_fastalk \
+	store_params=true \
+
+optimize__haoxuan_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__haoxuan_mouthmove \
+	logger.tags=[optimize,optimize__haoxuan_mouthmove] \
+	task_name=optimize__haoxuan_mouthmove \
+	data.dataset_name=haoxuan_mouthmove \
+	store_params=true \
+
+optimize__haoxuan_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__haoxuan_rotatemouth \
+	logger.tags=[optimize,optimize__haoxuan_rotatemouth] \
+	task_name=optimize__haoxuan_rotatemouth \
+	data.dataset_name=haoxuan_rotatemouth \
+	store_params=true \
+
+optimize__haoxuan_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__haoxuan_smile \
+	logger.tags=[optimize,optimize__haoxuan_smile] \
+	task_name=optimize__haoxuan_smile \
+	data.dataset_name=haoxuan_smile \
+	store_params=true \
+
+optimize__honglixu_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__honglixu_eyeblink \
+	logger.tags=[optimize,optimize__honglixu_eyeblink] \
+	task_name=optimize__honglixu_eyeblink \
+	data.dataset_name=honglixu_eyeblink \
+	store_params=true \
+
+optimize__honglixu_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__honglixu_fastalk \
+	logger.tags=[optimize,optimize__honglixu_fastalk] \
+	task_name=optimize__honglixu_fastalk \
+	data.dataset_name=honglixu_fastalk \
+	store_params=true \
+
+optimize__honglixu_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__honglixu_mouthmove \
+	logger.tags=[optimize,optimize__honglixu_mouthmove] \
+	task_name=optimize__honglixu_mouthmove \
+	data.dataset_name=honglixu_mouthmove \
+	store_params=true \
+
+optimize__honglixu_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__honglixu_rotatemouth \
+	logger.tags=[optimize,optimize__honglixu_rotatemouth] \
+	task_name=optimize__honglixu_rotatemouth \
+	data.dataset_name=honglixu_rotatemouth \
+	store_params=true \
+
+optimize__honglixu_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__honglixu_smile \
+	logger.tags=[optimize,optimize__honglixu_smile] \
+	task_name=optimize__honglixu_smile \
+	data.dataset_name=honglixu_smile \
+	store_params=true \
+
+optimize__innocenzo_fulgintl_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__innocenzo_fulgintl_eyeblink \
+	logger.tags=[optimize,optimize__innocenzo_fulgintl_eyeblink] \
+	task_name=optimize__innocenzo_fulgintl_eyeblink \
+	data.dataset_name=innocenzo_fulgintl_eyeblink \
+	store_params=true \
+
+optimize__innocenzo_fulgintl_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__innocenzo_fulgintl_fastalk \
+	logger.tags=[optimize,optimize__innocenzo_fulgintl_fastalk] \
+	task_name=optimize__innocenzo_fulgintl_fastalk \
+	data.dataset_name=innocenzo_fulgintl_fastalk \
+	store_params=true \
+
+optimize__innocenzo_fulgintl_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__innocenzo_fulgintl_mouthmove \
+	logger.tags=[optimize,optimize__innocenzo_fulgintl_mouthmove] \
+	task_name=optimize__innocenzo_fulgintl_mouthmove \
+	data.dataset_name=innocenzo_fulgintl_mouthmove \
+	store_params=true \
+
+optimize__innocenzo_fulgintl_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__innocenzo_fulgintl_rotatemouth \
+	logger.tags=[optimize,optimize__innocenzo_fulgintl_rotatemouth] \
+	task_name=optimize__innocenzo_fulgintl_rotatemouth \
+	data.dataset_name=innocenzo_fulgintl_rotatemouth \
+	store_params=true \
+
+optimize__innocenzo_fulgintl_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__innocenzo_fulgintl_smile \
+	logger.tags=[optimize,optimize__innocenzo_fulgintl_smile] \
+	task_name=optimize__innocenzo_fulgintl_smile \
+	data.dataset_name=innocenzo_fulgintl_smile \
+	store_params=true \
+
+optimize__leni_rohe_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__leni_rohe_eyeblink \
+	logger.tags=[optimize,optimize__leni_rohe_eyeblink] \
+	task_name=optimize__leni_rohe_eyeblink \
+	data.dataset_name=leni_rohe_eyeblink \
+	store_params=true \
+
+optimize__leni_rohe_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__leni_rohe_mouthmove \
+	logger.tags=[optimize,optimize__leni_rohe_mouthmove] \
+	task_name=optimize__leni_rohe_mouthmove \
+	data.dataset_name=leni_rohe_mouthmove \
+	store_params=true \
+
+optimize__leni_rohe_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__leni_rohe_rotatemouth \
+	logger.tags=[optimize,optimize__leni_rohe_rotatemouth] \
+	task_name=optimize__leni_rohe_rotatemouth \
+	data.dataset_name=leni_rohe_rotatemouth \
+	store_params=true \
+
+optimize__leni_rohe_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__leni_rohe_smile \
+	logger.tags=[optimize,optimize__leni_rohe_smile] \
+	task_name=optimize__leni_rohe_smile \
+	data.dataset_name=leni_rohe_smile \
+	store_params=true \
+
+optimize__madhav_agarwal_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__madhav_agarwal_eyeblink \
+	logger.tags=[optimize,optimize__madhav_agarwal_eyeblink] \
+	task_name=optimize__madhav_agarwal_eyeblink \
+	data.dataset_name=madhav_agarwal_eyeblink \
+	store_params=true \
+
+optimize__madhav_agarwal_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__madhav_agarwal_fastalk \
+	logger.tags=[optimize,optimize__madhav_agarwal_fastalk] \
+	task_name=optimize__madhav_agarwal_fastalk \
+	data.dataset_name=madhav_agarwal_fastalk \
+	store_params=true \
+
+optimize__madhav_agarwal_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__madhav_agarwal_mouthmove \
+	logger.tags=[optimize,optimize__madhav_agarwal_mouthmove] \
+	task_name=optimize__madhav_agarwal_mouthmove \
+	data.dataset_name=madhav_agarwal_mouthmove \
+	store_params=true \
+
+optimize__madhav_agarwal_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__madhav_agarwal_rotatemouth \
+	logger.tags=[optimize,optimize__madhav_agarwal_rotatemouth] \
+	task_name=optimize__madhav_agarwal_rotatemouth \
+	data.dataset_name=madhav_agarwal_rotatemouth \
+	store_params=true \
+
+optimize__madhav_agarwal_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__madhav_agarwal_smile \
+	logger.tags=[optimize,optimize__madhav_agarwal_smile] \
+	task_name=optimize__madhav_agarwal_smile \
+	data.dataset_name=madhav_agarwal_smile \
+	store_params=true \
+
+optimize__mahabmarhai_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mahabmarhai_eyeblink \
+	logger.tags=[optimize,optimize__mahabmarhai_eyeblink] \
+	task_name=optimize__mahabmarhai_eyeblink \
+	data.dataset_name=mahabmarhai_eyeblink \
+	store_params=true \
+
+optimize__mahabmarhai_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mahabmarhai_fastalk \
+	logger.tags=[optimize,optimize__mahabmarhai_fastalk] \
+	task_name=optimize__mahabmarhai_fastalk \
+	data.dataset_name=mahabmarhai_fastalk \
+	store_params=true \
+
+optimize__mahabmarhai_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mahabmarhai_mouthmove \
+	logger.tags=[optimize,optimize__mahabmarhai_mouthmove] \
+	task_name=optimize__mahabmarhai_mouthmove \
+	data.dataset_name=mahabmarhai_mouthmove \
+	store_params=true \
+
+optimize__mahabmarhai_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mahabmarhai_rotatemouth \
+	logger.tags=[optimize,optimize__mahabmarhai_rotatemouth] \
+	task_name=optimize__mahabmarhai_rotatemouth \
+	data.dataset_name=mahabmarhai_rotatemouth \
+	store_params=true \
+
+optimize__mahabmarhai_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mahabmarhai_smile \
+	logger.tags=[optimize,optimize__mahabmarhai_smile] \
+	task_name=optimize__mahabmarhai_smile \
+	data.dataset_name=mahabmarhai_smile \
+	store_params=true \
+
+optimize__manuel_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__manuel_eyeblink \
+	logger.tags=[optimize,optimize__manuel_eyeblink] \
+	task_name=optimize__manuel_eyeblink \
+	data.dataset_name=manuel_eyeblink \
+	store_params=true \
+
+optimize__manuel_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__manuel_fastalk \
+	logger.tags=[optimize,optimize__manuel_fastalk] \
+	task_name=optimize__manuel_fastalk \
+	data.dataset_name=manuel_fastalk \
+	store_params=true \
+
+optimize__manuel_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__manuel_mouthmove \
+	logger.tags=[optimize,optimize__manuel_mouthmove] \
+	task_name=optimize__manuel_mouthmove \
+	data.dataset_name=manuel_mouthmove \
+	store_params=true \
+
+optimize__manuel_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__manuel_rotatemouth \
+	logger.tags=[optimize,optimize__manuel_rotatemouth] \
+	task_name=optimize__manuel_rotatemouth \
+	data.dataset_name=manuel_rotatemouth \
+	store_params=true \
+
+optimize__manuel_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__manuel_smile \
+	logger.tags=[optimize,optimize__manuel_smile] \
+	task_name=optimize__manuel_smile \
+	data.dataset_name=manuel_smile \
+	store_params=true \
+
+optimize__medhansh_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__medhansh_eyeblink \
+	logger.tags=[optimize,optimize__medhansh_eyeblink] \
+	task_name=optimize__medhansh_eyeblink \
+	data.dataset_name=medhansh_eyeblink \
+	store_params=true \
+
+optimize__medhansh_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__medhansh_fastalk \
+	logger.tags=[optimize,optimize__medhansh_fastalk] \
+	task_name=optimize__medhansh_fastalk \
+	data.dataset_name=medhansh_fastalk \
+	store_params=true \
+
+optimize__medhansh_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__medhansh_mouthmove \
+	logger.tags=[optimize,optimize__medhansh_mouthmove] \
+	task_name=optimize__medhansh_mouthmove \
+	data.dataset_name=medhansh_mouthmove \
+	store_params=true \
+
+optimize__medhansh_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__medhansh_rotatemouth \
+	logger.tags=[optimize,optimize__medhansh_rotatemouth] \
+	task_name=optimize__medhansh_rotatemouth \
+	data.dataset_name=medhansh_rotatemouth \
+	store_params=true \
+
+optimize__medhansh_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__medhansh_smile \
+	logger.tags=[optimize,optimize__medhansh_smile] \
+	task_name=optimize__medhansh_smile \
+	data.dataset_name=medhansh_smile \
+	store_params=true \
+
+optimize__michaeldyer_eyeblink2:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__michaeldyer_eyeblink2 \
+	logger.tags=[optimize,optimize__michaeldyer_eyeblink2] \
+	task_name=optimize__michaeldyer_eyeblink2 \
+	data.dataset_name=michaeldyer_eyeblink2 \
+	store_params=true \
+
+optimize__michaeldyer_fastalk2:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__michaeldyer_fastalk2 \
+	logger.tags=[optimize,optimize__michaeldyer_fastalk2] \
+	task_name=optimize__michaeldyer_fastalk2 \
+	data.dataset_name=michaeldyer_fastalk2 \
+	store_params=true \
+
+optimize__michaeldyer_mouthmove2:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__michaeldyer_mouthmove2 \
+	logger.tags=[optimize,optimize__michaeldyer_mouthmove2] \
+	task_name=optimize__michaeldyer_mouthmove2 \
+	data.dataset_name=michaeldyer_mouthmove2 \
+	store_params=true \
+
+optimize__michaeldyer_rotatemouth2:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__michaeldyer_rotatemouth2 \
+	logger.tags=[optimize,optimize__michaeldyer_rotatemouth2] \
+	task_name=optimize__michaeldyer_rotatemouth2 \
+	data.dataset_name=michaeldyer_rotatemouth2 \
+	store_params=true \
+
+optimize__michaeldyer_smile2:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__michaeldyer_smile2 \
+	logger.tags=[optimize,optimize__michaeldyer_smile2] \
+	task_name=optimize__michaeldyer_smile2 \
+	data.dataset_name=michaeldyer_smile2 \
+	store_params=true \
+
+optimize__mohak_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mohak_eyeblink \
+	logger.tags=[optimize,optimize__mohak_eyeblink] \
+	task_name=optimize__mohak_eyeblink \
+	data.dataset_name=mohak_eyeblink \
+	store_params=true \
+
+optimize__mohak_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mohak_fastalk \
+	logger.tags=[optimize,optimize__mohak_fastalk] \
+	task_name=optimize__mohak_fastalk \
+	data.dataset_name=mohak_fastalk \
+	store_params=true \
+
+optimize__mohak_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mohak_mouthmove \
+	logger.tags=[optimize,optimize__mohak_mouthmove] \
+	task_name=optimize__mohak_mouthmove \
+	data.dataset_name=mohak_mouthmove \
+	store_params=true \
+
+optimize__mohak_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mohak_rotatemouth \
+	logger.tags=[optimize,optimize__mohak_rotatemouth] \
+	task_name=optimize__mohak_rotatemouth \
+	data.dataset_name=mohak_rotatemouth \
+	store_params=true \
+
+optimize__mohak_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mohak_smile \
+	logger.tags=[optimize,optimize__mohak_smile] \
+	task_name=optimize__mohak_smile \
+	data.dataset_name=mohak_smile \
+	store_params=true \
+
+optimize__mykola_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mykola_eyeblink \
+	logger.tags=[optimize,optimize__mykola_eyeblink] \
+	task_name=optimize__mykola_eyeblink \
+	data.dataset_name=mykola_eyeblink \
+	store_params=true \
+
+optimize__mykola_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mykola_fastalk \
+	logger.tags=[optimize,optimize__mykola_fastalk] \
+	task_name=optimize__mykola_fastalk \
+	data.dataset_name=mykola_fastalk \
+	store_params=true \
+
+optimize__mykola_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mykola_mouthmove \
+	logger.tags=[optimize,optimize__mykola_mouthmove] \
+	task_name=optimize__mykola_mouthmove \
+	data.dataset_name=mykola_mouthmove \
+	store_params=true \
+
+optimize__mykola_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mykola_rotatemouth \
+	logger.tags=[optimize,optimize__mykola_rotatemouth] \
+	task_name=optimize__mykola_rotatemouth \
+	data.dataset_name=mykola_rotatemouth \
+	store_params=true \
+
+optimize__mykola_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__mykola_smile \
+	logger.tags=[optimize,optimize__mykola_smile] \
+	task_name=optimize__mykola_smile \
+	data.dataset_name=mykola_smile \
+	store_params=true \
+
+optimize__neha_rao_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__neha_rao_eyeblink \
+	logger.tags=[optimize,optimize__neha_rao_eyeblink] \
+	task_name=optimize__neha_rao_eyeblink \
+	data.dataset_name=neha_rao_eyeblink \
+	store_params=true \
+
+optimize__neha_rao_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__neha_rao_mouthmove \
+	logger.tags=[optimize,optimize__neha_rao_mouthmove] \
+	task_name=optimize__neha_rao_mouthmove \
+	data.dataset_name=neha_rao_mouthmove \
+	store_params=true \
+
+optimize__neha_rao_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__neha_rao_rotatemouth \
+	logger.tags=[optimize,optimize__neha_rao_rotatemouth] \
+	task_name=optimize__neha_rao_rotatemouth \
+	data.dataset_name=neha_rao_rotatemouth \
+	store_params=true \
+
+optimize__neha_rao_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__neha_rao_smile \
+	logger.tags=[optimize,optimize__neha_rao_smile] \
+	task_name=optimize__neha_rao_smile \
+	data.dataset_name=neha_rao_smile \
+	store_params=true \
+
+optimize__nikolas_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__nikolas_eyeblink \
+	logger.tags=[optimize,optimize__nikolas_eyeblink] \
+	task_name=optimize__nikolas_eyeblink \
+	data.dataset_name=nikolas_eyeblink \
+	store_params=true \
+
+optimize__nikolas_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__nikolas_fastalk \
+	logger.tags=[optimize,optimize__nikolas_fastalk] \
+	task_name=optimize__nikolas_fastalk \
+	data.dataset_name=nikolas_fastalk \
+	store_params=true \
+
+optimize__nikolas_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__nikolas_mouthmove \
+	logger.tags=[optimize,optimize__nikolas_mouthmove] \
+	task_name=optimize__nikolas_mouthmove \
+	data.dataset_name=nikolas_mouthmove \
+	store_params=true \
+
+optimize__nikolas_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__nikolas_rotatemouth \
+	logger.tags=[optimize,optimize__nikolas_rotatemouth] \
+	task_name=optimize__nikolas_rotatemouth \
+	data.dataset_name=nikolas_rotatemouth \
+	store_params=true \
+
+optimize__nikolas_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__nikolas_smile \
+	logger.tags=[optimize,optimize__nikolas_smile] \
+	task_name=optimize__nikolas_smile \
+	data.dataset_name=nikolas_smile \
+	store_params=true \
+
+optimize__seddik_houimli_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__seddik_houimli_eyeblink \
+	logger.tags=[optimize,optimize__seddik_houimli_eyeblink] \
+	task_name=optimize__seddik_houimli_eyeblink \
+	data.dataset_name=seddik_houimli_eyeblink \
+	store_params=true \
+
+optimize__seddik_houimli_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__seddik_houimli_fastalk \
+	logger.tags=[optimize,optimize__seddik_houimli_fastalk] \
+	task_name=optimize__seddik_houimli_fastalk \
+	data.dataset_name=seddik_houimli_fastalk \
+	store_params=true \
+
+optimize__seddik_houimli_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__seddik_houimli_mouthmove \
+	logger.tags=[optimize,optimize__seddik_houimli_mouthmove] \
+	task_name=optimize__seddik_houimli_mouthmove \
+	data.dataset_name=seddik_houimli_mouthmove \
+	store_params=true \
+
+optimize__seddik_houimli_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__seddik_houimli_rotatemouth \
+	logger.tags=[optimize,optimize__seddik_houimli_rotatemouth] \
+	task_name=optimize__seddik_houimli_rotatemouth \
+	data.dataset_name=seddik_houimli_rotatemouth \
+	store_params=true \
+
+optimize__seddik_houimli_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__seddik_houimli_smile \
+	logger.tags=[optimize,optimize__seddik_houimli_smile] \
+	task_name=optimize__seddik_houimli_smile \
+	data.dataset_name=seddik_houimli_smile \
+	store_params=true \
+
+optimize__siyunliang_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__siyunliang_eyeblink \
+	logger.tags=[optimize,optimize__siyunliang_eyeblink] \
+	task_name=optimize__siyunliang_eyeblink \
+	data.dataset_name=siyunliang_eyeblink \
+	store_params=true \
+
+optimize__siyunliang_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__siyunliang_fastalk \
+	logger.tags=[optimize,optimize__siyunliang_fastalk] \
+	task_name=optimize__siyunliang_fastalk \
+	data.dataset_name=siyunliang_fastalk \
+	store_params=true \
+
+optimize__siyunliang_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__siyunliang_mouthmove \
+	logger.tags=[optimize,optimize__siyunliang_mouthmove] \
+	task_name=optimize__siyunliang_mouthmove \
+	data.dataset_name=siyunliang_mouthmove \
+	store_params=true \
+
+optimize__siyunliang_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__siyunliang_rotatemouth \
+	logger.tags=[optimize,optimize__siyunliang_rotatemouth] \
+	task_name=optimize__siyunliang_rotatemouth \
+	data.dataset_name=siyunliang_rotatemouth \
+	store_params=true \
+
+optimize__siyunliang_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__siyunliang_smile \
+	logger.tags=[optimize,optimize__siyunliang_smile] \
+	task_name=optimize__siyunliang_smile \
+	data.dataset_name=siyunliang_smile \
+	store_params=true \
+
+optimize__umur_gogebakan_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__umur_gogebakan_eyeblink \
+	logger.tags=[optimize,optimize__umur_gogebakan_eyeblink] \
+	task_name=optimize__umur_gogebakan_eyeblink \
+	data.dataset_name=umur_gogebakan_eyeblink \
+	store_params=true \
+
+optimize__umur_gogebakan_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__umur_gogebakan_fastalk \
+	logger.tags=[optimize,optimize__umur_gogebakan_fastalk] \
+	task_name=optimize__umur_gogebakan_fastalk \
+	data.dataset_name=umur_gogebakan_fastalk \
+	store_params=true \
+
+optimize__umur_gogebakan_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__umur_gogebakan_mouthmove \
+	logger.tags=[optimize,optimize__umur_gogebakan_mouthmove] \
+	task_name=optimize__umur_gogebakan_mouthmove \
+	data.dataset_name=umur_gogebakan_mouthmove \
+	store_params=true \
+
+optimize__umur_gogebakan_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__umur_gogebakan_rotatemouth \
+	logger.tags=[optimize,optimize__umur_gogebakan_rotatemouth] \
+	task_name=optimize__umur_gogebakan_rotatemouth \
+	data.dataset_name=umur_gogebakan_rotatemouth \
+	store_params=true \
+
+optimize__umur_gogebakan_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__umur_gogebakan_smile \
+	logger.tags=[optimize,optimize__umur_gogebakan_smile] \
+	task_name=optimize__umur_gogebakan_smile \
+	data.dataset_name=umur_gogebakan_smile \
+	store_params=true \
+
+optimize__viet_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__viet_eyeblink \
+	logger.tags=[optimize,optimize__viet_eyeblink] \
+	task_name=optimize__viet_eyeblink \
+	data.dataset_name=viet_eyeblink \
+	store_params=true \
+
+optimize__viet_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__viet_fastalk \
+	logger.tags=[optimize,optimize__viet_fastalk] \
+	task_name=optimize__viet_fastalk \
+	data.dataset_name=viet_fastalk \
+	store_params=true \
+
+optimize__viet_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__viet_mouthmove \
+	logger.tags=[optimize,optimize__viet_mouthmove] \
+	task_name=optimize__viet_mouthmove \
+	data.dataset_name=viet_mouthmove \
+	store_params=true \
+
+optimize__viet_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__viet_rotatemouth \
+	logger.tags=[optimize,optimize__viet_rotatemouth] \
+	task_name=optimize__viet_rotatemouth \
+	data.dataset_name=viet_rotatemouth \
+	store_params=true \
+
+optimize__viet_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__viet_smile \
+	logger.tags=[optimize,optimize__viet_smile] \
+	task_name=optimize__viet_smile \
+	data.dataset_name=viet_smile \
+	store_params=true \
+
+optimize__weicao_angry:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_angry \
+	logger.tags=[optimize,optimize__weicao_angry] \
+	task_name=optimize__weicao_angry \
+	data.dataset_name=weicao_angry \
+	store_params=true \
+
+optimize__weicao_fastalk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_fastalk \
+	logger.tags=[optimize,optimize__weicao_fastalk] \
+	task_name=optimize__weicao_fastalk \
+	data.dataset_name=weicao_fastalk \
+	store_params=true \
+
+optimize__weicao_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_mouthmove \
+	logger.tags=[optimize,optimize__weicao_mouthmove] \
+	task_name=optimize__weicao_mouthmove \
+	data.dataset_name=weicao_mouthmove \
+	store_params=true \
+
+optimize__weicao_mouthmovelarge:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_mouthmovelarge \
+	logger.tags=[optimize,optimize__weicao_mouthmovelarge] \
+	task_name=optimize__weicao_mouthmovelarge \
+	data.dataset_name=weicao_mouthmovelarge \
+	store_params=true \
+
+optimize__weicao_random2:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_random2 \
+	logger.tags=[optimize,optimize__weicao_random2] \
+	task_name=optimize__weicao_random2 \
+	data.dataset_name=weicao_random2 \
+	store_params=true \
+
+optimize__weicao_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_rotatemouth \
+	logger.tags=[optimize,optimize__weicao_rotatemouth] \
+	task_name=optimize__weicao_rotatemouth \
+	data.dataset_name=weicao_rotatemouth \
+	store_params=true \
+
+optimize__weicao_smile:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_smile \
+	logger.tags=[optimize,optimize__weicao_smile] \
+	task_name=optimize__weicao_smile \
+	data.dataset_name=weicao_smile \
+	store_params=true \
+
+optimize__weicao_smile2:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_smile2 \
+	logger.tags=[optimize,optimize__weicao_smile2] \
+	task_name=optimize__weicao_smile2 \
+	data.dataset_name=weicao_smile2 \
+	store_params=true \
+
+optimize__weicao_talk:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=optimize__weicao_talk \
+	logger.tags=[optimize,optimize__weicao_talk] \
+	task_name=optimize__weicao_talk \
+	data.dataset_name=weicao_talk \
+	store_params=true \
+
+

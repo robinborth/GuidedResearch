@@ -11,9 +11,8 @@ _target_: lib.tracker.tracker.SequentialTracker
 kernel_size: 1
 stride: 1
 dilation: 1
-start_frame: 0
-
-end_frame: 127
+start_frame: null
+end_frame: null
 max_iters: 15
 max_optims: 1
 save_interval: 5

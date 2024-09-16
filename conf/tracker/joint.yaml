@@ -7,7 +7,7 @@ defaults:
 _target_: lib.tracker.tracker.JointTracker
 
 # loop settings
-init_idxs: [0,20,35,55,65,95,110,115]
+init_idxs: [0,20,35,47,55,65,72,80]
 
 max_iters: 100
 max_optims: 1

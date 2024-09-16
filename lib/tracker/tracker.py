@@ -157,7 +157,11 @@ class SequentialTracker:
             k: v[0].detach().cpu().tolist() for k, v in default_params.items()
         }
         self.start_frame = start_frame
+        if self.start_frame is None:
+            self.start_frame = 0
         self.end_frame = end_frame
+        if self.end_frame is None:
+            self.end_frame = len(self.datamodule.dataset)
         self.kernal_size = kernel_size
         self.stride = stride
         self.dilation = dilation
