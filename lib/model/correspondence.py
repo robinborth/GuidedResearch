@@ -109,7 +109,7 @@ class OpticalFlowCorrespondenceModule(nn.Module):
         t_new_mask = samples.bool().squeeze(-1)
         # compute the mask, where the source points found a correspondence point
         mask = t_new_mask & s_mask
-        return mask
+        return mask, {}
 
 
 class ProjectiveCorrespondenceModule(nn.Module):
@@ -146,14 +146,20 @@ class ProjectiveCorrespondenceModule(nn.Module):
         # calculate the forground mask
         f_mask = s_mask & t_mask  # (B, W, H)
         # the depth mask based on some epsilon of distance 10cm
-        d_mask = dist < self.d_threshold  # (B, W, H)
+        d_mask = (dist < self.d_threshold) & f_mask  # (B, W, H)
         # dot product, e.g. coresponds to an angle
         normal_dot = (s_normal * t_normal).sum(-1)
         n_mask = normal_dot > self.n_threshold  # (B, W, H)
         # final loss mask of silhouette, depth and normal threshold
         final_mask = d_mask & f_mask & n_mask
         # assert final_mask.sum()  # we have some overlap
-        return final_mask
+
+        info = {}
+        info["mask_normal"] = n_mask
+        info["mask_depth"] = d_mask
+        info["mask_final"] = final_mask
+
+        return final_mask, info
 
     def transform(self, t_value: torch.Tensor, **kwargs):
         return t_value

@@ -9,8 +9,8 @@ _target_: lib.tracker.tracker.JointTracker
 # loop settings
 init_idxs: [0,20,35,55,65,95,110,115]
 
-max_iters: 50
-max_optims: 3
+max_iters: 100
+max_optims: 1
 save_interval: 5
 
 scheduler:

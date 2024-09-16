@@ -1,5 +1,5 @@
 # @package correspondence 
 
 _target_: lib.model.correspondence.ProjectiveCorrespondenceModule
-d_threshold: 0.1
-n_threshold: 0.9
+d_threshold: 0.05
+n_threshold: 0.95

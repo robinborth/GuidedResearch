@@ -2,7 +2,7 @@
 _target_: lib.data.datamodule.DPHMDataModule
 
 # dataset settings
-dataset_name: christoph_mouthmove # christoph_mouthmove, ali_kocal_mouthmove
+dataset_name: ali_kocal_mouthmove # christoph_mouthmove, ali_kocal_mouthmove
 data_dir: ${paths.data_dir}/${data.dataset_name}
 sequence_length: 127
 

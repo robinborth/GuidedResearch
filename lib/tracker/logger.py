@@ -250,6 +250,12 @@ class FlameLogger(WandbLogger):
         for idx in range(B):
             yield B, idx, frame_idx[idx].item()
 
+    def log_mask(self, frame_idx: torch.Tensor, masks: dict[str, torch.Tensor]):
+        for _, b_idx, f_idx in self.iter_debug_idx(frame_idx):
+            for key, mask in masks.items():
+                file_name = self.log_path(key, f_idx, "png")
+                self.save_image(file_name, mask[b_idx])
+
     def log_error(
         self,
         frame_idx: torch.Tensor,

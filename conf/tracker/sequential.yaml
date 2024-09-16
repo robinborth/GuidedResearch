@@ -14,7 +14,7 @@ dilation: 1
 start_frame: 0
 
 end_frame: 127
-max_iters: 20
+max_iters: 15
 max_optims: 1
 save_interval: 5
 

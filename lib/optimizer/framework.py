@@ -465,7 +465,7 @@ class ICPOptimizer(OptimizerFramework):
                     params=self.optimizer.get_params(),
                 )
                 # establish correspondences
-                mask = self.c_module.mask(
+                mask, mask_info = self.c_module.mask(
                     s_mask=batch["mask"],
                     s_point=batch["point"],
                     s_normal=batch["normal"],
@@ -539,6 +539,10 @@ class ICPOptimizer(OptimizerFramework):
                 t_color=out["color"],
             )
             if (iter_step % self.save_interval) == 0 and self.verbose:
+                self.logger.log_mask(
+                    frame_idx=batch["frame_idx"],
+                    masks=mask_info,
+                )
                 self.logger.log_error(
                     frame_idx=batch["frame_idx"],
                     s_point=batch["point"],
