@@ -4,12 +4,10 @@ from pathlib import Path
 from typing import List
 
 import hydra
-import lightning as L
 import matplotlib.pyplot as plt
 import torch
 import wandb
-from lightning import Callback, LightningDataModule, LightningModule, Trainer
-from lightning.pytorch.loggers import Logger
+from lightning import Callback, LightningDataModule, Trainer
 from omegaconf import DictConfig
 
 from lib.optimizer.solver import (

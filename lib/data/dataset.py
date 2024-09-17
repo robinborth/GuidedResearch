@@ -6,81 +6,86 @@ from torch.utils.data import Dataset
 
 
 class DPHMDataset(Dataset):
-    def __init__(
-        self,
-        scale: int = 1,
-        data_dir: str = "/data",
-        **kwargs,
-    ):
-        self.sequence_length = len(list((Path(data_dir) / "depth").iterdir()))
+    def __init__(self, scale: int = 1, data_dir: str = "/data"):
         self.scale = scale
         self.data_dir = data_dir
 
-    def iter_frame_idx(self):
-        yield from range(self.sequence_length)
+    def frame_count(self, dataset: str):
+        path = Path(self.data_dir) / dataset / "depth"
+        return len(list(path.iterdir()))
 
-    def cache_path(self, name: str, frame_idx: int) -> Path:
-        return (
+    def iter_frame_idx(self, dataset: str):
+        return list(range(self.frame_count(dataset)))
+
+    def load_cached(self, dataset: str, data_type: str, frame_idx: int) -> Path:
+        path = (
             Path(self.data_dir)
+            / dataset
             / "cache"
-            / f"{self.scale}_{name}"
+            / f"{self.scale}_{data_type}"
             / f"{frame_idx:05}.pt"
         )
-
-    def load_cached(self, name: str, frame_idx: int):
-        path = self.cache_path(name, frame_idx)
         return torch.load(path)
 
-    def load(self, name: str):
+    def load(self, dataset: str, data_type: str):
         data = []
-        for frame_idx in self.iter_frame_idx():
-            landmarks = self.load_cached(name, frame_idx)
+        for frame_idx in self.iter_frame_idx(dataset):
+            landmarks = self.load_cached(dataset, data_type, frame_idx)
             data.append(landmarks)
         return data
 
-    def load_landmark(self):
+    def load_landmark(self, dataset: str):
         landmark = []
-        for frame_idx in self.iter_frame_idx():
-            path = Path(self.data_dir) / f"landmark/{frame_idx:05}.pt"
+        for frame_idx in self.iter_frame_idx(dataset):
+            path = Path(self.data_dir) / f"{dataset}/landmark/{frame_idx:05}.pt"
             landmark.append(torch.load(path))
         return landmark
 
-    def load_landmark_mask(self):
+    def load_landmark_mask(self, dataset: str):
         landmark = []
-        for frame_idx in self.iter_frame_idx():
-            path = Path(self.data_dir) / f"landmark_mask/{frame_idx:05}.pt"
+        for frame_idx in self.iter_frame_idx(dataset):
+            path = Path(self.data_dir) / f"{dataset}/landmark_mask/{frame_idx:05}.pt"
             landmark.append(torch.load(path))
         return landmark
 
-    def load_params(self):
+    def load_params(self, dataset: str):
         params = []
-        for frame_idx in self.iter_frame_idx():
-            path = Path(self.data_dir) / f"params/{frame_idx:05}.pt"
+        for frame_idx in self.iter_frame_idx(dataset):
+            path = Path(self.data_dir) / f"{dataset}/params/{frame_idx:05}.pt"
             _params = torch.load(path)
             _params = {k: v[0] for k, v in _params.items()}
             params.append(_params)
         return params
 
     def __len__(self) -> int:
-        return self.sequence_length
+        raise NotImplementedError()
 
     def __getitem__(self, idx: int):
         raise NotImplementedError()
 
 
-class DPHMPointDataset(DPHMDataset):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.mask = self.load("mask")
-        self.normal = self.load("normal")
-        self.color = self.load("color")
-        self.point = self.load("point")
-        self.landmark = self.load_landmark()
-        self.landmark_mask = self.load_landmark_mask()
-        self.frame_idxs = list(self.iter_frame_idx())
+class DPHMOptimizeDataset(DPHMDataset):
+    def __init__(
+        self,
+        dataset: str,
+        scale: int = 1,
+        data_dir: str = "/data",
+    ):
+        self.scale = scale
+        self.data_dir = data_dir
+        self.dataset = dataset
+        self.mask = self.load(dataset, "mask")
+        self.normal = self.load(dataset, "normal")
+        self.color = self.load(dataset, "color")
+        self.point = self.load(dataset, "point")
+        self.landmark = self.load_landmark(dataset)
+        self.landmark_mask = self.load_landmark_mask(dataset)
+        self.frame_idxs = self.iter_frame_idx(dataset)
+
+    def __len__(self) -> int:
+        return self.frame_count(self.dataset)
 
     def __getitem__(self, idx: int):
-        # (H', W', 3) this is scaled
         mask = self.mask[idx]
         point = self.point[idx]
         normal = self.normal[idx]
@@ -88,6 +93,7 @@ class DPHMPointDataset(DPHMDataset):
         landmark = self.landmark[idx]
         landmark_mask = self.landmark_mask[idx]
         frame_idx = self.frame_idxs[idx]
+        # (H', W', 3) this is scaled
         return {
             "frame_idx": frame_idx,
             "mask": mask,
@@ -99,60 +105,103 @@ class DPHMPointDataset(DPHMDataset):
         }
 
 
-class DPHMParamsDataset(DPHMDataset):
+class DPHMTrainDataset(DPHMDataset):
     def __init__(
         self,
-        start_frame: int = 1,
+        scale: int = 1,
+        data_dir: str = "/data",
+        datasets: list[str] = [],
         mode: str = "fix",
-        end_frame: int = 2,
         jump_size: int = 1,
-        **kwargs,
+        start_frame: int | None = None,
+        end_frame: int | None = None,
     ):
-        super().__init__(**kwargs)
-        self.mask = self.load("mask")
-        self.normal = self.load("normal")
-        self.color = self.load("color")
-        self.point = self.load("point")
-        self.params = self.load_params()
-        self.frame_idxs = list(self.iter_frame_idx())
-        self.start_frame = start_frame
-        self.end_frame = end_frame
-        self.jump_size = jump_size
-        assert mode in ["fix", "range"]
+        assert mode in ["fix", "dynamic"]
         self.mode = mode
-        assert self.start_frame >= self.jump_size
+        self.jump_size = jump_size
+        self.scale = scale
+        self.data_dir = data_dir
+        self._start_frame = start_frame
+        self._end_frame = end_frame
 
-    def init_idx(self, idx: int):
-        frame_idx = idx + self.start_frame
-        if self.mode == "fix":
-            return frame_idx - self.jump_size
-        s_idx = frame_idx - self.jump_size
-        e_idx = frame_idx + self.jump_size
-        return random.randint(s_idx, e_idx)
+        self.total_frames = 0
+        self.mask = {}
+        self.normal = {}
+        self.color = {}
+        self.point = {}
+        self.params = {}
+        self.frame_idx = {}
+        self.start_frame = {}
+        self.start_frame_idx = {}
+        self.end_frame = {}
+        self.idx2dataset = {}
+
+        for dataset in sorted(datasets):
+            self.mask[dataset] = self.load(dataset, "mask")
+            self.normal[dataset] = self.load(dataset, "normal")
+            self.color[dataset] = self.load(dataset, "color")
+            self.point[dataset] = self.load(dataset, "point")
+            self.params[dataset] = self.load_params(dataset)
+
+            start_frame = self._start_frame
+            if start_frame is None:
+                start_frame = self.jump_size
+            assert start_frame >= self.jump_size
+            self.start_frame[dataset] = start_frame
+            self.start_frame_idx[dataset] = self.total_frames
+
+            end_frame = self._end_frame
+            if end_frame is None:
+                end_frame = self.frame_count(dataset)
+            assert end_frame <= self.frame_count(dataset)
+            self.end_frame[dataset] = end_frame
+
+            frame_idx = list(range(start_frame, end_frame))
+            self.frame_idx[dataset] = frame_idx
+
+            idx2data = {self.total_frames + i: dataset for i in range(len(frame_idx))}
+            self.idx2dataset.update(idx2data)
+            self.total_frames += len(frame_idx)
+
+    def fetch_helper(self, idx: int):
+        # fetch the information about the current dataset sequence
+        dataset = self.idx2dataset[idx]
+        start_frame = self.start_frame[dataset]
+        start_frame_idx = self.start_frame_idx[dataset]
+
+        # sequence indexing
+        frame_idx = (idx - start_frame_idx) + start_frame
+        init_idx = frame_idx - self.jump_size
+        if self.mode == "dynamic":
+            s_idx = frame_idx - self.jump_size
+            e_idx = frame_idx + self.jump_size
+            init_idx = random.randint(s_idx, e_idx)
+
+        return dataset, frame_idx, init_idx
 
     def __len__(self):
-        return self.end_frame - self.start_frame
+        return self.total_frames
 
     def __getitem__(self, idx: int):
-        # (H', W', 3) this is scaled
-        frame_idx = idx + self.start_frame
-        mask = self.mask[frame_idx]
-        point = self.point[frame_idx]
-        normal = self.normal[frame_idx]
-        color = self.color[frame_idx]
-        gt_params = self.params[frame_idx]
-        init_idx = self.init_idx(idx)
-        params = self.params[init_idx]
-        init_color = self.color[init_idx]
+        dataset, frame_idx, init_idx = self.fetch_helper(idx)
+        mask = self.mask[dataset][frame_idx]
+        point = self.point[dataset][frame_idx]
+        normal = self.normal[dataset][frame_idx]
+        color = self.color[dataset][frame_idx]
+        params = self.params[dataset][frame_idx]
+        init_params = self.params[dataset][init_idx]
+        init_color = self.color[dataset][init_idx]
         return {
+            "dataset": dataset,
             "frame_idx": frame_idx,
             "mask": mask,
             "point": point,
             "normal": normal,
             "color": color,
-            "params": gt_params,
-            "init_params": params,
+            "params": params,
+            "init_params": init_params,
             "init_color": init_color,
+            "init_frame_idx": frame_idx,
         }
 
 

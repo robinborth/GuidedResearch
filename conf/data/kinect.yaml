@@ -3,7 +3,7 @@ _target_: lib.data.datamodule.DPHMDataModule
 
 # dataset settings
 dataset_name: ali_kocal_mouthmove # christoph_mouthmove, ali_kocal_mouthmove
-data_dir: ${paths.data_dir}/dphm_kinect/${data.dataset_name}
+data_dir: ${paths.data_dir}/dphm_kinect
 
 # camera settings
 width: 1920
@@ -22,13 +22,12 @@ persistent_workers: False
 depth_factor: 1000
 inf_depth: 0.6
 scales: [2,4,8]
-normal_dilation: 30
-depth_dilation: 30
-
+dilation: 30
 
 # dataset settings
 dataset:
-  _target_: lib.data.dataset.DPHMPointDataset
+  _target_: lib.data.dataset.DPHMOptimizeDataset
   _partial_: True
   data_dir: ${data.data_dir}
-  camera: ???  # the camera is shared
+  dataset: ${data.dataset_name}
+  scale: ???  # the camera is shared

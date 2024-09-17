@@ -201,37 +201,40 @@ class FlameLogger(WandbLogger):
         plt.close()
         self.log_image(f"{self.mode}/{name}", [img])  # type: ignore
 
-    def log_merged(
+    def log_tracking(
         self,
-        name: str,
         params: dict,
         flame: Flame,
         renderer: Renderer,
-        color: torch.Tensor,
+        s_color: torch.Tensor,
+        s_normal: torch.Tensor,
+        s_mask: torch.Tensor,
     ):
+        wandb_images = []
+
+        # target color image
+        visualize_grid(images=s_color)
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        # target normal image
+        normal_image = Renderer.normal_to_normal_image(s_normal, s_mask)
+        visualize_grid(images=normal_image)
+        wandb_images.append(wandb.Image(plt))
+        plt.close()
+
+        # merged image
         out = flame.render(renderer=renderer, params=params)
         images = visualize_merged(
-            s_color=color,
+            s_color=s_color,
             t_color=out["color"],
             t_mask=out["mask"],
         )
         visualize_grid(images=images)
-        img = wandb.Image(plt)
+        wandb_images.append(wandb.Image(plt))
         plt.close()
-        self.log_image(f"{self.mode}/{name}", [img])  # type: ignore
 
-    # def init_logger(self, model: FLAME, cfg: DictConfig):
-    #     config: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
-    #     self.logger = wandb.init(
-    #         dir=self.save_dir,
-    #         project=self.project,
-    #         entity=self.entity,
-    #         group=self.group,
-    #         tags=self.tags,
-    #         name=self.name,
-    #         config=config,
-    #     )
-    #     self.model = model
+        self.log_image(f"{self.mode}/tracking", wandb_images)  # type: ignore
 
     def log(self, name: str, value: Any, step: None | int = None):
         self.log_metrics({name: value})
@@ -387,66 +390,43 @@ class FlameLogger(WandbLogger):
             file_name = f"{self.mode}/batch_landmark/{f_idx:05}.pt"
             self.save_points(file_name, s_landmark[b_idx])
 
-    def log_metrics_stats(
-        self,
-        s_mask: torch.Tensor,
-        s_point: torch.Tensor,
-        t_mask: torch.Tensor,
-        t_point: torch.Tensor,
-        t_normal: torch.Tensor,
-    ):
-        point2plane = point2plane_distance(s_point, t_point, t_normal)
-        self.log_metrics({f"{self.mode}/metric/point2plane": point2plane.mean()})
+    def log_loss(self, loss: torch.Tensor, info: dict[str, torch.Tensor]):
+        self.log(f"{self.mode}/loss", loss)
+        for key, value in info.items():
+            self.log(f"{self.mode}/{key}", value)
 
-        # point2point = point2point_distance(m["point"], m["point_gt"])
-        # self.log(f"{self.mode}/metric/point2point", point2point.mean())
+    def log_gradients(self, optimizer, verbose=False):
+        log = {}
+        for p_name, weight in optimizer._aktive_params.items():
+            grad = weight.grad
 
-        # lm_3d_dist = landmark_3d_distance(m["lm_3d_camera"], m["lm_3d_camera_gt"])
-        # self.log(f"{self.mode}/metric/landmark_3d", lm_3d_dist.mean())
+            log[f"{self.mode}/{p_name}/weight/mean"] = weight.mean()
+            log[f"{self.mode}/{p_name}/weight/absmax"] = weight.abs().max()
+            log[f"{self.mode}/{p_name}/grad/mean"] = grad.mean()
+            log[f"{self.mode}/{p_name}/grad/absmax"] = grad.abs().max()
 
-        # lm_2d_dist = landmark_3d_distance(m["lm_2d_ndc"], m["lm_2d_ndc_gt"])
-        # self.log(f"{self.mode}/metric/landmark_2d", lm_2d_dist.mean())
+            if verbose:
+                for i in range(weight.shape[-1]):
+                    value = weight[:, i].mean()
+                    log[f"{self.mode}/{p_name}/{i:03}/weight"] = value
+                for i in range(grad.shape[-1]):
+                    value = grad[:, i].mean()
+                    log[f"{self.mode}/{p_name}/{i:03}/grad"] = value
 
-        # # debug the regularization
-        # params = ["expression_params", "shape_params"]
-        # reg_dist = regularization_distance([m[p] for p in params])
-        # self.log(f"{self.mode}/metric/regularization", reg_dist.mean())
+        damping_factor = getattr(optimizer, "damping_factor", None)
+        if damping_factor:
+            log[f"{self.mode}/optimizer/damping_factor"] = damping_factor
 
-        # # debug for each frame own loss curve
-        # if self.mode == "sequential" and verbose:
-        #     i = 0
-        #     for _, b_idx, f_idx in self.iter_debug_idx(batch):
-        #         pre = f"{self.mode}/metric/{f_idx:03}"
-        #         j = mask[: b_idx + 1].sum()
-        #         self.log(f"{pre}/point2plane", point2plane[i:j].mean())
-        #         self.log(f"{pre}/point2point", point2point[i:j].mean())
-        #         self.log(f"{pre}/landmark_3d", lm_3d_dist[b_idx].mean())
-        #         self.log(f"{pre}/landmark_2d", lm_2d_dist[b_idx].mean())
-        #         i = j
+        self.log_dict(log)
 
-    # def log_gradients(self, verbose: bool = False):
-    #     log = {}
-    #     for p_name, weight in zip(self.optimizer._p_names, self.optimizer._params):
-    #         grad = weight.grad
+    def log_tracking_video_wandb(self):
+        path = Path(self.save_dir) / "video/render_merged.mp4"  # type: ignore
+        result = wandb.Video(data_or_path=str(path), caption="Tracking Result")
+        self.log("tracking/result", result)
 
-    #         log[f"{self.mode}/{p_name}/weight/mean"] = weight.mean()
-    #         log[f"{self.mode}/{p_name}/weight/absmax"] = weight.abs().max()
-    #         log[f"{self.mode}/{p_name}/grad/mean"] = grad.mean()
-    #         log[f"{self.mode}/{p_name}/grad/absmax"] = grad.abs().max()
-
-    #         if verbose:
-    #             for i in range(weight.shape[-1]):
-    #                 value = weight[:, i].mean()
-    #                 log[f"{self.mode}/{p_name}/{i:03}/weight"] = value
-    #             for i in range(grad.shape[-1]):
-    #                 value = grad[:, i].mean()
-    #                 log[f"{self.mode}/{p_name}/{i:03}/grad"] = value
-
-    #     damping_factor = getattr(self.optimizer, "damping_factor", None)
-    #     if damping_factor:
-    #         log[f"{self.mode}/optimizer/damping_factor"] = damping_factor
-
-    #     self.log_dict(log)
+        path = Path(self.save_dir) / "video/batch_color.mp4"  # type: ignore
+        target = wandb.Video(data_or_path=str(path), caption="Target RGB")
+        self.log("tracking/target", target)
 
     def save_image(self, file_name: str, image: torch.Tensor):
         path = Path(self.save_dir) / file_name  # type: ignore
@@ -525,7 +505,7 @@ class FlameLogger(WandbLogger):
             frame_idx=batch["frame_idx"],
         )
 
-    def log_tracking_video(self, name: str, framerate: int = 30, mode: str = "eval"):
+    def log_tracking_video(self, name: str, framerate: int = 16, mode: str = "eval"):
         save_dir: str = self.save_dir  # type: ignore
         _video_dir = Path(save_dir) / mode / name
         assert _video_dir.exists()
@@ -533,6 +513,8 @@ class FlameLogger(WandbLogger):
         video_path = str((Path(save_dir) / "video" / f"{name}.mp4").resolve())
         create_video(video_dir=video_dir, video_path=video_path, framerate=framerate)
 
-    def log_tracker(self):
-        statistics = self.time_tracker.compute_statistics()
-        self.log_dict({f"{self.mode}/{k}": v["mean"] for k, v in statistics.items()})
+    def log_time_tracker(self, time_tracker):
+        statistics = time_tracker.compute_statistics()
+        self.log_dict(
+            {f"{self.mode}/time_tracker/{k}": v["mean"] for k, v in statistics.items()}
+        )

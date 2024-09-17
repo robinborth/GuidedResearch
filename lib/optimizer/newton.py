@@ -120,13 +120,13 @@ class GaussNewton(NewtonOptimizer):
         # prepare the init delta vectors
         self.time_tracker.start("apply_jacobian")
         J, F, H, grad_f = self.apply_jacobian(closure)
-        self._store_flat_grad(grad_f)
 
         # solve for the direction
         self.time_tracker.start("solve_delta", stop=True)
         direction = self.solve_delta(H, grad_f)
 
         self._add_direction(self.step_size, direction)
+        self._store_flat_grad(grad_f)
         self.time_tracker.stop()
 
 

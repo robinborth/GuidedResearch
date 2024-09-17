@@ -1,26 +1,19 @@
 import logging
 from pathlib import Path
 
-import cv2
 import hydra
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from omegaconf import DictConfig
 from PIL import Image
-from torchvision.io import decode_image
 from torchvision.transforms import v2
 from torchvision.transforms.functional import pil_to_tensor
 from tqdm import tqdm
 
-from lib.data.dataset import DPHMDataset
 from lib.data.loader import load_intrinsics
 from lib.data.preprocessing import biliteral_filter, point2normal
-from lib.model import Flame
 from lib.model.flame.utils import load_static_landmark_embedding
-from lib.renderer import Camera, Rasterizer, Renderer
-from lib.tracker.logger import FlameLogger
-from lib.utils.config import set_configs
+from lib.renderer import Camera
 
 log = logging.getLogger()
 
@@ -31,7 +24,8 @@ def optimize(cfg: DictConfig):
     depth_factor: float = cfg.data.depth_factor
     inf_depth: float = cfg.data.inf_depth
     scales: list[int] = cfg.data.scales
-    data_dir = cfg.data.data_dir
+    dilation: int = cfg.data.dilation
+    data_dir = Path(cfg.data.data_dir) / cfg.data.dataset_name
     flame_dir = cfg.model.flame_dir
     cache_dir = Path(data_dir) / "cache"
 
@@ -74,7 +68,7 @@ def optimize(cfg: DictConfig):
         # smooth the normal maps
         normal = biliteral_filter(
             image=normal,
-            dilation=cfg.data.normal_dilation,
+            dilation=dilation,
             sigma_color=150,
             sigma_space=150,
         )

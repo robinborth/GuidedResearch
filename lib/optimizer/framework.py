@@ -261,7 +261,7 @@ class OptimizerFramework(L.LightningModule):
             renderer=renderer,
             params=params,
         )
-        mask = self.c_module.mask(
+        mask, _ = self.c_module.mask(
             s_mask=s_mask,
             s_point=s_point,
             s_normal=s_normal,
@@ -333,9 +333,6 @@ class WeightedOptimizer(OptimizerFramework):
     def configure_optimizer(self):
         return torch.optim.Adam(self.w_module.parameters(), lr=self.hparams["lr"])
 
-    def on_before_optimizer_step(self, optimizer):
-        optimizer.param_groups[0]["params"][0].grad
-
     def forward(self, batch: dict):
         track_weights: list = []
         self.optimizer.set_params(batch["init_params"])
@@ -349,7 +346,7 @@ class WeightedOptimizer(OptimizerFramework):
                 params=self.optimizer.get_params(),
             )
             # establish correspondences
-            mask = self.c_module.mask(
+            mask, _ = self.c_module.mask(
                 s_mask=batch["mask"],
                 s_point=batch["point"],
                 s_normal=batch["normal"],
@@ -358,7 +355,12 @@ class WeightedOptimizer(OptimizerFramework):
                 t_normal=out["normal"],
             )
             # predict weights
-            weights = self.w_module(s_point=batch["point"], t_point=out["point"])
+            weights = self.w_module(
+                s_point=batch["point"],
+                s_normal=batch["normal"],
+                t_point=out["point"],
+                t_normal=out["normal"],
+            )
             track_weights.append(weights)
 
             def residual_closure(*args):
@@ -512,17 +514,10 @@ class ICPOptimizer(OptimizerFramework):
 
                 # metrics and loss logging
                 self.time_tracker.start("inner_logging")
-                self.logger.log_merged(
-                    name="params",
-                    params=self.optimizer.get_params(),
-                    flame=self.flame,
-                    renderer=self.renderer,
-                    color=batch["color"],
-                )
                 loss, info = self.optimizer.loss_step(residual_closure)
-                self.logger.log_metrics({"loss": loss})
-                self.logger.log_metrics(info)
                 inner_progress.set_postfix({"loss": loss})
+                self.logger.log_loss(loss=loss, info=info)
+                self.logger.log_gradients(optimizer=self.optimizer, verbose=False)
 
                 # finish the inner loop
                 inner_progress.update(1)
@@ -578,17 +573,16 @@ class ICPOptimizer(OptimizerFramework):
             self.time_tracker.stop("outer_step")
         self.time_tracker.stop("outer_loop")
 
-        # # final metric logging
-        # self.time_tracker.print_summary()
-        # self.logger.log_tracker()
-        # if self.verbose:
-        #     self.logger.mode = f"final/{self.mode}"
-        #     self.logger.log_metrics(
-        #         batch=batch,
-        #         model=L.model_step(),
-        #         verbose=False,
-        #     )
-
+        # # final state logging
+        self.logger.log_tracking(
+            params=self.optimizer.get_params(),
+            flame=self.flame,
+            renderer=self.renderer,
+            s_color=batch["color"],
+            s_normal=batch["normal"],
+            s_mask=batch["mask"],
+        )
+        self.logger.log_time_tracker(self.time_tracker)
         return dict(params=self.optimizer.get_params())
 
 
@@ -629,7 +623,7 @@ class DeepFeatureOptimizer(OptimizerFramework):
         )
 
         # establish projective correspondences
-        mask = self.c_module.mask(
+        mask, _ = self.c_module.mask(
             s_mask=batch["mask"],
             s_point=batch["point"],
             s_normal=batch["normal"],

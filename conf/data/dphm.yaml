@@ -1,0 +1,46 @@
+# @package data
+_target_: lib.data.datamodule.KinectDataModule
+
+# dataset settings
+data_dir: ${paths.data_dir}/dphm_kinect
+
+# camera settings
+width: 1920
+height: 1080
+near: 0.01
+far: 100
+scale: 8
+
+# training settings
+batch_size: 1
+num_workers: 0
+pin_memory: False
+persistent_workers: False 
+
+train_dataset:
+  _target_: lib.data.dataset.DPHMTrainDataset
+  _partial_: True
+  scale: ???
+  data_dir: ${data.data_dir}
+  start_frame: 20 
+  end_frame: 120
+  jump_size: 1
+  mode: fix
+  datasets: 
+    - christoph_mouthmove
+    - christoph_rotatemouth
+    - christoph_smile
+
+val_dataset:
+  _target_: lib.data.dataset.DPHMTrainDataset
+  _partial_: True
+  scale: ???
+  data_dir: ${data.data_dir}
+  start_frame: 40
+  end_frame: 80
+  jump_size: 1
+  mode: fix
+  datasets: 
+    - innocenzo_fulgintl_rotatemouth
+
+renderer: ???

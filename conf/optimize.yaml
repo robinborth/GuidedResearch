@@ -19,6 +19,6 @@ defaults:
 seed: 123
 device: cuda
 task_name: optimize
-store_params: false
+store_params: true
 tags: 
   - ${task_name}

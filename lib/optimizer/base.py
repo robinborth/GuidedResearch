@@ -24,7 +24,7 @@ class DifferentiableOptimizer:
         self._p_names = None
         self._converged = False
         self.time_tracker = TimeTracker()
-        self.residual_tracker = []
+        self.residual_tracker: list = []
 
         # convergence criterias
         self.eps_step = eps_step

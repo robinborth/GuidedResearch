@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 import hydra
-from lightning import Trainer
 from omegaconf import DictConfig
 from tqdm import tqdm
 
@@ -19,8 +18,8 @@ log = logging.getLogger()
 def main(cfg: DictConfig):
     try:
         optimize(cfg)
-    except Exception:
-        pass
+    except Exception as e:
+        print(e)
 
 
 def optimize(cfg: DictConfig):
@@ -30,7 +29,8 @@ def optimize(cfg: DictConfig):
     log.info("==> initializing camera and rasterizer ...")
     K = None
     if Path(cfg.data.data_dir).name != "synthetic":
-        K = load_intrinsics(data_dir=cfg.data.data_dir, return_tensor="pt")
+        data_dir = Path(cfg.data.data_dir) / "ali_kocal_eyeblink"
+        K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
     camera = Camera(
         K=K,
         width=cfg.data.width,
@@ -86,7 +86,7 @@ def optimize(cfg: DictConfig):
     if cfg.eval:  # custom because of fwAD
         log.info("==> start evaluation ...")
         model = model.to("cuda")
-        renderer.update(scale=1)
+        renderer.update(scale=2)
         datamodule.setup("all")
         dataloader = datamodule.train_dataloader()
         for batch_idx, batch in tqdm(enumerate(dataloader)):

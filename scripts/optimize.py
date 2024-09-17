@@ -21,7 +21,8 @@ def optimize(cfg: DictConfig):
     cfg = set_configs(cfg)
 
     log.info("==> initializing camera and rasterizer ...")
-    K = load_intrinsics(data_dir=cfg.data.data_dir, return_tensor="pt")
+    data_dir = Path(cfg.data.data_dir) / cfg.data.dataset_name
+    K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
     camera = Camera(
         K=K,
         width=cfg.data.width,
@@ -103,19 +104,21 @@ def optimize(cfg: DictConfig):
 
     if trainer.final_video:
         log.info("==> create video ...")
-        logger.log_tracking_video("render_normal", framerate=20)
-        logger.log_tracking_video("render_merged", framerate=20)
-        logger.log_tracking_video("error_point_to_plane", framerate=20)
-        logger.log_tracking_video("batch_color", framerate=20)
+        logger.log_tracking_video("render_normal", framerate=16)
+        logger.log_tracking_video("render_merged", framerate=16)
+        logger.log_tracking_video("error_point_to_plane", framerate=16)
+        logger.log_tracking_video("batch_color", framerate=16)
+        log.info("==> sync video ...")
+        logger.log_tracking_video_wandb()
 
     if cfg.store_params:
         log.info("==> store flame params ...")
         source_dir = Path(logger.save_dir) / "params"  # type: ignore
-        target_dir = Path(cfg.data.data_dir) / "params"
+        target_dir = Path(data_dir) / "params"
         shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
         log.info("==> store track video ...")
         source_dir = Path(logger.save_dir) / "video"  # type: ignore
-        target_dir = Path(cfg.data.data_dir) / "video"
+        target_dir = Path(data_dir) / "video"
         shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
 
 

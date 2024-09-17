@@ -3,7 +3,7 @@
 defaults:
   - model: flame 
   - logger: flame_wandb
-  - data: kinect_train   # synthetic, kinect_train
+  - data: dphm # synthetic, dphm
   - residuals: face2face 
   - optimizer: gauss_newton
   - framework : weighted_icp
@@ -22,29 +22,38 @@ tags:
 eval: False
 train: True
 
-# eval: True
-# train: False
+weighting:
+  hidden_channels: 100
+  kernal_size: 3
+  num_layers: 1
+  mode: point_normal
+  max_weight: 100.0
 
 data:
-  dataset_name: dphm_christoph_mouthmove  # dphm_christoph_mouthmove, dphm_fulgitl_rotatemouth
   train_dataset:
+    start_frame: null
+    end_frame: null
     jump_size: 2
     mode: fix
-    start_frame: 20
-    end_frame: 100
+    datasets: 
+      - christoph_mouthmove
+      - christoph_rotatemouth
+      - christoph_smile
   val_dataset:
+    start_frame: 40 
+    end_frame: 80
     jump_size: 1
     mode: fix
-    start_frame: 110
-    end_frame: 120
+    datasets: 
+      - innocenzo_fulgintl_mouthmove
 
 framework:
-  lr: 5e-03  # 3e-04
+  lr: 8e-04
   max_iters: 1
   max_optims: 1
   param_weight: 1.0
   geometric_weight: 1.0
-  log_frame_idx: 52
+  log_frame_idx: 50
   log_interval: 20
   params:
     global_pose: 100.0
@@ -59,9 +68,9 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 2000
+  max_epochs: 100 
   # debugging
-  # overfit_batches: 32
+  # overfit_batches: 8
   accumulate_grad_batches: 16
   num_sanity_val_steps: 0
   check_val_every_n_epoch: 1

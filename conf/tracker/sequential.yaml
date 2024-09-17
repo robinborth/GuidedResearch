@@ -17,10 +17,6 @@ max_iters: 15
 max_optims: 1
 save_interval: 5
 
-# end_frame: 1
-# max_iters: 1
-# max_optims: 1
-
 scheduler:
   milestones: [0]
   params: [[global_pose,transl,neck_pose,expression_params]]
