@@ -705,31 +705,9 @@ tracking1:
 	correspondence.d_threshold=0.02 \
 	correspondence.n_threshold=0.95 \
 	residuals=face2face \
-	residuals.chain.shape_regularization.weight=5e-03 \
+	residuals.chain.shape_regularization.weight=5e-02 \
 	residuals.chain.expression_regularization.weight=2e-03 \
-	joint_tracker.max_iters=150 \
-	joint_tracker.max_optims=1 \
-	joint_tracker.coarse2fine.milestones=[0,70] \
-	joint_tracker.coarse2fine.scales=[8,4] \
-	joint_tracker.save_interval=10 \
-	sequential_tracker.max_iters=50 \
-	sequential_tracker.max_optims=1 \
-	sequential_tracker.coarse2fine.milestones=[0,20] \
-	sequential_tracker.coarse2fine.scales=[8,4] \
-	sequential_tracker.save_interval=10 \
-	data.data_dir=/home/borth/GuidedResearch/data/debug \
-	data.dataset_name=christoph_mouthmove \
-
-tracking2:
-	python scripts/optimize.py \
-	optimizer=gauss_newton \
-	optimizer.step_size=3e-01 \
-	correspondence=projective \
-	correspondence.d_threshold=0.02 \
-	correspondence.n_threshold=0.95 \
-	residuals=face2face \
-	residuals.chain.shape_regularization.weight=5e-03 \
-	residuals.chain.expression_regularization.weight=2e-03 \
+	residuals.chain.neck_regularization.weight=1e-01 \
 	joint_tracker.max_iters=150 \
 	joint_tracker.max_optims=1 \
 	joint_tracker.coarse2fine.milestones=[0,70] \
@@ -743,7 +721,7 @@ tracking2:
 	data.data_dir=/home/borth/GuidedResearch/data/debug \
 	data.dataset_name=innocenzo_fulgintl_rotatemouth \
 
-tracking3:
+tracking2:
 	python scripts/optimize.py \
 	optimizer=gauss_newton \
 	optimizer.step_size=3e-01 \
@@ -753,6 +731,7 @@ tracking3:
 	residuals=face2face \
 	residuals.chain.shape_regularization.weight=5e-03 \
 	residuals.chain.expression_regularization.weight=2e-03 \
+	residuals.chain.neck_regularization.weight=1e-02 \
 	joint_tracker.max_iters=150 \
 	joint_tracker.max_optims=1 \
 	joint_tracker.coarse2fine.milestones=[0,70] \
@@ -764,4 +743,29 @@ tracking3:
 	sequential_tracker.coarse2fine.scales=[8,4] \
 	sequential_tracker.save_interval=10 \
 	data.data_dir=/home/borth/GuidedResearch/data/debug \
-	data.dataset_name=ali_kocal_mouthmove \
+	data.dataset_name=christoph_mouthmove \
+
+
+tracking3:
+	python scripts/optimize.py \
+	optimizer=gauss_newton \
+	optimizer.step_size=3e-01 \
+	correspondence=projective \
+	correspondence.d_threshold=0.02 \
+	correspondence.n_threshold=0.95 \
+	residuals=face2face \
+	residuals.chain.shape_regularization.weight=5e-03 \
+	residuals.chain.expression_regularization.weight=2e-03 \
+	residuals.chain.neck_regularization.weight=1e-03 \
+	joint_tracker.max_iters=150 \
+	joint_tracker.max_optims=1 \
+	joint_tracker.coarse2fine.milestones=[0,70] \
+	joint_tracker.coarse2fine.scales=[8,4] \
+	joint_tracker.save_interval=10 \
+	sequential_tracker.max_iters=50 \
+	sequential_tracker.max_optims=1 \
+	sequential_tracker.coarse2fine.milestones=[0,20] \
+	sequential_tracker.coarse2fine.scales=[8,4] \
+	sequential_tracker.save_interval=10 \
+	data.data_dir=/home/borth/GuidedResearch/data/debug \
+	data.dataset_name=christoph_mouthmove \

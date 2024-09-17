@@ -92,3 +92,23 @@ class OptimizerScheduler(Scheduler):
     def configure_optimizer(self, optimizer: DifferentiableOptimizer, iter_step: int):
         self.set_dirty(iter_step)
         optimizer._p_names = self.p_names(iter_step=iter_step)
+
+
+class StepSizeScheduler(Scheduler):
+    def __init__(
+        self,
+        milestones: list[int] = [0],
+        factor: list[float] = [1.0],
+    ) -> None:
+        super().__init__()
+        self.milestones = milestones
+        self.check_milestones(milestones)
+
+        self.factor = factor
+        self.check_attribute(factor)
+
+        self.state: list[str] = []
+
+    def configure_optimizer(self, optimizer: DifferentiableOptimizer, iter_step: int):
+        self.set_dirty(iter_step)
+        optimizer._step_size_factor = self.get_attribute(self.factor, iter_step)

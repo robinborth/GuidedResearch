@@ -23,6 +23,7 @@ class DifferentiableOptimizer:
         self._params = None
         self._p_names = None
         self._converged = False
+        self._step_size_factor = 1.0
         self.time_tracker = TimeTracker()
         self.residual_tracker: list = []
 
@@ -67,6 +68,7 @@ class DifferentiableOptimizer:
         self._params = None
         self._p_names = None
         self._converged = False
+        self._step_size_factor = 1.0
 
     @property
     def _numel(self):

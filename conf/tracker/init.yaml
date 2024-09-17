@@ -21,5 +21,9 @@ coarse2fine:
   milestones: [0]
   scales: [8]
 
+step_size:
+  milestones: [0]
+  factor: [1.0]
+
 default_params:
   transl: [0.0,0.0,-0.5]

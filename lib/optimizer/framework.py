@@ -430,6 +430,7 @@ class ICPOptimizer(OptimizerFramework):
         datamodule = batch["datamodule"]
         coarse2fine = batch["coarse2fine"]
         scheduler = batch["scheduler"]
+        step_size = batch["step_size"]
 
         # outer optimization loop
         self.time_tracker.start("outer_loop")
@@ -452,6 +453,10 @@ class ICPOptimizer(OptimizerFramework):
             # configure the optimizer
             self.time_tracker.start("setup_optimizer")
             scheduler.configure_optimizer(
+                optimizer=self.optimizer,
+                iter_step=iter_step,
+            )
+            step_size.configure_optimizer(
                 optimizer=self.optimizer,
                 iter_step=iter_step,
             )

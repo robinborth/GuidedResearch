@@ -2,4 +2,4 @@
 
 _target_: lib.model.correspondence.ProjectiveCorrespondenceModule
 d_threshold: 0.02
-n_threshold: 0.97
+n_threshold: 0.95

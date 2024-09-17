@@ -125,7 +125,8 @@ class GaussNewton(NewtonOptimizer):
         self.time_tracker.start("solve_delta", stop=True)
         direction = self.solve_delta(H, grad_f)
 
-        self._add_direction(self.step_size, direction)
+        step_size = self.step_size * self._step_size_factor
+        self._add_direction(step_size, direction)
         self._store_flat_grad(grad_f)
         self.time_tracker.stop()
 

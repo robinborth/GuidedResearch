@@ -32,7 +32,7 @@
                 "sequential_tracker.max_optims=1",
                 "sequential_tracker.coarse2fine.milestones=[0,8]",
                 "sequential_tracker.coarse2fine.scales=[8,4]",
-                "data.data_dir=/home/borth/GuidedResearch/data",
+                "data.data_dir=/home/borth/GuidedResearch/data/debug",
                 "data.dataset_name=christoph_mouthmove"
             ],
             "console": "integratedTerminal",

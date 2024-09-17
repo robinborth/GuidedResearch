@@ -7,7 +7,11 @@ from lib.data.datamodule import DPHMDataModule
 from lib.data.synthesis import generate_params
 from lib.optimizer.framework import LandmarkRigidOptimizer, OptimizerFramework
 from lib.optimizer.residuals import LandmarkResiduals
-from lib.tracker.scheduler import CoarseToFineScheduler, OptimizerScheduler
+from lib.tracker.scheduler import (
+    CoarseToFineScheduler,
+    OptimizerScheduler,
+    StepSizeScheduler,
+)
 from lib.utils.progress import close_progress, reset_progress
 
 log = logging.getLogger()
@@ -19,6 +23,7 @@ class InitTracker:
         datamodule: DPHMDataModule,
         optimizer: OptimizerFramework,
         scheduler: OptimizerScheduler,
+        step_size: StepSizeScheduler,
         coarse2fine: CoarseToFineScheduler,
         max_iters: int = 1,
         max_optims: int = 1,
@@ -30,6 +35,7 @@ class InitTracker:
         self.datamodule = datamodule
         self.coarse2fine = coarse2fine
         self.scheduler = scheduler
+        self.step_size = step_size
         self.max_iters = max_iters
         self.max_optims = max_optims
         self.optimizer = optimizer
@@ -63,6 +69,7 @@ class InitTracker:
         batch["mode"] = self.mode
         batch["coarse2fine"] = self.coarse2fine
         batch["scheduler"] = self.scheduler
+        batch["step_size"] = self.step_size
         batch["datamodule"] = self.datamodule
 
         self.datamodule.update_idxs(self.init_idxs)
@@ -83,6 +90,7 @@ class JointTracker:
         optimizer: OptimizerFramework,
         scheduler: OptimizerScheduler,
         coarse2fine: CoarseToFineScheduler,
+        step_size: StepSizeScheduler,
         max_iters: int = 1,
         max_optims: int = 1,
         save_interval: int = 1,
@@ -93,6 +101,7 @@ class JointTracker:
         self.datamodule = datamodule
         self.coarse2fine = coarse2fine
         self.scheduler = scheduler
+        self.step_size = step_size
         self.max_iters = max_iters
         self.max_optims = max_optims
         self.optimizer = optimizer
@@ -118,6 +127,7 @@ class JointTracker:
         batch["mode"] = self.mode
         batch["coarse2fine"] = self.coarse2fine
         batch["scheduler"] = self.scheduler
+        batch["step_size"] = self.step_size
         batch["datamodule"] = self.datamodule
 
         self.datamodule.update_idxs(self.init_idxs)
@@ -134,6 +144,7 @@ class SequentialTracker:
         optimizer: OptimizerFramework,
         scheduler: OptimizerScheduler,
         coarse2fine: CoarseToFineScheduler,
+        step_size: StepSizeScheduler,
         max_iters: int = 1,
         max_optims: int = 1,
         save_interval: int = 1,
@@ -149,6 +160,7 @@ class SequentialTracker:
         self.datamodule = datamodule
         self.coarse2fine = coarse2fine
         self.scheduler = scheduler
+        self.step_size = step_size
         self.max_iters = max_iters
         self.max_optims = max_optims
         self.optimizer = optimizer
@@ -216,6 +228,7 @@ class SequentialTracker:
         batch["datamodule"] = self.datamodule
         batch["coarse2fine"] = self.coarse2fine
         batch["scheduler"] = self.scheduler
+        batch["step_size"] = self.step_size
 
         for frame_idxs in self.frame_idxs_iter():
             reset_progress(outer_progress, self.max_iters)

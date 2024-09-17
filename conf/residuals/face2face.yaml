@@ -5,6 +5,10 @@ chain:
   point2plane:
     _target_: lib.optimizer.residuals.Point2PlaneResiduals
     weight: 1.0
+  neck_regularization: 
+    _target_: lib.optimizer.residuals.RegularizationResiduals
+    name: neck_pose 
+    weight: 5e-02  # 5e-03 
   shape_regularization: 
     _target_: lib.optimizer.residuals.RegularizationResiduals
     name: shape_params
@@ -12,4 +16,4 @@ chain:
   expression_regularization:
     _target_: lib.optimizer.residuals.RegularizationResiduals
     name: expression_params
-    weight: 1e-03  # 7e-04
+    weight: 2e-03  # 7e-04

@@ -12,3 +12,8 @@ coarse2fine:
   _target_: lib.tracker.scheduler.CoarseToFineScheduler
   milestones: ???
   scales: ???
+
+step_size:
+  _target_: lib.tracker.scheduler.StepSizeScheduler
+  milestones: ???
+  factor: ???
