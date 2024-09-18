@@ -4,11 +4,12 @@ defaults:
   - model: flame 
   - logger: flame_wandb
   - data: dphm # synthetic, dphm
-  - residuals: face2face 
+  - residuals: neural 
   - optimizer: gauss_newton
   - framework : neural
   - correspondence: projective 
   - weighting: unet # dummy, cnn, unet
+  - regularize: dummy # dummy, mlp
   - hydra: default
   - paths: default
   - _self_
@@ -31,7 +32,7 @@ weighting:
 data:
   train_dataset:
     start_frame: 52
-    end_frame: 53
+    end_frame: 60
     jump_size: 2
     mode: fix
     datasets: 
@@ -53,8 +54,8 @@ data:
       # - madhav_agarwal_mouthmove
       # - madhav_agarwal_rotatemouth
   val_dataset:
-    start_frame: 100
-    end_frame: 20
+    start_frame: 40
+    end_frame: 44
     jump_size: 1
     mode: fix
     datasets: 
@@ -62,7 +63,7 @@ data:
 
 framework:
   # optimization loop
-  max_iters: 1
+  max_iters: 2
   max_optims: 1
   # loss settings
   lr: 1e-03
@@ -91,8 +92,7 @@ trainer:
   min_epochs: 1 
   max_epochs: 500
   # debugging
-  # overfit_batches: 8
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 8
   num_sanity_val_steps: 0
   check_val_every_n_epoch: 1
   log_every_n_steps: 1

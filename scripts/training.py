@@ -57,6 +57,9 @@ def optimize(cfg: DictConfig):
     log.info(f"==> initializing weighting <{cfg.weighting._target_}> ...")
     weighting = hydra.utils.instantiate(cfg.weighting)
 
+    log.info(f"==> initializing weighting <{cfg.regularize._target_}> ...")
+    regularize = hydra.utils.instantiate(cfg.regularize)
+
     log.info(f"==> initializing residuals <{cfg.residuals._target_}> ...")
     residuals = hydra.utils.instantiate(cfg.residuals)
 
@@ -70,6 +73,7 @@ def optimize(cfg: DictConfig):
         logger=logger,
         renderer=renderer,
         correspondence=correspondence,
+        regularize=regularize,
         residuals=residuals,
         optimizer=optimizer,
         weighting=weighting,

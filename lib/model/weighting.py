@@ -142,7 +142,7 @@ class UNetWeightModule(nn.Module):
             encoders_output.append(x)
             x = self.pools[i](x)
 
-        bottleneck = self.bottleneck(x)
+        bottleneck = self.bottleneck(x)  # (B, C, H, W)
 
         for i in range(self.depth):
             x = self.upconvs[i](bottleneck if i == 0 else x)
@@ -154,7 +154,7 @@ class UNetWeightModule(nn.Module):
         x = self._unpad(x, height=H, width=W)  # (B, 1, H, W)
         x = x.squeeze(1)  # (B, H, W)
 
-        return dict(weights=x, bottleneck=bottleneck)
+        return dict(weights=x, latent=bottleneck)
 
     @staticmethod
     def _block(in_channels: int, features: int):

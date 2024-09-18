@@ -24,6 +24,7 @@ class OptimizerFramework(L.LightningModule):
             "flame",
             "weighting",
             "residuals",
+            "regularize",
             "correspondence",
             "optimizer",
         ]
@@ -56,7 +57,7 @@ class OptimizerFramework(L.LightningModule):
         # log optimization stats
         optim_stats = self.compute_optim_stats(out=out)
         for key, value in optim_stats.items():
-            self.log(key, value, batch_size=1)
+            self.log(f"{mode}/{key}", value, batch_size=1)
 
         return dict(
             loss=loss_info["loss"],
@@ -240,19 +241,18 @@ class OptimizerFramework(L.LightningModule):
 class NeuralOptimizer(OptimizerFramework):
     def __init__(
         self,
-        # models
         flame: Flame,
         correspondence: torch.nn.Module,
         weighting: torch.nn.Module,
-        # renderer settings
         renderer: Renderer,
-        logger: FlameLogger,
-        # optimization settings
         residuals: Residuals,
+        regularize: torch.nn.Module,
         optimizer: DifferentiableOptimizer,
+        # logging
+        logger: FlameLogger,
+        verbose: bool = True,
         max_iters: int = 1,
         max_optims: int = 1,
-        verbose: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -260,6 +260,7 @@ class NeuralOptimizer(OptimizerFramework):
         self.flame = flame
         self.c_module = correspondence
         self.w_module = weighting
+        self.r_module = regularize
         self.renderer = renderer
         self.optimizer = optimizer
         self.residuals = residuals
@@ -270,7 +271,11 @@ class NeuralOptimizer(OptimizerFramework):
         self.verbose = verbose
 
     def configure_optimizer(self):
-        return torch.optim.Adam(self.w_module.parameters(), lr=self.hparams["lr"])
+        params = [
+            {"params": self.w_module.parameters()},
+            {"params": self.r_module.parameters()},
+        ]
+        return torch.optim.Adam(params=params, lr=self.hparams["lr"])
 
     def forward(self, batch: dict):
         optim_masks: list = []
@@ -305,6 +310,11 @@ class NeuralOptimizer(OptimizerFramework):
                 t_normal=out["normal"],
             )
             optim_weights.append(w_out["weights"])
+            # regress regularization
+            r_out = self.r_module(
+                params=self.optimizer.get_params(),
+                latent=w_out["latent"],
+            )
 
             def residual_closure(*args):
                 # differentiable rendering without rasterization
@@ -324,6 +334,7 @@ class NeuralOptimizer(OptimizerFramework):
                     t_normal=out["normal"][mask],
                     t_point=t_point,
                     weights=w_out["weights"][mask],
+                    regularize=r_out,
                     params=new_params,
                 )
                 return F, (F, info)  # first jacobian, then two aux

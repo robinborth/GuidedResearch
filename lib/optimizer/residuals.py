@@ -107,10 +107,16 @@ class RegularizationResiduals(Residuals):
 
 
 class NeuralRegularizationResiduals(Residuals):
-    name: str = "neural"
+    def __init__(self, name: str, weight: float = 1.0):
+        super().__init__()
+        self.weight = weight
+        self.name = name
 
     def forward(self, **kwargs):
-        return [kwargs["delta_params"].flatten()]
+        params = kwargs["params"][self.name]
+        delta_params = kwargs["regularize"][self.name]
+        residuals = (params - delta_params).view(-1)
+        return [self.weight * residuals]
 
 
 ####################################################################################
