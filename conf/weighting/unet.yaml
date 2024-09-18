@@ -1,0 +1,9 @@
+# @package weighting 
+
+_target_: lib.model.weighting.UNetWeightModule
+features: 64
+depth: 3
+mode: point_normal
+max_weight: 100.0
+size: 256
+device: ${device}

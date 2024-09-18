@@ -106,6 +106,13 @@ class RegularizationResiduals(Residuals):
         return [torch.tensor([], device=device)]
 
 
+class NeuralRegularizationResiduals(Residuals):
+    name: str = "neural"
+
+    def forward(self, **kwargs):
+        return [kwargs["delta_params"].flatten()]
+
+
 ####################################################################################
 # Sparse Keypoints
 ####################################################################################

@@ -298,13 +298,13 @@ class NeuralOptimizer(OptimizerFramework):
             )
             optim_masks.append(mask)
             # predict weights
-            weights = self.w_module(
+            w_out = self.w_module(
                 s_point=batch["point"],
                 s_normal=batch["normal"],
                 t_point=out["point"],
                 t_normal=out["normal"],
             )
-            optim_weights.append(weights)
+            optim_weights.append(w_out["weights"])
 
             def residual_closure(*args):
                 # differentiable rendering without rasterization
@@ -323,7 +323,7 @@ class NeuralOptimizer(OptimizerFramework):
                     s_point=batch["point"][mask],
                     t_normal=out["normal"][mask],
                     t_point=t_point,
-                    weights=weights[mask],
+                    weights=w_out["weights"][mask],
                     params=new_params,
                 )
                 return F, (F, info)  # first jacobian, then two aux

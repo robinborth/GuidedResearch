@@ -8,7 +8,7 @@ defaults:
   - optimizer: gauss_newton
   - framework : neural
   - correspondence: projective 
-  - weighting: residual # dummy, residual
+  - weighting: unet # dummy, cnn, unet
   - hydra: default
   - paths: default
   - _self_
@@ -23,9 +23,8 @@ eval: False
 train: True
 
 weighting:
-  hidden_channels: 100
-  kernal_size: 3
-  num_layers: 3
+  features: 16
+  depth: 3
   mode: point_normal
   max_weight: 100.0
 

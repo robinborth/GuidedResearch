@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from lib.model.common import CNNMLP
 
 
-class ResidualWeightModule(nn.Module):
+class CNNWeightModule(nn.Module):
     def __init__(
         self,
-        hidden_channels: int = 100,
-        kernal_size: int = 3,
-        num_layers: int = 1,
+        features: int = 100,
+        depth: int = 1,
         mode: str = "point",  # "point", "normal", "point_normal"
         max_weight: float = 100.0,
         device: str = "cuda",
@@ -27,9 +27,9 @@ class ResidualWeightModule(nn.Module):
         self.cnn = CNNMLP(
             in_channels=in_channels,
             out_channels=1,
-            hidden_channels=hidden_channels,
-            kernal_size=kernal_size,
-            num_layers=num_layers,
+            hidden_channels=features,
+            kernal_size=3,
+            num_layers=depth,
         )
         self.to(device)
 
@@ -50,12 +50,171 @@ class ResidualWeightModule(nn.Module):
             raise AttributeError(f"No {self.mode} that works.")
 
         x = x.permute(0, 3, 1, 2)  # (B, C, H, W)
-        x = torch.exp(self.cnn(x))  # (B, W, H, 1)
+        x = torch.exp(self.cnn(x))  # (B, W, H)
         x = torch.min(x, torch.tensor(self.max_weight))
-        return x
+        return dict(weights=x)
+
+
+class UNetWeightModule(nn.Module):
+    def __init__(
+        self,
+        features: int = 64,
+        depth: int = 4,
+        size: int = 256,
+        mode: str = "point",  # "point", "normal", "point_normal"
+        max_weight: float = 100.0,
+        device: str = "cuda",
+    ):
+        super().__init__()
+
+        self.max_weight = max_weight
+
+        self.mode = mode
+        assert mode in ["point", "normal", "point_normal"]
+        out_channels = 1
+        in_channels = 6
+        if mode == "point_normal":
+            in_channels = 12
+
+        self.depth = depth
+        self.size = size
+
+        # Contracting Path (Encoder)
+        self.encoders = nn.ModuleList()
+        self.pools = nn.ModuleList()
+        for i in range(depth):
+            self.encoders.append(UNetWeightModule._block(in_channels, features))
+            self.pools.append(nn.MaxPool2d(kernel_size=2, stride=2))
+            in_channels = features
+            features *= 2
+
+        # Bottleneck
+        self.bottleneck = UNetWeightModule._block(features // 2, features)
+
+        # Expansive Path (Decoder)
+        self.upconvs = nn.ModuleList()
+        self.decoders = nn.ModuleList()
+        for i in range(depth):
+            features //= 2
+            self.upconvs.append(
+                nn.ConvTranspose2d(
+                    features * 2,
+                    features,
+                    kernel_size=2,
+                    stride=2,
+                )
+            )
+            self.decoders.append(UNetWeightModule._block(features * 2, features))
+
+        # Final Convolution
+        self.conv = nn.Conv2d(
+            in_channels=features,
+            out_channels=out_channels,
+            kernel_size=1,
+        )
+
+        self.to(device)
+
+    def forward(
+        self,
+        s_point: torch.Tensor,
+        s_normal: torch.Tensor,
+        t_point: torch.Tensor,
+        t_normal: torch.Tensor,
+    ):
+        # prepare input
+        if self.mode == "point_normal":  # (B, H, W, 12)
+            x = torch.cat([s_point, s_normal, t_point, t_normal], dim=-1)
+        elif self.mode == "point":
+            x = torch.cat([s_point, t_point], dim=-1)  # (B, H, W, 6)
+        elif self.mode == "normal":
+            x = torch.cat([s_normal, t_normal], dim=-1)  # (B, H, W, 6)
+        else:
+            raise AttributeError(f"No {self.mode} that works.")
+        x = x.permute(0, 3, 1, 2)  # (B, C, H, W)
+        B, C, H, W = x.shape
+        x = self._pad(x, height=H, width=W)
+
+        # B, H, W, C
+        encoders_output = []
+        for i in range(self.depth):
+            x = self.encoders[i](x)
+            encoders_output.append(x)
+            x = self.pools[i](x)
+
+        bottleneck = self.bottleneck(x)
+
+        for i in range(self.depth):
+            x = self.upconvs[i](bottleneck if i == 0 else x)
+            enc_output = encoders_output[-(i + 1)]
+            x = torch.cat((x, enc_output), dim=1)
+            x = self.decoders[i](x)
+        x = torch.exp(self.conv(x))
+        x = torch.min(x, torch.tensor(self.max_weight))
+        x = self._unpad(x, height=H, width=W)  # (B, 1, H, W)
+        x = x.squeeze(1)  # (B, H, W)
+
+        return dict(weights=x, bottleneck=bottleneck)
+
+    @staticmethod
+    def _block(in_channels: int, features: int):
+        return nn.Sequential(
+            nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=features,
+                kernel_size=3,
+                padding=1,
+            ),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(
+                in_channels=features,
+                out_channels=features,
+                kernel_size=3,
+                padding=1,
+            ),
+            nn.ReLU(inplace=True),
+        )
+
+    def _pad(self, x: torch.Tensor, height: int, width: int):
+        # Desired output dimensions
+        target_height = self.size
+        target_width = self.size
+
+        # Calculate padding for height and width
+        pad_height = target_height - height
+        pad_width = target_width - width
+
+        # Pad equally on both sides
+        padding = [
+            pad_width // 2,
+            pad_width - pad_width // 2,
+            pad_height // 2,
+            pad_height - pad_height // 2,
+        ]  # (left, right, top, bottom)
+
+        # Apply padding
+        return F.pad(x, padding)
+
+    def _unpad(self, x: torch.Tensor, height: int, width: int):
+        # Desired output dimensions
+        target_height = self.size
+        target_width = self.size
+
+        # Calculate padding for height and width
+        pad_height = target_height - height
+        pad_width = target_width - width
+
+        # Slice back to the original shape (135, 240)
+        start_height = pad_height // 2
+        end_height = start_height + height
+
+        start_width = pad_width // 2
+        end_width = start_width + width
+
+        return x[:, :, start_height:end_height, start_width:end_width]
 
 
 class DummyWeightModule(nn.Module):
     def forward(self, s_point: torch.Tensor, **kwargs):
         B, H, W, _C = s_point.shape
-        return torch.ones((B, H, W), device=s_point.device)
+        return dict(weights=torch.ones((B, H, W), device=s_point.device))
