@@ -11,7 +11,7 @@ class ResidualWeightModule(nn.Module):
         kernal_size: int = 3,
         num_layers: int = 1,
         mode: str = "point",  # "point", "normal", "point_normal"
-        max_weight: float = 10.0,
+        max_weight: float = 100.0,
         device: str = "cuda",
     ):
         super().__init__()

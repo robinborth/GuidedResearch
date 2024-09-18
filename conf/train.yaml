@@ -6,7 +6,7 @@ defaults:
   - data: dphm # synthetic, dphm
   - residuals: face2face 
   - optimizer: gauss_newton
-  - framework : weighted_icp
+  - framework : neural
   - correspondence: projective 
   - weighting: residual # dummy, residual
   - hydra: default
@@ -25,34 +25,34 @@ train: True
 weighting:
   hidden_channels: 100
   kernal_size: 3
-  num_layers: 1
+  num_layers: 3
   mode: point_normal
   max_weight: 100.0
 
 data:
   train_dataset:
-    start_frame: null
-    end_frame: null
-    jump_size: 1
+    start_frame: 52
+    end_frame: 53
+    jump_size: 2
     mode: fix
     datasets: 
-      - ali_kocal_mouthmove
-      - ali_kocal_rotatemouth
-      - aria_talebizadeh_mouthmove
-      - aria_talebizadeh_rotatemouth
-      - arnefucks_mouthmove
-      - arnefucks_rotatemouth
-      - changluo_rotatemouth
+      # - ali_kocal_mouthmove
+      # - ali_kocal_rotatemouth
+      # - aria_talebizadeh_mouthmove
+      # - aria_talebizadeh_rotatemouth
+      # - arnefucks_mouthmove
+      # - arnefucks_rotatemouth
+      # - changluo_rotatemouth
       - christoph_mouthmove
-      - elias_wohlgemuth_mouthmove
-      - felix_mouthmove
-      - honglixu_mouthmove
-      - honglixu_rotatemouth
-      - innocenzo_fulgintl_mouthmove
-      - leni_rohe_mouthmove
-      - leni_rohe_rotatemouth
-      - madhav_agarwal_mouthmove
-      - madhav_agarwal_rotatemouth
+      # - elias_wohlgemuth_mouthmove
+      # - felix_mouthmove
+      # - honglixu_mouthmove
+      # - honglixu_rotatemouth
+      # - innocenzo_fulgintl_mouthmove
+      # - leni_rohe_mouthmove
+      # - leni_rohe_rotatemouth
+      # - madhav_agarwal_mouthmove
+      # - madhav_agarwal_rotatemouth
   val_dataset:
     start_frame: 100
     end_frame: 20
@@ -62,18 +62,26 @@ data:
       - innocenzo_fulgintl_rotatemouth
 
 framework:
-  lr: 8e-04
+  # optimization loop
   max_iters: 1
   max_optims: 1
-  param_weight: 1.0
+  # loss settings
+  lr: 1e-03
+  residual_weight: 0.1
   geometric_weight: 1.0
-  log_frame_idx: 50
-  log_interval: 20
+  param_weight: 1.0
   params:
     global_pose: 100.0
     transl: 500.0
     neck_pose: 20.0
     expression_params: 1.0
+  # logging settings
+  log_train_frame_idx: 52
+  log_train_dataset: christoph_mouthmove
+  log_train_interval: 20
+  log_val_frame_idx: 50
+  log_val_dataset: innocenzo_fulgintl_rotatemouth 
+  log_val_interval: 20
   verbose: False
 
 trainer:
@@ -82,10 +90,10 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 100 
+  max_epochs: 500
   # debugging
   # overfit_batches: 8
-  accumulate_grad_batches: 16
+  accumulate_grad_batches: 1
   num_sanity_val_steps: 0
   check_val_every_n_epoch: 1
   log_every_n_steps: 1

@@ -130,6 +130,8 @@ class GaussNewton(NewtonOptimizer):
         self._store_flat_grad(grad_f)
         self.time_tracker.stop()
 
+        return dict(J=J, F=F, H=H, grad_f=grad_f, direction=direction)
+
 
 class LevenbergMarquardt(NewtonOptimizer):
     def __init__(

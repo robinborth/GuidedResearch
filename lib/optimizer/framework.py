@@ -1,9 +1,9 @@
 import logging
+from collections import defaultdict
 
 import lightning as L
 import torch
 
-from lib.model.correspondence import ProjectiveCorrespondenceModule
 from lib.model.flame.flame import Flame
 from lib.optimizer.base import DifferentiableOptimizer
 from lib.optimizer.residuals import LandmarkResiduals, Residuals
@@ -19,17 +19,15 @@ log = logging.getLogger()
 class OptimizerFramework(L.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.save_hyperparameters(
-            logger=False,
-            ignore=[
-                "renderer",
-                "flame",
-                "weighting",
-                "residuals",
-                "correspondence",
-                "optimizer",
-            ],
-        )
+        ignore = [
+            "renderer",
+            "flame",
+            "weighting",
+            "residuals",
+            "correspondence",
+            "optimizer",
+        ]
+        self.save_hyperparameters(logger=False, ignore=ignore)
 
     def forward(self, batch: dict):
         raise NotImplementedError()
@@ -38,200 +36,57 @@ class OptimizerFramework(L.LightningModule):
         raise NotImplementedError()
 
     def model_step(self, batch: dict, mode: str):
-        # setup and inference
-        self.logger.mode = mode  # type: ignore
         out = self.forward(batch)
+        loss_info = self.compute_loss(batch=batch, out=out)
 
-        # extract the params
-        init_params = batch["init_params"]
-        gt_params = batch["params"]
-        new_params = out["params"]
-
-        # compute the loss
-        loss = self.compute_param_loss(gt_params, new_params)
-        self.log(
-            f"{mode}/params",
-            loss["loss"],
-            prog_bar=False,
-            on_epoch=True,
-            on_step=False,
-            batch_size=1,
-        )
-        if self.current_epoch == 0:
+        # log the loss information
+        for key, value in loss_info.items():
+            if key.startswith("init") and self.current_epoch != 0:
+                continue
+            prog_bar = key == "loss"
             self.log(
-                f"{mode}/init_params",
-                loss["loss"],
-                prog_bar=False,
-                on_epoch=True,
-                on_step=False,
-                batch_size=1,
-            )
-        for p_names in self.hparams["params"].keys():
-            self.log(
-                f"{mode}/params_{p_names}",
-                loss[p_names].mean(),
-                on_epoch=True,
-                on_step=False,
-                batch_size=1,
-            )
-
-        # compute the default loss
-        default_loss = self.compute_param_loss(gt_params, init_params)
-        self.log(
-            f"{mode}/params_default",
-            default_loss["loss"],
-            on_epoch=True,
-            on_step=False,
-            batch_size=1,
-        )
-
-        # compute the metrics
-        geometric_loss = self.compute_geometric_loss(
-            s_mask=batch["mask"],
-            s_point=batch["point"],
-            s_normal=batch["normal"],
-            params=new_params,
-            flame=self.flame,
-            renderer=self.renderer,
-        )
-        self.log(
-            f"{mode}/point2plane",
-            geometric_loss["point2plane"],
-            on_step=False,
-            on_epoch=True,
-            batch_size=1,
-        )
-        self.log(
-            f"{mode}/point2point",
-            geometric_loss["point2point"],
-            on_step=False,
-            on_epoch=True,
-            batch_size=1,
-        )
-        if self.current_epoch == 0:
-            self.log(
-                f"{mode}/init_point2point",
-                geometric_loss["point2point"],
-                prog_bar=False,
-                on_epoch=True,
-                on_step=False,
-                batch_size=1,
-            )
-
-        # compute the default metrics
-        default_geometric_loss = self.compute_geometric_loss(
-            s_mask=batch["mask"],
-            s_point=batch["point"],
-            s_normal=batch["normal"],
-            params=init_params,
-            flame=self.flame,
-            renderer=self.renderer,
-        )
-        self.log(
-            f"{mode}/point2plane_default",
-            default_geometric_loss["point2plane"],
-            batch_size=1,
-        )
-        self.log(
-            f"{mode}/point2point_default",
-            default_geometric_loss["point2point"],
-            batch_size=1,
-        )
-
-        gt_geometric_loss = self.compute_geometric_loss(
-            s_mask=batch["mask"],
-            s_point=batch["point"],
-            s_normal=batch["normal"],
-            params=gt_params,
-            flame=self.flame,
-            renderer=self.renderer,
-        )
-        self.log(
-            f"{mode}/point2plane_gt",
-            gt_geometric_loss["point2plane"],
-            batch_size=1,
-        )
-        self.log(
-            f"{mode}/point2point_gt",
-            gt_geometric_loss["point2point"],
-            batch_size=1,
-        )
-
-        # logging weights
-        self.log(
-            f"{mode}/weight_mean",
-            out["weights"][-1].mean(),
-            on_step=False,
-            on_epoch=True,
-            batch_size=1,
-        )
-        self.log(
-            f"{mode}/weight_max",
-            out["weights"][-1].max(),
-            on_step=False,
-            on_epoch=True,
-            batch_size=1,
-        )
-
-        final_loss = (
-            self.hparams["param_weight"] * loss["loss"]
-            + self.hparams["geometric_weight"] * geometric_loss["point2plane"]
-        )
-
-        self.log(
-            f"{mode}/loss",
-            final_loss,
-            prog_bar=True,
-            on_step=False,
-            on_epoch=True,
-            batch_size=1,
-        )
-        if self.current_epoch == 0:
-            self.log(
-                f"{mode}/init_loss",
-                final_loss,
-                prog_bar=False,
-                on_step=False,
+                name=f"{mode}/{key}",
+                value=value,
+                prog_bar=prog_bar,
+                on_step=True,
                 on_epoch=True,
                 batch_size=1,
             )
+
+        # log optimization stats
+        optim_stats = self.compute_optim_stats(out=out)
+        for key, value in optim_stats.items():
+            self.log(key, value, batch_size=1)
 
         return dict(
-            loss=final_loss,
-            default_loss=default_loss,
-            point2plane=geometric_loss["point2plane"],
-            point2point=geometric_loss["point2point"],
-            out=out,
-            **out,
+            loss=loss_info["loss"],
+            params=out["params"],
+            weights=out["optim_weights"],
         )
 
     def training_step(self, batch, batch_idx):
+        self.logger.mode = "train"  # type: ignore
         out = self.model_step(batch, mode="train")
-        if (
-            batch["frame_idx"] == self.hparams["log_frame_idx"]
-            and self.current_epoch % self.hparams["log_interval"] == 0
-        ):
+        if self.perform_log_step(batch=batch, mode="train"):
             self.logger.log_step(  # type: ignore
                 batch=batch,
-                out=out["out"],
+                params=out["params"],
+                weights=out["weights"],
                 flame=self.flame,
                 renderer=self.renderer,
-                mode="train",
             )
         return out["loss"]
 
     def validation_step(self, batch, batch_idx):
+        self.logger.mode = "val"  # type: ignore
         out = self.model_step(batch, mode="val")
-        if (
-            batch["frame_idx"] == 110
-            and self.current_epoch % self.hparams["log_interval"] == 0
-        ):
+        if self.perform_log_step(batch=batch, mode="val"):
             self.logger.log_step(  # type: ignore
                 batch=batch,
-                out=out["out"],
+                params=out["params"],
+                weights=out["weights"],
                 flame=self.flame,
                 renderer=self.renderer,
-                mode="val",
             )
         return out["loss"]
 
@@ -239,14 +94,20 @@ class OptimizerFramework(L.LightningModule):
         optimizer = self.configure_optimizer()
         if self.hparams["scheduler"] is not None:
             scheduler = self.hparams["scheduler"](optimizer=optimizer)
-            return {
-                "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    "monitor": self.hparams["monitor"],
-                },
-            }
+            lr_scheduler = {"scheduler": scheduler, "monitor": self.hparams["monitor"]}
+            return {"optimizer": optimizer, "lr_scheduler": lr_scheduler}
         return {"optimizer": optimizer}
+
+    @property
+    def logger(self):
+        return self._logger
+
+    def perform_log_step(self, batch: dict, mode: str):
+        return (
+            batch["frame_idx"][0] == self.hparams[f"log_{mode}_frame_idx"]
+            and batch["dataset"][0] == self.hparams[f"log_{mode}_dataset"]
+            and (self.current_epoch % self.hparams[f"log_{mode}_interval"]) == 0
+        )
 
     def compute_geometric_loss(
         self,
@@ -254,11 +115,9 @@ class OptimizerFramework(L.LightningModule):
         s_point: torch.Tensor,
         s_normal: torch.Tensor,
         params: dict,
-        flame: Flame,
-        renderer: Renderer,
     ):
-        out = flame.render(
-            renderer=renderer,
+        out = self.flame.render(
+            renderer=self.renderer,
             params=params,
         )
         mask, _ = self.c_module.mask(
@@ -288,13 +147,97 @@ class OptimizerFramework(L.LightningModule):
         param_loss = {}
         for p_names, weight in self.hparams["params"].items():
             l1_loss = torch.abs(params[p_names] - gt_params[p_names])
-            param_loss[p_names] = l1_loss * weight
-        loss = torch.cat([p.flatten() for p in param_loss.values()]).mean()
-        param_loss["loss"] = loss
+            param_loss[f"param_{p_names}"] = l1_loss * weight
+        param_loss["param"] = torch.cat([p.flatten() for p in param_loss.values()])
+        param_loss = {k: v.mean() for k, v in param_loss.items()}
         return param_loss
 
+    def compute_residual_loss(self, optim_weights: list, optim_masks: list):
+        loss = []
+        for weight, mask in zip(optim_weights, optim_masks):
+            _loss = torch.pow(weight[mask] - 1.0, 2)
+            loss.append(_loss)
+        return torch.cat(loss).mean()
 
-class WeightedOptimizer(OptimizerFramework):
+    def compute_loss(self, batch: dict, out: dict):
+        # extract the params
+        init_params = batch["init_params"]
+        gt_params = batch["params"]
+        new_params = out["params"]
+
+        # param loss
+        param_loss = self.compute_param_loss(gt_params, new_params)
+        init_param_loss = self.compute_param_loss(gt_params, init_params)
+
+        # geometric loss
+        geometric_loss = self.compute_geometric_loss(
+            s_mask=batch["mask"],
+            s_point=batch["point"],
+            s_normal=batch["normal"],
+            params=new_params,
+        )
+        init_geometric_loss = self.compute_geometric_loss(
+            s_mask=batch["mask"],
+            s_point=batch["point"],
+            s_normal=batch["normal"],
+            params=init_params,
+        )
+        gt_geometric_loss = self.compute_geometric_loss(
+            s_mask=batch["mask"],
+            s_point=batch["point"],
+            s_normal=batch["normal"],
+            params=gt_params,
+        )
+
+        # residual weight loss
+        residual_loss = self.compute_residual_loss(
+            optim_masks=out["optim_masks"],
+            optim_weights=out["optim_weights"],
+        )
+
+        # final loss
+        p_loss = self.hparams["param_weight"] * param_loss["param"]
+        g_loss = self.hparams["geometric_weight"] * geometric_loss["point2plane"]
+        r_loss = self.hparams["residual_weight"] * residual_loss
+        loss = p_loss + g_loss + r_loss
+
+        # return loss information
+        return dict(
+            loss=loss,
+            loss_residual=r_loss,
+            loss_param=p_loss,
+            loss_geometric=g_loss,
+            **param_loss,
+            **geometric_loss,
+            **{f"gt_{key}": value for key, value in gt_geometric_loss.items()},
+            **{f"init_{key}": value for key, value in init_geometric_loss.items()},
+            **{f"init_{key}": value for key, value in init_param_loss.items()},
+        )
+
+    def compute_optim_stats(self, out: dict):
+        # extract information
+        optim_weights = torch.stack(out["optim_weights"])
+
+        # compute the optimization stats from the GN
+        optim_stats = defaultdict(list)
+        for optim_out in out["optim_outs"]:
+            for key, value in optim_out.items():
+                optim_stats[f"min_{key}"].append(value.min())
+                optim_stats[f"max_{key}"].append(value.max())
+                optim_stats[f"mean_{key}"].append(value.mean())
+                if key == "H":
+                    optim_stats[f"cond_{key}"].append(torch.linalg.cond(value))
+        optim_outs = {k: torch.stack(v).mean() for k, v in optim_stats.items()}
+
+        # compute statistics
+        return dict(
+            max_weight=optim_weights[-1].max(),
+            min_weight=optim_weights[-1].min(),
+            **optim_outs,
+        )
+
+
+class NeuralOptimizer(OptimizerFramework):
     def __init__(
         self,
         # models
@@ -313,28 +256,27 @@ class WeightedOptimizer(OptimizerFramework):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        # models
+        # optimizer settings
         self.flame = flame
         self.c_module = correspondence
         self.w_module = weighting
-        # dfferentiable renderer
         self.renderer = renderer
-        # optimization settings
         self.optimizer = optimizer
         self.residuals = residuals
         self.max_iters = max_iters
         self.max_optims = max_optims
+        # debugging
         self._logger = logger
-
-    @property
-    def logger(self):
-        return self._logger
+        self.verbose = verbose
 
     def configure_optimizer(self):
         return torch.optim.Adam(self.w_module.parameters(), lr=self.hparams["lr"])
 
     def forward(self, batch: dict):
-        track_weights: list = []
+        optim_masks: list = []
+        optim_weights: list = []
+        optim_outs: list = []
+
         self.optimizer.set_params(batch["init_params"])
         self.optimizer._p_names = list(self.hparams["params"].keys())  # type: ignore
 
@@ -354,6 +296,7 @@ class WeightedOptimizer(OptimizerFramework):
                 t_point=out["point"],
                 t_normal=out["normal"],
             )
+            optim_masks.append(mask)
             # predict weights
             weights = self.w_module(
                 s_point=batch["point"],
@@ -361,7 +304,7 @@ class WeightedOptimizer(OptimizerFramework):
                 t_point=out["point"],
                 t_normal=out["normal"],
             )
-            track_weights.append(weights)
+            optim_weights.append(weights)
 
             def residual_closure(*args):
                 # differentiable rendering without rasterization
@@ -387,10 +330,17 @@ class WeightedOptimizer(OptimizerFramework):
 
             # inner optimization loop
             for optim_step in range(self.max_optims):
-                self.optimizer.step(residual_closure)
+                optim_out = self.optimizer.step(residual_closure)
+                optim_outs.append(optim_out)
 
         new_params = self.optimizer.get_params()
-        return dict(params=new_params, weights=track_weights)
+
+        return dict(
+            params=new_params,
+            optim_weights=optim_weights,
+            optim_outs=optim_outs,
+            optim_masks=optim_masks,
+        )
 
 
 class ICPOptimizer(OptimizerFramework):
@@ -406,19 +356,17 @@ class ICPOptimizer(OptimizerFramework):
         verbose: bool = True,
     ):
         super().__init__()
+        # optimizer settings
         self.flame = flame
         self.c_module = correspondence
         self.renderer = renderer
         self.optimizer = optimizer
         self.residuals = residuals
-        self._logger = logger
-        self.time_tracker = TimeTracker()
+        # debuging
         self.verbose = verbose
         self.save_interval = save_interval
-
-    @property
-    def logger(self):
-        return self._logger
+        self.time_tracker = TimeTracker()
+        self._logger = logger
 
     def forward(self, batch: dict):
         self.logger.mode = batch["mode"]
@@ -588,67 +536,6 @@ class ICPOptimizer(OptimizerFramework):
             s_mask=batch["mask"],
         )
         self.logger.log_time_tracker(self.time_tracker)
-        return dict(params=self.optimizer.get_params())
-
-
-class DeepFeatureOptimizer(OptimizerFramework):
-    def __init__(
-        self,
-        # models
-        flame: Flame,
-        feature_module: torch.nn.Module,
-        # renderer settings
-        renderer: Renderer,
-        # optimization settings
-        residuals: Residuals,
-        optimizer: DifferentiableOptimizer,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        # models
-        self.flame = flame
-        self.c_module = ProjectiveCorrespondenceModule()
-        self.f_module = feature_module
-        # dfferentiable renderer
-        self.renderer = renderer
-        # optimization settings
-        self.optimizer = optimizer
-        self.residuals = residuals
-
-    def configure_optimizer(self):
-        return torch.optim.Adam(self.f_module.parameters(), lr=self.hparams["lr"])
-
-    def forward(self, batch: dict):
-        self.optimizer.set_params(batch["params"])
-
-        # render the current state of the model
-        out = self.flame.render(
-            renderer=self.renderer,
-            params=self.optimizer.get_params(),
-        )
-
-        # establish projective correspondences
-        mask, _ = self.c_module.mask(
-            s_mask=batch["mask"],
-            s_point=batch["point"],
-            s_normal=batch["normal"],
-            t_mask=out["mask"],
-            t_point=out["point"],
-            t_normal=out["normal"],
-        )
-
-        # predict features for source
-        s_feature = self.f_module(batch["point"])
-        t_feature = self.f_module(out["point"])
-
-        def residual_closure(*args):
-            F = self.residuals.step(
-                s_feature=s_feature[mask],
-                t_feature=t_feature[mask],
-            )
-            return F, F
-
-        self.optimizer.step(residual_closure)
         return dict(params=self.optimizer.get_params())
 
 

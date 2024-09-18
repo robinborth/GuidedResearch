@@ -45,16 +45,17 @@ class FlameLogger(WandbLogger):
     def log_step(
         self,
         batch: dict,
-        out: dict,
+        params: dict,
+        weights: list[torch.Tensor],
+        # out: dict,
         flame: Flame,
         renderer: Renderer,
-        mode: str = "train",
         batch_idx: int = 0,
     ):
         # update full resolution
         gt_out = flame.render(renderer=renderer, params=batch["params"])
         init_out = flame.render(renderer=renderer, params=batch["init_params"])
-        new_out = flame.render(renderer=renderer, params=out["params"])
+        new_out = flame.render(renderer=renderer, params=params)
 
         wandb_images = []
 
@@ -119,7 +120,7 @@ class FlameLogger(WandbLogger):
         plt.close()
 
         # weights map
-        for weight in out["weights"]:
+        for weight in weights:
             visualize_grid(images=weight)
             wandb_images.append(wandb.Image(plt))
             plt.close()
@@ -162,7 +163,7 @@ class FlameLogger(WandbLogger):
         renderer.update(scale=1)
         gt_out = flame.render(renderer=renderer, params=batch["params"])
         init_out = flame.render(renderer=renderer, params=batch["init_params"])
-        new_out = flame.render(renderer=renderer, params=out["params"])
+        new_out = flame.render(renderer=renderer, params=params)
 
         # flame init
         images = init_out["color"]
@@ -184,7 +185,7 @@ class FlameLogger(WandbLogger):
 
         renderer.update(scale=scale)
 
-        self.log_image(f"{mode}/images", wandb_images)  # type:ignore
+        self.log_image(f"{self.mode}/images", wandb_images)  # type:ignore
 
     def log_params(
         self,

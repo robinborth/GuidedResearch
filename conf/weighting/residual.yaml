@@ -5,5 +5,5 @@ hidden_channels: 100
 kernal_size: 3
 num_layers: 3
 mode: point_normal
-max_weight: 10.0
+max_weight: 100.0
 device: ${device}

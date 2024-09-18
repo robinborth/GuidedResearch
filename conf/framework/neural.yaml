@@ -1,6 +1,6 @@
 # @package framework 
 
-_target_: lib.optimizer.framework.WeightedOptimizer
+_target_: lib.optimizer.framework.NeuralOptimizer
 
 flame: ???
 logger: ???
