@@ -33,19 +33,33 @@ data:
   train_dataset:
     start_frame: null
     end_frame: null
-    jump_size: 2
-    mode: fix
-    datasets: 
-      - christoph_mouthmove
-      - christoph_rotatemouth
-      - christoph_smile
-  val_dataset:
-    start_frame: 40 
-    end_frame: 80
     jump_size: 1
     mode: fix
     datasets: 
+      - ali_kocal_mouthmove
+      - ali_kocal_rotatemouth
+      - aria_talebizadeh_mouthmove
+      - aria_talebizadeh_rotatemouth
+      - arnefucks_mouthmove
+      - arnefucks_rotatemouth
+      - changluo_rotatemouth
+      - christoph_mouthmove
+      - elias_wohlgemuth_mouthmove
+      - felix_mouthmove
+      - honglixu_mouthmove
+      - honglixu_rotatemouth
       - innocenzo_fulgintl_mouthmove
+      - leni_rohe_mouthmove
+      - leni_rohe_rotatemouth
+      - madhav_agarwal_mouthmove
+      - madhav_agarwal_rotatemouth
+  val_dataset:
+    start_frame: 100
+    end_frame: 20
+    jump_size: 1
+    mode: fix
+    datasets: 
+      - innocenzo_fulgintl_rotatemouth
 
 framework:
   lr: 8e-04

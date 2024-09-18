@@ -16,4 +16,4 @@ chain:
   expression_regularization:
     _target_: lib.optimizer.residuals.RegularizationResiduals
     name: expression_params
-    weight: 2e-03  # 7e-04
+    weight: 1e-03  # 7e-04

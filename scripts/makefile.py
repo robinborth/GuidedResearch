@@ -82,23 +82,29 @@ def main():
     groups = []
 
     data_dir = Path("/home/borth/GuidedResearch/data/dphm_kinect")
-    dataset_names = sorted(list(p.name for p in data_dir.iterdir()))
+    # dataset_names = sorted(list(p.name for p in data_dir.iterdir()))
 
-    values = dataset_names
+    values = [
+        "christoph_eyeblink",
+        # "christoph_fastalk",
+        "christoph_mouthmove",
+        # "christoph_rotatemouth",
+        # "christoph_smile",
+    ]
     prefixs = values
 
-    group_name = "prepare_dataset"
-    template_generator = """
-    python scripts/prepare_dataset.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    data.dataset_name={value} \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
+    # group_name = "prepare_dataset"
+    # template_generator = """
+    # python scripts/prepare_dataset.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # data.dataset_name={value} \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    group_name = "optimize"
+    group_name = "optimize1"
     template_generator = """
     python scripts/optimize.py \\
     logger.group={group_name} \\
@@ -107,6 +113,39 @@ def main():
     task_name={task_name} \\
     data.dataset_name={value} \\
     store_params=true \\
+    residuals.chain.shape_regularization.weight=7e-03 \\
+	residuals.chain.expression_regularization.weight=1e-03 \\
+	residuals.chain.neck_regularization.weight=5e-02 \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    group_name = "optimize2"
+    template_generator = """
+    python scripts/optimize.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    data.dataset_name={value} \\
+    store_params=true \\
+    residuals.chain.shape_regularization.weight=6e-03 \\
+	residuals.chain.expression_regularization.weight=1e-03 \\
+	residuals.chain.neck_regularization.weight=5e-02 \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    group_name = "optimize3"
+    template_generator = """
+    python scripts/optimize.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    data.dataset_name={value} \\
+    store_params=true \\
+    residuals.chain.shape_regularization.weight=5e-03 \\
+	residuals.chain.expression_regularization.weight=1e-03 \\
+	residuals.chain.neck_regularization.weight=5e-02 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 

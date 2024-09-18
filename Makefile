@@ -697,7 +697,7 @@ results_christoph2_10_params_p2p:
 
 
 # innocenzo_fulgintl_rotatemouth, christoph_mouthmove, ali_kocal_mouthmove 
-tracking1:
+tracking:
 	python scripts/optimize.py \
 	optimizer=gauss_newton \
 	optimizer.step_size=3e-01 \
@@ -705,9 +705,9 @@ tracking1:
 	correspondence.d_threshold=0.02 \
 	correspondence.n_threshold=0.95 \
 	residuals=face2face \
-	residuals.chain.shape_regularization.weight=5e-02 \
-	residuals.chain.expression_regularization.weight=2e-03 \
-	residuals.chain.neck_regularization.weight=1e-01 \
+	residuals.chain.shape_regularization.weight=7e-03 \
+	residuals.chain.expression_regularization.weight=1e-03 \
+	residuals.chain.neck_regularization.weight=5e-02 \
 	joint_tracker.max_iters=150 \
 	joint_tracker.max_optims=1 \
 	joint_tracker.coarse2fine.milestones=[0,70] \
@@ -719,7 +719,7 @@ tracking1:
 	sequential_tracker.coarse2fine.scales=[8,4] \
 	sequential_tracker.save_interval=10 \
 	data.data_dir=/home/borth/GuidedResearch/data/debug \
-	data.dataset_name=innocenzo_fulgintl_rotatemouth \
+	data.dataset_name=christoph_mouthmove \
 
 tracking2:
 	python scripts/optimize.py \
