@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 import hydra
+import lightning as L
 from omegaconf import DictConfig
 from tqdm import tqdm
 
@@ -19,11 +20,12 @@ def main(cfg: DictConfig):
     try:
         optimize(cfg)
     except Exception as e:
-        print(e)
+        log.error(e)
 
 
 def optimize(cfg: DictConfig):
     log.info("==> loading config ...")
+    L.seed_everything(cfg.seed)
     cfg = set_configs(cfg)
 
     log.info("==> initializing camera and rasterizer ...")

@@ -310,12 +310,35 @@ class PytorchSolver(LinearSystemSolver):
         return x, info
 
 
+class PytorchLSTSQSolver(LinearSystemSolver):
+    def forward(self, A: torch.Tensor, b: torch.Tensor):
+        info: dict = {}
+        x = torch.linalg.lstsq(A, b).solution
+        return x, info
+
+
+class PytorchCholeskySolver(LinearSystemSolver):
+    def forward(self, A: torch.Tensor, b: torch.Tensor):
+        info: dict = {}
+        L = torch.linalg.cholesky(A)
+        L_inv = L.inverse()
+        _A = L_inv @ A @ L_inv.T
+        _b = L_inv @ b
+        y = torch.linalg.solve(_A, _b)
+        x = L_inv.T @ y
+        return x, info
+
+
 class PytorchEpsSolver(LinearSystemSolver):
+    def __init__(self, eps: float = 1e-09):
+        super().__init__()
+        self.eps = eps
+
     def forward(self, A: torch.Tensor, b: torch.Tensor):
         info: dict = {}
         # add noise to make it non-singular
-        eps_A = torch.rand_like(A) * 1e-09
-        eps_b = torch.rand_like(b) * 1e-09
+        eps_A = torch.rand_like(A) * self.eps
+        eps_b = torch.rand_like(b) * self.eps
         # solve the system
         x = torch.linalg.solve(A + eps_A, b + eps_b)
         # ensure that no update is done if grad is zero

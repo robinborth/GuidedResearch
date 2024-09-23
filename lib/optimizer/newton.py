@@ -123,7 +123,19 @@ class GaussNewton(NewtonOptimizer):
 
         # solve for the direction
         self.time_tracker.start("solve_delta", stop=True)
-        direction = self.solve_delta(H, grad_f)
+        try:
+            direction = self.solve_delta(H, grad_f)
+            # print(f"{msg=}")
+            # print(f"{J=}")
+            # print(f"{F=}")
+            # print(f"{H=}")
+            # print(f"{grad_f=}")
+        except Exception as msg:
+            log.error(f"{msg=}")
+            log.error(f"{J=}")
+            log.error(f"{F=}")
+            log.error(f"{H=}")
+            log.error(f"{grad_f=}")
 
         step_size = self.step_size * self._step_size_factor
         self._add_direction(step_size, direction)

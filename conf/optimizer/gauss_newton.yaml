@@ -2,7 +2,7 @@
 
 _target_: lib.optimizer.newton.GaussNewton
 lin_solver:
-  _target_: lib.optimizer.solver.PytorchEpsSolver
+  _target_: lib.optimizer.solver.PytorchCholeskySolver
 step_size: 3e-01  # 3e-01
 line_search_fn: null
 # store linear system

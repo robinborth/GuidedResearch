@@ -50,9 +50,12 @@ class CNNWeightModule(nn.Module):
             raise AttributeError(f"No {self.mode} that works.")
 
         x = x.permute(0, 3, 1, 2)  # (B, C, H, W)
-        x = torch.exp(self.cnn(x))  # (B, W, H)
+        x = self.cnn(x)
+        x = torch.exp(x)
+        # x = self.cnn(x) + 1.0  # (B, W, H)
+        # x = torch.abs(x)
         x = torch.min(x, torch.tensor(self.max_weight))
-        return dict(weights=x)
+        return dict(weights=x, latent=None)
 
 
 class UNetWeightModule(nn.Module):
@@ -149,7 +152,10 @@ class UNetWeightModule(nn.Module):
             enc_output = encoders_output[-(i + 1)]
             x = torch.cat((x, enc_output), dim=1)
             x = self.decoders[i](x)
-        x = torch.exp(self.conv(x))
+        # x = self.conv(x) + 1.0
+        # x = torch.relu(x)
+        x = self.conv(x)
+        x = torch.exp(x)
         x = torch.min(x, torch.tensor(self.max_weight))
         x = self._unpad(x, height=H, width=W)  # (B, 1, H, W)
         x = x.squeeze(1)  # (B, H, W)
@@ -217,4 +223,5 @@ class UNetWeightModule(nn.Module):
 class DummyWeightModule(nn.Module):
     def forward(self, s_point: torch.Tensor, **kwargs):
         B, H, W, _C = s_point.shape
-        return dict(weights=torch.ones((B, H, W), device=s_point.device))
+        weights = torch.ones((B, H, W), device=s_point.device)
+        return dict(weights=weights, latent=None)

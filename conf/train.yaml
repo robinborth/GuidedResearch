@@ -4,7 +4,7 @@ defaults:
   - model: flame 
   - logger: flame_wandb
   - data: dphm # synthetic, dphm
-  - residuals: neural 
+  - residuals: neural  # face2face, neural 
   - optimizer: gauss_newton
   - framework : neural
   - correspondence: projective 
@@ -31,42 +31,44 @@ weighting:
 
 data:
   train_dataset:
-    start_frame: 52
-    end_frame: 60
-    jump_size: 2
-    mode: fix
-    datasets: 
-      # - ali_kocal_mouthmove
-      # - ali_kocal_rotatemouth
-      # - aria_talebizadeh_mouthmove
-      # - aria_talebizadeh_rotatemouth
-      # - arnefucks_mouthmove
-      # - arnefucks_rotatemouth
-      # - changluo_rotatemouth
-      - christoph_mouthmove
-      # - elias_wohlgemuth_mouthmove
-      # - felix_mouthmove
-      # - honglixu_mouthmove
-      # - honglixu_rotatemouth
-      # - innocenzo_fulgintl_mouthmove
-      # - leni_rohe_mouthmove
-      # - leni_rohe_rotatemouth
-      # - madhav_agarwal_mouthmove
-      # - madhav_agarwal_rotatemouth
-  val_dataset:
-    start_frame: 40
-    end_frame: 44
+    start_frame: 20 # 52, 30
+    end_frame: 100 # 53, 90
     jump_size: 1
     mode: fix
     datasets: 
-      - innocenzo_fulgintl_rotatemouth
+      - christoph_mouthmove
+      # - ali_kocal_rotatemouth
+      # - aria_talebizadeh_rotatemouth
+      # - arnefucks_rotatemouth
+      # - elias_wohlgemuth_mouthmove
+      # - honglixu_rotatemouth
+      # - leni_rohe_rotatemouth
+      # - madhav_agarwal_rotatemouth
+      # - medhansh_rotatemouth
+      # - mohak_rotatemouth
+      # - nikolas_rotatemouth
+      # - seddik_houimli_rotatemouth
+  val_dataset:
+    start_frame: 100
+    end_frame: 120
+    jump_size: 1
+    mode: fix
+    datasets: 
+      - christoph_mouthmove
+
+# optimizer:
+#   step_size: 1.0
+
+# correspondence:
+#   d_threshold: 0.1
+#   n_threshold: 0.9
 
 framework:
   # optimization loop
-  max_iters: 2
+  max_iters: 1
   max_optims: 1
   # loss settings
-  lr: 1e-03
+  lr: 1e-03  # 1e-02
   residual_weight: 0.1
   geometric_weight: 1.0
   param_weight: 1.0
@@ -78,10 +80,10 @@ framework:
   # logging settings
   log_train_frame_idx: 52
   log_train_dataset: christoph_mouthmove
-  log_train_interval: 20
-  log_val_frame_idx: 50
-  log_val_dataset: innocenzo_fulgintl_rotatemouth 
-  log_val_interval: 20
+  log_train_interval: 5
+  log_val_frame_idx: 110
+  log_val_dataset: christoph_mouthmove 
+  log_val_interval: 5
   verbose: False
 
 trainer:
@@ -92,7 +94,10 @@ trainer:
   min_epochs: 1 
   max_epochs: 500
   # debugging
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 20
   num_sanity_val_steps: 0
-  check_val_every_n_epoch: 1
   log_every_n_steps: 1
+  check_val_every_n_epoch: 1
+  # val_check_interval: 0.2 
+  # detect_anomaly: True
+  # gradient_clip_val: 0.5

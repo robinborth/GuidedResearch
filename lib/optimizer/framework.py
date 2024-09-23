@@ -155,9 +155,11 @@ class OptimizerFramework(L.LightningModule):
 
     def compute_residual_loss(self, optim_weights: list, optim_masks: list):
         loss = []
+        # N = 0
         for weight, mask in zip(optim_weights, optim_masks):
-            _loss = torch.pow(weight[mask] - 1.0, 2)
-            loss.append(_loss)
+            # N += mask.sum()
+            loss.append(torch.abs(weight))
+        # return torch.cat(loss).sum() / N
         return torch.cat(loss).mean()
 
     def compute_loss(self, batch: dict, out: dict):
@@ -270,12 +272,47 @@ class NeuralOptimizer(OptimizerFramework):
         self._logger = logger
         self.verbose = verbose
 
+    def on_before_optimizer_step(self, optimizer):
+        param_first = optimizer.param_groups[0]["params"][0]
+        param_last = optimizer.param_groups[0]["params"][-1]
+        grad = param_first.grad
+
+        # Access moments after an update
+        min_abs_grad = 100.0
+        min_idx = -1
+        max_abs_grad = -1.0
+        max_idx = -1
+        for i, param in enumerate(self.w_module.parameters()):
+            state = optimizer.state[param]
+            if "exp_avg" in state and "exp_avg_sq" in state:
+                first_moment = state["exp_avg"]
+                second_moment = state["exp_avg_sq"]
+            abs_min = torch.abs(param.grad).min()
+            if abs_min < min_abs_grad and abs_min > 0:
+                min_abs_grad = abs_min
+                min_idx = i
+
+            abs_max = torch.abs(param.grad).max()
+            if abs_max > max_abs_grad:
+                max_abs_grad = abs_max
+                max_idx = i
+
+        self.log(name="debug/grad_norm", value=torch.linalg.norm(param.grad))
+        self.log(name="debug/min_abs_grad", value=min_abs_grad)
+        self.log(name="debug/min_idx", value=min_idx)
+        self.log(name="debug/max_abs_grad", value=max_abs_grad)
+        self.log(name="debug/max_idx", value=max_idx)
+
+        if torch.isnan(grad).sum() > 0:
+            print("NAN GRAD!")
+
     def configure_optimizer(self):
         params = [
             {"params": self.w_module.parameters()},
             {"params": self.r_module.parameters()},
         ]
         return torch.optim.Adam(params=params, lr=self.hparams["lr"])
+        # return torch.optim.SGD(params=params, lr=self.hparams["lr"], momentum=0.9)
 
     def forward(self, batch: dict):
         optim_masks: list = []

@@ -4,6 +4,7 @@ _target_: lib.optimizer.residuals.ChainedResiduals
 chain: 
   point2plane:
     _target_: lib.optimizer.residuals.Point2PlaneResiduals
+    weight: 1.0
   neural_expression_regularization: 
     _target_: lib.optimizer.residuals.NeuralRegularizationResiduals
     name: expression_params

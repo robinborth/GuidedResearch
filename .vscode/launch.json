@@ -39,7 +39,7 @@
             "justMyCode": false,
         },
         {
-            "name": "Debug: Generate Dataset",
+            "name": "Debug: Makefile",
             "type": "debugpy",
             "request": "launch",
             "program": "scripts/makefile.py",
