@@ -26,7 +26,7 @@ class MLPRegularizeModule(nn.Module):
             kernel_size=1,
         )
         self.mlp = MLP(
-            in_dim=(unet_size * unet_size) + flame_expression_params,
+            in_dim=(unet_size * unet_size),
             out_dim=flame_expression_params,
             hidden_dim=features,
             num_layers=depth,
@@ -37,8 +37,8 @@ class MLPRegularizeModule(nn.Module):
         x = self.conv(latent)  # (B, 1, H, W)
         x = x.flatten(start_dim=1)
         # add params information
-        x = torch.cat([params["expression_params"], x], dim=-1)
         x = self.mlp(x)
+        x = x + params["expression_params"]
         return dict(expression_params=x)
 
 

@@ -154,9 +154,10 @@ class UNetWeightModule(nn.Module):
             x = self.decoders[i](x)
         # x = self.conv(x) + 1.0
         # x = torch.relu(x)
-        x = self.conv(x)
-        x = torch.exp(x)
-        x = torch.min(x, torch.tensor(self.max_weight))
+        x = self.conv(x) + 1.0
+        x = torch.relu(x)
+        # x = torch.exp(x)
+        # x = torch.min(x, torch.tensor(self.max_weight))
         x = self._unpad(x, height=H, width=W)  # (B, 1, H, W)
         x = x.squeeze(1)  # (B, H, W)
 

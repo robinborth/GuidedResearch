@@ -11,8 +11,8 @@ class DPHMDataset(Dataset):
         self.data_dir = data_dir
 
     def frame_count(self, dataset: str):
-        path = Path(self.data_dir) / dataset / "depth"
-        return len(list(path.iterdir()))
+        path = Path(self.data_dir) / dataset / "color"
+        return len([p for p in path.iterdir() if str(p).endswith(".png")])
 
     def iter_frame_idx(self, dataset: str):
         return list(range(self.frame_count(dataset)))

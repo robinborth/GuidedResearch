@@ -8,6 +8,4 @@ chain:
   neural_expression_regularization: 
     _target_: lib.optimizer.residuals.NeuralRegularizationResiduals
     name: expression_params
-    weight: 1e-03
-
-  
+    weight: 1e-03 

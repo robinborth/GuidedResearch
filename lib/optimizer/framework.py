@@ -69,6 +69,9 @@ class OptimizerFramework(L.LightningModule):
         self.logger.mode = "train"  # type: ignore
         out = self.model_step(batch, mode="train")
         if self.perform_log_step(batch=batch, mode="train"):
+            if self.current_epoch == 0:
+                self.first_train_params = out["params"]
+            batch["first_params"] = self.first_train_params
             self.logger.log_step(  # type: ignore
                 batch=batch,
                 params=out["params"],
@@ -82,6 +85,9 @@ class OptimizerFramework(L.LightningModule):
         self.logger.mode = "val"  # type: ignore
         out = self.model_step(batch, mode="val")
         if self.perform_log_step(batch=batch, mode="val"):
+            if self.current_epoch == 0:
+                self.first_val_params = out["params"]
+            batch["first_params"] = self.first_val_params
             self.logger.log_step(  # type: ignore
                 batch=batch,
                 params=out["params"],
@@ -155,11 +161,8 @@ class OptimizerFramework(L.LightningModule):
 
     def compute_residual_loss(self, optim_weights: list, optim_masks: list):
         loss = []
-        # N = 0
         for weight, mask in zip(optim_weights, optim_masks):
-            # N += mask.sum()
             loss.append(torch.abs(weight))
-        # return torch.cat(loss).sum() / N
         return torch.cat(loss).mean()
 
     def compute_loss(self, batch: dict, out: dict):

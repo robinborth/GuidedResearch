@@ -3,13 +3,13 @@
 defaults:
   - model: flame 
   - logger: flame_wandb
-  - data: dphm # synthetic, dphm
+  - data: synthetic # synthetic, dphm
   - residuals: neural  # face2face, neural 
-  - optimizer: gauss_newton
+  - optimizer:  gauss_newton 
   - framework : neural
   - correspondence: projective 
   - weighting: unet # dummy, cnn, unet
-  - regularize: dummy # dummy, mlp
+  - regularize: dummy  # dummy, mlp
   - hydra: default
   - paths: default
   - _self_
@@ -17,11 +17,11 @@ defaults:
 seed: 123
 device: cuda
 task_name: train
+eval: False
+train: True
 tags: 
   - ${task_name}
 
-eval: False
-train: True
 
 weighting:
   features: 16
@@ -31,12 +31,13 @@ weighting:
 
 data:
   train_dataset:
-    start_frame: 20 # 52, 30
-    end_frame: 100 # 53, 90
+    start_frame: null # 52, 30
+    end_frame: null # 53, 90
     jump_size: 1
     mode: fix
     datasets: 
-      - christoph_mouthmove
+      - s00000
+      # - christoph_mouthmove
       # - ali_kocal_rotatemouth
       # - aria_talebizadeh_rotatemouth
       # - arnefucks_rotatemouth
@@ -49,12 +50,13 @@ data:
       # - nikolas_rotatemouth
       # - seddik_houimli_rotatemouth
   val_dataset:
-    start_frame: 100
-    end_frame: 120
+    start_frame: null 
+    end_frame: 101
     jump_size: 1
     mode: fix
     datasets: 
-      - christoph_mouthmove
+      - s00001
+      # - christoph_mouthmove
 
 # optimizer:
 #   step_size: 1.0
@@ -78,12 +80,18 @@ framework:
     neck_pose: 20.0
     expression_params: 1.0
   # logging settings
-  log_train_frame_idx: 52
-  log_train_dataset: christoph_mouthmove
-  log_train_interval: 5
-  log_val_frame_idx: 110
-  log_val_dataset: christoph_mouthmove 
-  log_val_interval: 5
+  # log_train_frame_idx: 52
+  # log_train_dataset: christoph_mouthmove
+  # log_train_interval: 5
+  # log_val_frame_idx: 110
+  # log_val_dataset: christoph_mouthmove 
+  # log_val_interval: 5
+  log_train_frame_idx: 10
+  log_train_dataset: s00000
+  log_train_interval: 1
+  log_val_frame_idx: 18
+  log_val_dataset: s00001
+  log_val_interval: 1
   verbose: False
 
 trainer:
@@ -92,12 +100,12 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 500
+  max_epochs: 200
   # debugging
-  accumulate_grad_batches: 20
+  accumulate_grad_batches: 10
   num_sanity_val_steps: 0
   log_every_n_steps: 1
   check_val_every_n_epoch: 1
   # val_check_interval: 0.2 
   # detect_anomaly: True
-  # gradient_clip_val: 0.5
+  # gradient_clip_val: Null

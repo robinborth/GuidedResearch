@@ -3,6 +3,7 @@ _target_: lib.data.datamodule.KinectDataModule
 
 # dataset settings
 data_dir: ${paths.data_dir}/dphm_kinect
+intrinsics_dir: ${paths.data_dir}/dphm_kinect/ali_kocal_eyeblink
 
 # camera settings
 width: 1920

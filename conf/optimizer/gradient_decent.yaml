@@ -1,0 +1,8 @@
+# @package optimizer
+
+_target_: lib.optimizer.pytorch.PytorchOptimizer
+optimizer:
+  _target_: torch.optim.SGD
+  _partial_: True
+  lr: 1e-01
+  differentiable: True 

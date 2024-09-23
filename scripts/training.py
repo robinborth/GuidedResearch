@@ -29,10 +29,7 @@ def optimize(cfg: DictConfig):
     cfg = set_configs(cfg)
 
     log.info("==> initializing camera and rasterizer ...")
-    K = None
-    if Path(cfg.data.data_dir).name != "synthetic":
-        data_dir = Path(cfg.data.data_dir) / "ali_kocal_eyeblink"
-        K = load_intrinsics(data_dir=data_dir, return_tensor="pt")
+    K = load_intrinsics(data_dir=cfg.data.intrinsics_dir, return_tensor="pt")
     camera = Camera(
         K=K,
         width=cfg.data.width,

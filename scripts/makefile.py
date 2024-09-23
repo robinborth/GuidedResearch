@@ -198,6 +198,19 @@ def main():
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
+    values = ["Null", 0.1, 0.2, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0]
+    prefixs = values
+    group_name = "train_grad_clipping"
+    template_generator = """
+    python scripts/training.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    trainer.gradient_clip_val={value} \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
     with open(f"Makefile.{SUFFIX}", "w") as f:
         f.write(build_makefile(groups))
 

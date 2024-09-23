@@ -116,6 +116,7 @@ class NeuralRegularizationResiduals(Residuals):
         params = kwargs["params"][self.name]
         delta_params = kwargs["regularize"][self.name]
         residuals = (params - delta_params).view(-1)
+        residuals = residuals * residuals
         return [self.weight * residuals]
 
 

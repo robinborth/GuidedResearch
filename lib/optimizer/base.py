@@ -39,8 +39,9 @@ class DifferentiableOptimizer:
     ####################################################################################
 
     def set_params(self, params: dict[str, Any]):
-        self._p_names = list(params.keys())
-        self._params = {k: p.requires_grad_(True) for k, p in params.items()}
+        self._p_names = list(params.keys())  # type: ignore
+        _p = {k: p.requires_grad_(True) for k, p in params.items()}  # type: ignore
+        self._params = _p
 
     @property
     def _aktive_params(self):
