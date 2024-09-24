@@ -6,4 +6,5 @@ depth: 3
 unet_features: ${weighting.features}
 unet_depth: ${weighting.depth}
 unet_size: ${weighting.size}
-flame_expression_params: ${model.expression_params}
+expression_params: ${model.expression_params}
+shape_params: ${model.shape_params}

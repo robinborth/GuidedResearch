@@ -29,6 +29,8 @@ class OptimizerFramework(L.LightningModule):
             "optimizer",
         ]
         self.save_hyperparameters(logger=False, ignore=ignore)
+        self.first_train_params = None
+        self.first_val_params = None
 
     def forward(self, batch: dict):
         raise NotImplementedError()
@@ -69,7 +71,7 @@ class OptimizerFramework(L.LightningModule):
         self.logger.mode = "train"  # type: ignore
         out = self.model_step(batch, mode="train")
         if self.perform_log_step(batch=batch, mode="train"):
-            if self.current_epoch == 0:
+            if self.first_train_params is None:
                 self.first_train_params = out["params"]
             batch["first_params"] = self.first_train_params
             self.logger.log_step(  # type: ignore
@@ -85,7 +87,7 @@ class OptimizerFramework(L.LightningModule):
         self.logger.mode = "val"  # type: ignore
         out = self.model_step(batch, mode="val")
         if self.perform_log_step(batch=batch, mode="val"):
-            if self.current_epoch == 0:
+            if self.first_val_params is None:
                 self.first_val_params = out["params"]
             batch["first_params"] = self.first_val_params
             self.logger.log_step(  # type: ignore
@@ -235,11 +237,22 @@ class OptimizerFramework(L.LightningModule):
                     optim_stats[f"cond_{key}"].append(torch.linalg.cond(value))
         optim_outs = {k: torch.stack(v).mean() for k, v in optim_stats.items()}
 
+        # compute the regularize delta stats from the GN
+        optim_deltas = defaultdict(list)
+        for optim_out in out["optim_deltas"]:
+            for key, value in optim_out.items():
+                if value is not None:
+                    optim_deltas[f"min_{key}"].append(value.min())
+                    optim_deltas[f"max_{key}"].append(value.max())
+                    optim_deltas[f"mean_{key}"].append(value.mean())
+        optim_regularize = {k: torch.stack(v).mean() for k, v in optim_deltas.items()}
+
         # compute statistics
         return dict(
             max_weight=optim_weights[-1].max(),
             min_weight=optim_weights[-1].min(),
             **optim_outs,
+            **optim_regularize,
         )
 
 
@@ -286,19 +299,18 @@ class NeuralOptimizer(OptimizerFramework):
         max_abs_grad = -1.0
         max_idx = -1
         for i, param in enumerate(self.w_module.parameters()):
-            state = optimizer.state[param]
-            if "exp_avg" in state and "exp_avg_sq" in state:
-                first_moment = state["exp_avg"]
-                second_moment = state["exp_avg_sq"]
             abs_min = torch.abs(param.grad).min()
             if abs_min < min_abs_grad and abs_min > 0:
                 min_abs_grad = abs_min
                 min_idx = i
-
             abs_max = torch.abs(param.grad).max()
             if abs_max > max_abs_grad:
                 max_abs_grad = abs_max
                 max_idx = i
+            # if param.grad is not None:
+            #     if torch.isnan(param.grad).sum() > 0:
+            #         print("!!!NAN GRAD!!!")
+            #     param.grad = torch.nan_to_num(param.grad, nan=0.0)
 
         self.log(name="debug/grad_norm", value=torch.linalg.norm(param.grad))
         self.log(name="debug/min_abs_grad", value=min_abs_grad)
@@ -306,21 +318,18 @@ class NeuralOptimizer(OptimizerFramework):
         self.log(name="debug/max_abs_grad", value=max_abs_grad)
         self.log(name="debug/max_idx", value=max_idx)
 
-        if torch.isnan(grad).sum() > 0:
-            print("NAN GRAD!")
-
     def configure_optimizer(self):
         params = [
             {"params": self.w_module.parameters()},
             {"params": self.r_module.parameters()},
         ]
         return torch.optim.Adam(params=params, lr=self.hparams["lr"])
-        # return torch.optim.SGD(params=params, lr=self.hparams["lr"], momentum=0.9)
 
     def forward(self, batch: dict):
         optim_masks: list = []
         optim_weights: list = []
         optim_outs: list = []
+        optim_deltas: list = []
 
         self.optimizer.set_params(batch["init_params"])
         self.optimizer._p_names = list(self.hparams["params"].keys())  # type: ignore
@@ -352,9 +361,10 @@ class NeuralOptimizer(OptimizerFramework):
             optim_weights.append(w_out["weights"])
             # regress regularization
             r_out = self.r_module(
-                params=self.optimizer.get_params(),
+                params=self.optimizer._aktive_params,
                 latent=w_out["latent"],
             )
+            optim_deltas.append(r_out["deltas"])
 
             def residual_closure(*args):
                 # differentiable rendering without rasterization
@@ -374,7 +384,7 @@ class NeuralOptimizer(OptimizerFramework):
                     t_normal=out["normal"][mask],
                     t_point=t_point,
                     weights=w_out["weights"][mask],
-                    regularize=r_out,
+                    regularize=r_out["regularize"],
                     params=new_params,
                 )
                 return F, (F, info)  # first jacobian, then two aux
@@ -391,6 +401,7 @@ class NeuralOptimizer(OptimizerFramework):
             optim_weights=optim_weights,
             optim_outs=optim_outs,
             optim_masks=optim_masks,
+            optim_deltas=optim_deltas,
         )
 
 

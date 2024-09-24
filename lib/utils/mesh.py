@@ -88,7 +88,7 @@ def vertex_normals(vertices: torch.Tensor, faces: torch.Tensor):
     v_normals = torch.bmm(vf, f_normals)  # (B, V, 3)
     v_normals = v_normals / torch.norm(v_normals, dim=-1).unsqueeze(-1)  # (V, 3)
 
-    return v_normals
+    return v_normals.detach()
 
 
 def compute_normal_map(vertex_map, mask):

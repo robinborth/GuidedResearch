@@ -66,6 +66,7 @@ class UNetWeightModule(nn.Module):
         size: int = 256,
         mode: str = "point",  # "point", "normal", "point_normal"
         max_weight: float = 100.0,
+        layer_norm: bool = True,
         device: str = "cuda",
     ):
         super().__init__()
@@ -79,6 +80,8 @@ class UNetWeightModule(nn.Module):
         if mode == "point_normal":
             in_channels = 12
 
+        self.init_features = features
+        self.layer_norm = layer_norm
         self.depth = depth
         self.size = size
 
@@ -86,13 +89,13 @@ class UNetWeightModule(nn.Module):
         self.encoders = nn.ModuleList()
         self.pools = nn.ModuleList()
         for i in range(depth):
-            self.encoders.append(UNetWeightModule._block(in_channels, features))
+            self.encoders.append(self._block(in_channels, features))
             self.pools.append(nn.MaxPool2d(kernel_size=2, stride=2))
             in_channels = features
             features *= 2
 
         # Bottleneck
-        self.bottleneck = UNetWeightModule._block(features // 2, features)
+        self.bottleneck = self._block(features // 2, features)
 
         # Expansive Path (Decoder)
         self.upconvs = nn.ModuleList()
@@ -107,13 +110,14 @@ class UNetWeightModule(nn.Module):
                     stride=2,
                 )
             )
-            self.decoders.append(UNetWeightModule._block(features * 2, features))
+            self.decoders.append(self._block(features * 2, features))
 
         # Final Convolution
         self.conv = nn.Conv2d(
             in_channels=features,
             out_channels=out_channels,
             kernel_size=1,
+            bias=False,
         )
 
         self.to(device)
@@ -152,35 +156,41 @@ class UNetWeightModule(nn.Module):
             enc_output = encoders_output[-(i + 1)]
             x = torch.cat((x, enc_output), dim=1)
             x = self.decoders[i](x)
-        # x = self.conv(x) + 1.0
+        x = self.conv(x)
+        # x = x + 1.0
         # x = torch.relu(x)
-        x = self.conv(x) + 1.0
-        x = torch.relu(x)
         # x = torch.exp(x)
         # x = torch.min(x, torch.tensor(self.max_weight))
+        x = torch.nn.functional.elu(x) + 1.0
         x = self._unpad(x, height=H, width=W)  # (B, 1, H, W)
         x = x.squeeze(1)  # (B, H, W)
 
         return dict(weights=x, latent=bottleneck)
 
-    @staticmethod
-    def _block(in_channels: int, features: int):
-        return nn.Sequential(
-            nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=features,
-                kernel_size=3,
-                padding=1,
-            ),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(
-                in_channels=features,
-                out_channels=features,
-                kernel_size=3,
-                padding=1,
-            ),
-            nn.ReLU(inplace=True),
+    def _block(self, in_channels: int, features: int):
+        # the size for the layer normalization
+        scale = features // self.init_features
+        size = self.size // scale
+        # define the cnn block
+        c1 = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=features,
+            kernel_size=3,
+            padding=1,
         )
+        l1 = nn.LayerNorm([features, size, size])
+        r1 = nn.ReLU(inplace=True)
+        c2 = nn.Conv2d(
+            in_channels=features,
+            out_channels=features,
+            kernel_size=3,
+            padding=1,
+        )
+        l2 = nn.LayerNorm([features, size, size])
+        r2 = nn.ReLU(inplace=True)
+        if self.layer_norm:
+            return nn.Sequential(c1, l1, r1, c2, l2, r2)
+        return nn.Sequential(c1, r1, c2, r2)
 
     def _pad(self, x: torch.Tensor, height: int, width: int):
         # Desired output dimensions

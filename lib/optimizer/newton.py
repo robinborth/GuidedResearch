@@ -125,11 +125,6 @@ class GaussNewton(NewtonOptimizer):
         self.time_tracker.start("solve_delta", stop=True)
         try:
             direction = self.solve_delta(H, grad_f)
-            # print(f"{msg=}")
-            # print(f"{J=}")
-            # print(f"{F=}")
-            # print(f"{H=}")
-            # print(f"{grad_f=}")
         except Exception as msg:
             log.error(f"{msg=}")
             log.error(f"{J=}")

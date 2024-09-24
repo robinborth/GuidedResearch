@@ -27,7 +27,7 @@ weighting:
   features: 16
   depth: 3
   mode: point_normal
-  max_weight: 100.0
+  layer_norm: True  # True
 
 data:
   train_dataset:
@@ -37,6 +37,14 @@ data:
     mode: fix
     datasets: 
       - s00000
+      - s00001
+      - s00002
+      - s00003
+      - s00004
+      - s00005
+      - s00006
+      - s00007
+      - s00008
       # - christoph_mouthmove
       # - ali_kocal_rotatemouth
       # - aria_talebizadeh_rotatemouth
@@ -50,12 +58,12 @@ data:
       # - nikolas_rotatemouth
       # - seddik_houimli_rotatemouth
   val_dataset:
-    start_frame: null 
-    end_frame: 101
+    start_frame: null
+    end_frame: 33
     jump_size: 1
     mode: fix
     datasets: 
-      - s00001
+      - s00009
       # - christoph_mouthmove
 
 # optimizer:
@@ -71,8 +79,8 @@ framework:
   max_optims: 1
   # loss settings
   lr: 1e-03  # 1e-02
-  residual_weight: 0.1
-  geometric_weight: 1.0
+  residual_weight: 0.2
+  geometric_weight: 0.0
   param_weight: 1.0
   params:
     global_pose: 100.0
@@ -90,7 +98,7 @@ framework:
   log_train_dataset: s00000
   log_train_interval: 1
   log_val_frame_idx: 18
-  log_val_dataset: s00001
+  log_val_dataset: s00009
   log_val_interval: 1
   verbose: False
 
@@ -100,12 +108,14 @@ trainer:
   accelerator: ${device}
   # training
   min_epochs: 1 
-  max_epochs: 200
+  max_epochs: 100
   # debugging
-  accumulate_grad_batches: 10
+  accumulate_grad_batches: 4
+  limit_train_batches: 256 
   num_sanity_val_steps: 0
   log_every_n_steps: 1
   check_val_every_n_epoch: 1
-  # val_check_interval: 0.2 
+  # val_check_interval: 0.5 
   # detect_anomaly: True
   # gradient_clip_val: Null
+  deterministic: True

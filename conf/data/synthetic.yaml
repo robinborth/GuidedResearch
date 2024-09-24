@@ -6,8 +6,8 @@ data_dir: ${paths.data_dir}/synthetic_flame
 intrinsics_dir: ${paths.data_dir}/dphm_kinect/ali_kocal_eyeblink
 
 # generation settings
-sequence_size: 2
-frame_size: 500
+sequence_size: 10
+frame_size: 1000
 window_size: 1
 scales: [8,4,2]
 params_filter: [shape_params,expression_params,global_pose,neck_pose,transl]

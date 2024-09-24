@@ -20,9 +20,9 @@ verbose: True
 lr: 1e-03
 scheduler: null
 params:
-  global_pose: 1.0
-  transl: 1.0
-  neck_pose: 1.0
   expression_params: 1.0
+  # global_pose: 1.0
+  # transl: 1.0
+  # neck_pose: 1.0
   # shape_params: 1.0
 
