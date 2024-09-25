@@ -26,12 +26,12 @@ params:
   expression_params: 1.0
 
 # logging settings
-log_train_frame_idx: 52
-log_train_dataset: christoph_mouthmove
-log_train_interval: 5
-log_val_frame_idx: 110
-log_val_dataset: christoph_mouthmove 
-log_val_interval: 5
+log_train_frame_idx: ${data.train_dataset.log_frame_idx} 
+log_train_dataset: ${data.train_dataset.log_dataset} 
+log_train_interval: ${data.train_dataset.log_interval} 
+log_val_frame_idx: ${data.val_dataset.log_frame_idx} 
+log_val_dataset: ${data.val_dataset.log_dataset} 
+log_val_interval: ${data.val_dataset.log_frame_idx} 
 verbose: False
 
 # training settings

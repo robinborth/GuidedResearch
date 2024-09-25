@@ -24,8 +24,8 @@ def main(cfg: DictConfig):
 
 
 def optimize(cfg: DictConfig):
-    log.info("==> loading config ...")
     cfg = set_configs(cfg)
+    log.info("==> loading config ...")
 
     log.info("==> initializing camera and rasterizer ...")
     K = load_intrinsics(data_dir=cfg.data.intrinsics_dir, return_tensor="pt")

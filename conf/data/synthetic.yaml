@@ -55,6 +55,9 @@ train_dataset:
   jump_size: 1
   mode: fix
   memory: disk
+  log_frame_idx: 10
+  log_dataset: s00000
+  log_interval: 1
   datasets: 
     - s00000
     - s00001
@@ -259,6 +262,9 @@ val_dataset:
   jump_size: 1
   mode: fix
   memory: disk
+  log_frame_idx: 10
+  log_dataset: s00199
+  log_interval: 1
   datasets: 
     - s00192
     - s00193

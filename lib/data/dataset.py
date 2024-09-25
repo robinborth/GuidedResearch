@@ -118,6 +118,7 @@ class DPHMTrainDataset(DPHMDataset):
         start_frame: int | None = None,
         end_frame: int | None = None,
         memory: str = "ram",  # ram, disk
+        **kwargs,
     ):
         assert mode in ["fix", "dynamic"]
         self.mode = mode
