@@ -1,9 +1,9 @@
 # @package data
-_target_: lib.data.datamodule.DPHMDataModule
+_target_: lib.data.datamodule.DPHMTrainDataModule
 
 # dataset settings
-dataset_name: ali_kocal_mouthmove # christoph_mouthmove, ali_kocal_mouthmove
 data_dir: ${paths.data_dir}/dphm_kinect
+intrinsics_dir: ${paths.data_dir}/dphm_kinect/ali_kocal_eyeblink
 
 # camera settings
 width: 1920
@@ -18,16 +18,39 @@ num_workers: 0
 pin_memory: False
 persistent_workers: False 
 
-# prepare settings
-depth_factor: 1000
-inf_depth: 0.6
-scales: [2,4,8]
-dilation: 30
-
-# dataset settings
-dataset:
-  _target_: lib.data.dataset.DPHMOptimizeDataset
+train_dataset:
+  _target_: lib.data.dataset.DPHMTrainDataset
   _partial_: True
+  scale: ???
   data_dir: ${data.data_dir}
-  dataset: ${data.dataset_name}
-  scale: ???  # the camera is shared
+  start_frame: null  # 52
+  end_frame: null  # 53
+  jump_size: 1
+  mode: fix
+  datasets: 
+      - christoph_mouthmove
+      - ali_kocal_rotatemouth
+      - aria_talebizadeh_rotatemouth
+      - arnefucks_rotatemouth
+      - elias_wohlgemuth_mouthmove
+      - honglixu_rotatemouth
+      - leni_rohe_rotatemouth
+      - madhav_agarwal_rotatemouth
+      - medhansh_rotatemouth
+      - mohak_rotatemouth
+      - nikolas_rotatemouth
+      - seddik_houimli_rotatemouth
+
+val_dataset:
+  _target_: lib.data.dataset.DPHMTrainDataset
+  _partial_: True
+  scale: ???
+  data_dir: ${data.data_dir}
+  start_frame: null
+  end_frame: null
+  jump_size: 1
+  mode: fix
+  datasets: 
+    - christoph_mouthmove
+
+renderer: ???

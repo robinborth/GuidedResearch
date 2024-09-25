@@ -1,0 +1,20 @@
+_target_: lightning.pytorch.trainer.Trainer
+default_root_dir: ${paths.output_dir}
+accelerator: ${device}
+
+# training
+min_epochs: 1 
+max_epochs: 100
+accumulate_grad_batches: 1
+# limit_train_batches: 256 
+
+# logging
+num_sanity_val_steps: 0
+log_every_n_steps: 1
+check_val_every_n_epoch: 1
+# val_check_interval: 0.5 
+# detect_anomaly: True
+
+# stability
+# gradient_clip_val: 1.0
+deterministic: False

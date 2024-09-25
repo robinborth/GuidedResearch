@@ -200,7 +200,7 @@ class SyntheticDataModule(L.LightningDataModule):
         )
 
 
-class KinectDataModule(L.LightningDataModule):
+class DPHMTrainDataModule(L.LightningDataModule):
     def __init__(
         self,
         # dataset settings

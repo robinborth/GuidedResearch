@@ -4,5 +4,6 @@ _target_: lib.model.weighting.CNNWeightModule
 features: 100
 depth: 3
 mode: point_normal
-max_weight: 100.0
+max_weight: null
+final_activation: elu
 device: ${device}

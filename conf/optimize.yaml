@@ -3,7 +3,7 @@
 defaults:
   - model: flame 
   - logger: flame_wandb 
-  - data: kinect
+  - data: dphm 
   - residuals: face2face
   - optimizer: gauss_newton
   - framework : icp 

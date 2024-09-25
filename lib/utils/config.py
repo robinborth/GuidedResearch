@@ -1,4 +1,5 @@
 import logging
+import warnings
 from typing import List
 
 import lightning as L
@@ -7,6 +8,8 @@ from hydra import compose, initialize
 from hydra.utils import instantiate
 from lightning import Callback
 from omegaconf import DictConfig, OmegaConf
+
+warnings.filterwarnings("ignore", message=".*num_workers.*")
 
 log = logging.getLogger()
 

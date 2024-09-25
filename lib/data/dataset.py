@@ -30,8 +30,8 @@ class DPHMDataset(Dataset):
     def load(self, dataset: str, data_type: str):
         data = []
         for frame_idx in self.iter_frame_idx(dataset):
-            landmarks = self.load_cached(dataset, data_type, frame_idx)
-            data.append(landmarks)
+            value = self.load_cached(dataset, data_type, frame_idx)
+            data.append(value)
         return data
 
     def load_landmark(self, dataset: str):
@@ -48,13 +48,15 @@ class DPHMDataset(Dataset):
             landmark.append(torch.load(path))
         return landmark
 
+    def load_param(self, dataset: str, frame_idx: int):
+        path = Path(self.data_dir) / f"{dataset}/params/{frame_idx:05}.pt"
+        params = torch.load(path)
+        return {k: v[0] for k, v in params.items()}
+
     def load_params(self, dataset: str):
         params = []
         for frame_idx in self.iter_frame_idx(dataset):
-            path = Path(self.data_dir) / f"{dataset}/params/{frame_idx:05}.pt"
-            _params = torch.load(path)
-            _params = {k: v[0] for k, v in _params.items()}
-            params.append(_params)
+            params.append(self.load_param(dataset, frame_idx))
         return params
 
     def __len__(self) -> int:
@@ -115,11 +117,13 @@ class DPHMTrainDataset(DPHMDataset):
         jump_size: int = 1,
         start_frame: int | None = None,
         end_frame: int | None = None,
+        memory: str = "ram",  # ram, disk
     ):
         assert mode in ["fix", "dynamic"]
         self.mode = mode
         self.jump_size = jump_size
         self.scale = scale
+        self.memory = memory
         self.data_dir = data_dir
         self._start_frame = start_frame
         self._end_frame = end_frame
@@ -137,11 +141,12 @@ class DPHMTrainDataset(DPHMDataset):
         self.idx2dataset = {}
 
         for dataset in sorted(datasets):
-            self.mask[dataset] = self.load(dataset, "mask")
-            self.normal[dataset] = self.load(dataset, "normal")
-            self.color[dataset] = self.load(dataset, "color")
-            self.point[dataset] = self.load(dataset, "point")
-            self.params[dataset] = self.load_params(dataset)
+            if self.memory == "ram":
+                self.mask[dataset] = self.load(dataset, "mask")
+                self.normal[dataset] = self.load(dataset, "normal")
+                self.color[dataset] = self.load(dataset, "color")
+                self.point[dataset] = self.load(dataset, "point")
+                self.params[dataset] = self.load_params(dataset)
 
             start_frame = self._start_frame
             if start_frame is None:
@@ -184,13 +189,22 @@ class DPHMTrainDataset(DPHMDataset):
 
     def __getitem__(self, idx: int):
         dataset, frame_idx, init_idx = self.fetch_helper(idx)
-        mask = self.mask[dataset][frame_idx]
-        point = self.point[dataset][frame_idx]
-        normal = self.normal[dataset][frame_idx]
-        color = self.color[dataset][frame_idx]
-        params = self.params[dataset][frame_idx]
-        init_params = self.params[dataset][init_idx]
-        init_color = self.color[dataset][init_idx]
+        if self.memory == "ram":
+            mask = self.mask[dataset][frame_idx]
+            point = self.point[dataset][frame_idx]
+            normal = self.normal[dataset][frame_idx]
+            color = self.color[dataset][frame_idx]
+            params = self.params[dataset][frame_idx]
+            init_params = self.params[dataset][init_idx]
+            init_color = self.color[dataset][init_idx]
+        else:
+            mask = self.load_cached(dataset, "mask", frame_idx)
+            point = self.load_cached(dataset, "point", frame_idx)
+            normal = self.load_cached(dataset, "normal", frame_idx)
+            color = self.load_cached(dataset, "color", frame_idx)
+            params = self.load_param(dataset, frame_idx)
+            init_params = self.load_param(dataset, init_idx)
+            init_color = self.load_cached(dataset, "color", init_idx)
         return {
             "dataset": dataset,
             "frame_idx": frame_idx,

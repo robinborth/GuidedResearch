@@ -35,6 +35,32 @@ class OptimizerFramework(L.LightningModule):
     def forward(self, batch: dict):
         raise NotImplementedError()
 
+    # def on_before_optimizer_step(self, optimizer):
+    #     param_first = optimizer.param_groups[0]["params"][0]
+    #     param_last = optimizer.param_groups[0]["params"][-1]
+    #     grad = param_first.grad
+
+    #     # Access moments after an update
+    #     min_abs_grad = 100.0
+    #     min_idx = -1
+    #     max_abs_grad = -1.0
+    #     max_idx = -1
+    #     for i, param in enumerate(self.w_module.parameters()):
+    #         abs_min = torch.abs(param.grad).min()
+    #         if abs_min < min_abs_grad and abs_min > 0:
+    #             min_abs_grad = abs_min
+    #             min_idx = i
+    #         abs_max = torch.abs(param.grad).max()
+    #         if abs_max > max_abs_grad:
+    #             max_abs_grad = abs_max
+    #             max_idx = i
+
+    #     self.log(name="debug/grad_norm", value=torch.linalg.norm(param.grad))
+    #     self.log(name="debug/min_abs_grad", value=min_abs_grad)
+    #     self.log(name="debug/min_idx", value=min_idx)
+    #     self.log(name="debug/max_abs_grad", value=max_abs_grad)
+    #     self.log(name="debug/max_idx", value=max_idx)
+
     def configure_optimizer(self):
         raise NotImplementedError()
 
@@ -288,42 +314,12 @@ class NeuralOptimizer(OptimizerFramework):
         self._logger = logger
         self.verbose = verbose
 
-    def on_before_optimizer_step(self, optimizer):
-        param_first = optimizer.param_groups[0]["params"][0]
-        param_last = optimizer.param_groups[0]["params"][-1]
-        grad = param_first.grad
-
-        # Access moments after an update
-        min_abs_grad = 100.0
-        min_idx = -1
-        max_abs_grad = -1.0
-        max_idx = -1
-        for i, param in enumerate(self.w_module.parameters()):
-            abs_min = torch.abs(param.grad).min()
-            if abs_min < min_abs_grad and abs_min > 0:
-                min_abs_grad = abs_min
-                min_idx = i
-            abs_max = torch.abs(param.grad).max()
-            if abs_max > max_abs_grad:
-                max_abs_grad = abs_max
-                max_idx = i
-            # if param.grad is not None:
-            #     if torch.isnan(param.grad).sum() > 0:
-            #         print("!!!NAN GRAD!!!")
-            #     param.grad = torch.nan_to_num(param.grad, nan=0.0)
-
-        self.log(name="debug/grad_norm", value=torch.linalg.norm(param.grad))
-        self.log(name="debug/min_abs_grad", value=min_abs_grad)
-        self.log(name="debug/min_idx", value=min_idx)
-        self.log(name="debug/max_abs_grad", value=max_abs_grad)
-        self.log(name="debug/max_idx", value=max_idx)
-
     def configure_optimizer(self):
         params = [
             {"params": self.w_module.parameters()},
             {"params": self.r_module.parameters()},
         ]
-        return torch.optim.Adam(params=params, lr=self.hparams["lr"])
+        return self.hparams["train_optimizer"](params=params)
 
     def forward(self, batch: dict):
         optim_masks: list = []

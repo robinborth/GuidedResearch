@@ -25,7 +25,6 @@ def main(cfg: DictConfig):
 
 def optimize(cfg: DictConfig):
     log.info("==> loading config ...")
-    L.seed_everything(cfg.seed)
     cfg = set_configs(cfg)
 
     log.info("==> initializing camera and rasterizer ...")
@@ -77,7 +76,7 @@ def optimize(cfg: DictConfig):
         optimizer=optimizer,
         weighting=weighting,
     )
-    logger.watch(model, "all")
+    logger.watch(model, log_graph=False)
 
     log.info("==> initializing trainer ...")
     trainer = hydra.utils.instantiate(cfg.trainer, logger=logger)

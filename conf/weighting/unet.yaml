@@ -4,6 +4,8 @@ _target_: lib.model.weighting.UNetWeightModule
 features: 64
 depth: 3
 mode: point_normal
-max_weight: 100.0
+max_weight: null 
 size: 256
+layer_norm: True 
+final_activation: elu 
 device: ${device}

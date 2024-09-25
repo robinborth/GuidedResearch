@@ -3,119 +3,39 @@
 defaults:
   - model: flame 
   - logger: flame_wandb
-  - data: synthetic # synthetic, dphm
+  - data: synthetic # synthetic, kinect 
   - residuals: neural  # face2face, neural 
   - optimizer:  gauss_newton 
-  - framework : neural
+  - framework : neural_synthetic # neural_synthetic, neural_kinect
   - correspondence: projective 
   - weighting: unet # dummy, cnn, unet
-  - regularize: dummy  # dummy, mlp
+  - regularize: mlp # dummy, mlp
+  - trainer: deterministic  # default, deterministic
   - hydra: default
   - paths: default
   - _self_
 
+# run setting 
+train: True
+eval: False
+
+# base configs
 seed: 123
 device: cuda
 task_name: train
-eval: False
-train: True
 tags: 
   - ${task_name}
 
-
-weighting:
-  features: 16
-  depth: 3
-  mode: point_normal
-  layer_norm: True  # True
-
-data:
-  train_dataset:
-    start_frame: null # 52, 30
-    end_frame: null # 53, 90
-    jump_size: 1
-    mode: fix
-    datasets: 
-      - s00000
-      - s00001
-      - s00002
-      - s00003
-      - s00004
-      - s00005
-      - s00006
-      - s00007
-      - s00008
-      # - christoph_mouthmove
-      # - ali_kocal_rotatemouth
-      # - aria_talebizadeh_rotatemouth
-      # - arnefucks_rotatemouth
-      # - elias_wohlgemuth_mouthmove
-      # - honglixu_rotatemouth
-      # - leni_rohe_rotatemouth
-      # - madhav_agarwal_rotatemouth
-      # - medhansh_rotatemouth
-      # - mohak_rotatemouth
-      # - nikolas_rotatemouth
-      # - seddik_houimli_rotatemouth
-  val_dataset:
-    start_frame: null
-    end_frame: 33
-    jump_size: 1
-    mode: fix
-    datasets: 
-      - s00009
-      # - christoph_mouthmove
-
-# optimizer:
-#   step_size: 1.0
-
-# correspondence:
-#   d_threshold: 0.1
-#   n_threshold: 0.9
-
+# override framework settings
 framework:
-  # optimization loop
   max_iters: 1
-  max_optims: 1
-  # loss settings
-  lr: 1e-03  # 1e-02
+  lr: 5e-04
   residual_weight: 0.2
   geometric_weight: 0.0
   param_weight: 1.0
-  params:
-    global_pose: 100.0
-    transl: 500.0
-    neck_pose: 20.0
-    expression_params: 1.0
-  # logging settings
-  # log_train_frame_idx: 52
-  # log_train_dataset: christoph_mouthmove
-  # log_train_interval: 5
-  # log_val_frame_idx: 110
-  # log_val_dataset: christoph_mouthmove 
-  # log_val_interval: 5
-  log_train_frame_idx: 10
-  log_train_dataset: s00000
-  log_train_interval: 1
-  log_val_frame_idx: 18
-  log_val_dataset: s00009
-  log_val_interval: 1
-  verbose: False
 
+# override trainer settings
 trainer:
-  _target_: lightning.pytorch.trainer.Trainer
-  default_root_dir: ${paths.output_dir}
-  accelerator: ${device}
-  # training
-  min_epochs: 1 
-  max_epochs: 100
-  # debugging
+  max_epochs: 2000 
   accumulate_grad_batches: 4
   limit_train_batches: 256 
-  num_sanity_val_steps: 0
-  log_every_n_steps: 1
-  check_val_every_n_epoch: 1
-  # val_check_interval: 0.5 
-  # detect_anomaly: True
-  # gradient_clip_val: Null
-  deterministic: True

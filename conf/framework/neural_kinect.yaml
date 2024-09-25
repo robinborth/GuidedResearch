@@ -1,0 +1,43 @@
+# @package framework 
+
+_target_: lib.optimizer.framework.NeuralOptimizer
+
+flame: ???
+logger: ???
+renderer: ???
+correspondence: ???
+residuals: ???
+optimizer: ???
+weighting: ???
+
+# optimization settings
+max_iters: 1
+max_optims: 1
+
+# loss settings
+lr: 1e-03
+residual_weight: 0.1
+geometric_weight: 1.0
+param_weight: 1.0
+params:
+  global_pose: 100.0
+  transl: 500.0
+  neck_pose: 20.0
+  expression_params: 1.0
+
+# logging settings
+log_train_frame_idx: 52
+log_train_dataset: christoph_mouthmove
+log_train_interval: 5
+log_val_frame_idx: 110
+log_val_dataset: christoph_mouthmove 
+log_val_interval: 5
+verbose: False
+
+# training settings
+scheduler: null
+train_optimizer:
+  _target_: torch.optim.Adam 
+  _partial_: True
+  lr: ${framework.lr}
+
