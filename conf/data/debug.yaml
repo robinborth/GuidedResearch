@@ -54,7 +54,7 @@ train_dataset:
   end_frame: null
   jump_size: 1
   mode: fix
-  memory: disk
+  memory: disk 
   log_frame_idx: 10
   log_dataset: s00000
   log_interval: 1
@@ -70,7 +70,7 @@ val_dataset:
   end_frame: 18
   jump_size: 1
   mode: fix
-  memory: disk
+  memory: disk 
   log_frame_idx: 10
   log_dataset: s00001
   log_interval: 1

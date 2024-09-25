@@ -21,7 +21,16 @@ log = logging.getLogger()
 class OptimizerFramework(L.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.save_hyperparameters(logger=False, ignore=["renderer", "flame", "logger"])
+        ignore = [
+            "renderer",
+            "flame",
+            "logger",
+            "correspondence",
+            "weighting",
+            "residuals",
+            "regularize",
+        ]
+        self.save_hyperparameters(logger=False, ignore=ignore)
         self.first_train_params = None
         self.first_val_params = None
         self.default_w_module = DummyWeightModule()
@@ -191,18 +200,20 @@ class OptimizerFramework(L.LightningModule):
             s_normal=batch["normal"],
             params=new_params,
         )
-        init_geometric_loss = self.compute_geometric_loss(
-            s_mask=batch["mask"],
-            s_point=batch["point"],
-            s_normal=batch["normal"],
-            params=init_params,
-        )
-        gt_geometric_loss = self.compute_geometric_loss(
-            s_mask=batch["mask"],
-            s_point=batch["point"],
-            s_normal=batch["normal"],
-            params=gt_params,
-        )
+
+        if self.hparams["verbose"]:
+            init_geometric_loss = self.compute_geometric_loss(
+                s_mask=batch["mask"],
+                s_point=batch["point"],
+                s_normal=batch["normal"],
+                params=init_params,
+            )
+            gt_geometric_loss = self.compute_geometric_loss(
+                s_mask=batch["mask"],
+                s_point=batch["point"],
+                s_normal=batch["normal"],
+                params=gt_params,
+            )
 
         # residual weight loss
         residual_loss = self.compute_residual_loss(
@@ -217,17 +228,19 @@ class OptimizerFramework(L.LightningModule):
         loss = p_loss + g_loss + r_loss
 
         # return loss information
-        return dict(
+        out = dict(
             loss=loss,
             loss_residual=r_loss,
             loss_param=p_loss,
             loss_geometric=g_loss,
             **param_loss,
             **geometric_loss,
-            **{f"gt_{key}": value for key, value in gt_geometric_loss.items()},
-            **{f"init_{key}": value for key, value in init_geometric_loss.items()},
-            **{f"init_{key}": value for key, value in init_param_loss.items()},
+            **{f"init_{k}": v for k , v in init_param_loss.items()},
         )
+        if self.hparams["verbose"]:
+            out.update({f"gt_{k}": v for k , v in gt_geometric_loss.items()})
+            out.update({f"init_{k}": v for k, v in init_geometric_loss.items()})
+        return out
 
     def compute_optim_stats(self, out: dict):
         # extract information
