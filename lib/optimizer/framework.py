@@ -5,6 +5,8 @@ import lightning as L
 import torch
 
 from lib.model.flame.flame import Flame
+from lib.model.regularize import DummyRegularizeModule
+from lib.model.weighting import DummyWeightModule
 from lib.optimizer.base import DifferentiableOptimizer
 from lib.optimizer.residuals import LandmarkResiduals, Residuals
 from lib.renderer.renderer import Renderer
@@ -31,6 +33,8 @@ class OptimizerFramework(L.LightningModule):
         self.save_hyperparameters(logger=False, ignore=ignore)
         self.first_train_params = None
         self.first_val_params = None
+        self.default_w_module = DummyWeightModule()
+        self.default_r_module = DummyRegularizeModule()
 
     def forward(self, batch: dict):
         raise NotImplementedError()
@@ -70,8 +74,6 @@ class OptimizerFramework(L.LightningModule):
 
         # log the loss information
         for key, value in loss_info.items():
-            if key.startswith("init") and self.current_epoch != 0:
-                continue
             prog_bar = key == "loss"
             self.log(
                 name=f"{mode}/{key}",
@@ -111,7 +113,21 @@ class OptimizerFramework(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         self.logger.mode = "val"  # type: ignore
+
+        # inference the module
         out = self.model_step(batch, mode="val")
+
+        # store the module
+        w_module = self.w_module
+        r_module = self.r_module
+        # inference the default module
+        self.w_module = self.default_w_module
+        self.r_module = self.default_r_module
+        self.model_step(batch, mode="val_icp")
+        # default training module[]
+        self.w_module = w_module
+        self.r_module = r_module
+
         if self.perform_log_step(batch=batch, mode="val"):
             if self.first_val_params is None:
                 self.first_val_params = out["params"]

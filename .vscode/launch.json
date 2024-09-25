@@ -59,6 +59,17 @@
             "justMyCode": false,
         },
         {
+            "name": "Debug: Evaluation",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/prepare_evaluation.py",
+            "args": [
+                "data=debug"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
             "name": "Debug: PCG Sampling",
             "type": "debugpy",
             "request": "launch",
