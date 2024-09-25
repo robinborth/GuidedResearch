@@ -11,6 +11,7 @@ defaults:
   - weighting: unet # dummy, cnn, unet
   - regularize: dummy # dummy, mlp
   - trainer: deterministic  # default, deterministic
+  - callbacks: default
   - hydra: default
   - paths: default
   - _self_
@@ -18,6 +19,7 @@ defaults:
 # run setting 
 train: True
 eval: False
+ckpt_path: ???
 
 # base configs
 seed: 123
@@ -38,4 +40,4 @@ framework:
 trainer:
   max_epochs: 100
   accumulate_grad_batches: 4
-  limit_train_batches: 256
+  limit_train_batches: 4

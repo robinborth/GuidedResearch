@@ -39,6 +39,15 @@
             "justMyCode": false,
         },
         {
+            "name": "Debug: Eval",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "scripts/eval.py",
+            "args": [],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
             "name": "Debug: Makefile",
             "type": "debugpy",
             "request": "launch",

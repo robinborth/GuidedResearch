@@ -3,6 +3,7 @@ from pathlib import Path
 
 import hydra
 import lightning as L
+import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 
@@ -10,12 +11,12 @@ from lib.data.loader import load_intrinsics
 from lib.model import Flame
 from lib.renderer import Camera, Rasterizer, Renderer
 from lib.tracker.logger import FlameLogger
-from lib.utils.config import set_configs
+from lib.utils.config import instantiate_callbacks, log_hyperparameters, set_configs
 
 log = logging.getLogger()
 
 
-@hydra.main(version_base=None, config_path="../conf", config_name="train")
+@hydra.main(version_base=None, config_path="../conf", config_name="eval")
 def main(cfg: DictConfig):
     try:
         optimize(cfg)
@@ -41,7 +42,7 @@ def optimize(cfg: DictConfig):
     renderer = Renderer(rasterizer=rasterizer, camera=camera)
 
     log.info(f"==> initializing model <{cfg.model._target_}> ...")
-    flame: Flame = hydra.utils.instantiate(cfg.model)
+    flame: Flame = hydra.utils.instantiate(cfg.model).to(cfg.device)
 
     log.info(f"==> initializing logger <{cfg.logger._target_}> ...")
     logger: FlameLogger = hydra.utils.instantiate(cfg.logger)
@@ -55,7 +56,7 @@ def optimize(cfg: DictConfig):
     log.info(f"==> initializing weighting <{cfg.weighting._target_}> ...")
     weighting = hydra.utils.instantiate(cfg.weighting)
 
-    log.info(f"==> initializing weighting <{cfg.regularize._target_}> ...")
+    log.info(f"==> initializing regularize <{cfg.regularize._target_}> ...")
     regularize = hydra.utils.instantiate(cfg.regularize)
 
     log.info(f"==> initializing residuals <{cfg.residuals._target_}> ...")
@@ -76,28 +77,22 @@ def optimize(cfg: DictConfig):
         optimizer=optimizer,
         weighting=weighting,
     )
-    logger.watch(model, log_graph=False)
 
-    log.info("==> initializing trainer ...")
-    trainer = hydra.utils.instantiate(cfg.trainer, logger=logger)
+    if cfg.get("ckpt_path"):
+        log.info("==> load model from checkpoint ...")
+        checkpoint = torch.load(cfg.ckpt_path)
+        model.load_state_dict(checkpoint["state_dict"])
 
-    if cfg.train:
-        log.info("==> start training ...")
-        trainer.fit(model=model, datamodule=datamodule)
-
-    if cfg.eval:  # custom because of fwAD
-        log.info("==> start evaluation ...")
-        model = model.to("cuda")
-        renderer.update(scale=2)
-        datamodule.setup("all")
-        dataloader = datamodule.train_dataloader()
-        for batch_idx, batch in tqdm(enumerate(dataloader)):
-            batch = model.transfer_batch_to_device(batch, "cuda", 0)
-            model.validation_step(batch, batch_idx)
-        dataloader = datamodule.val_dataloader()
-        for batch_idx, batch in tqdm(enumerate(dataloader)):
-            batch = model.transfer_batch_to_device(batch, "cuda", 0)
-            model.validation_step(batch, batch_idx)
+    log.info("==> start evaluation ...")
+    datamodule.setup("all")
+    dataloader = datamodule.train_dataloader()
+    for batch_idx, batch in tqdm(enumerate(dataloader)):
+        batch = model.transfer_batch_to_device(batch, "cuda", 0)
+        model.validation_step(batch, batch_idx)
+    dataloader = datamodule.val_dataloader()
+    for batch_idx, batch in tqdm(enumerate(dataloader)):
+        batch = model.transfer_batch_to_device(batch, "cuda", 0)
+        model.validation_step(batch, batch_idx)
 
 
 if __name__ == "__main__":

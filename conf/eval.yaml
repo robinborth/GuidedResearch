@@ -1,0 +1,25 @@
+# @package _global_
+
+defaults:
+  - model: flame 
+  - logger: flame_wandb
+  - data: debug # synthetic, kinect, debug
+  - residuals: neural  # face2face, neural 
+  - optimizer:  gauss_newton 
+  - correspondence: projective 
+  - weighting: unet # dummy, cnn, unet
+  - regularize: dummy # dummy, mlp
+  - framework : neural
+  - hydra: default
+  - paths: default
+  - _self_
+
+# run setting 
+ckpt_path: ??? 
+
+# base configs
+seed: 123
+device: cuda
+task_name: eval
+tags: 
+  - ${task_name}

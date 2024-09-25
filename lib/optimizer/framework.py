@@ -21,16 +21,7 @@ log = logging.getLogger()
 class OptimizerFramework(L.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        ignore = [
-            "renderer",
-            "flame",
-            "weighting",
-            "residuals",
-            "regularize",
-            "correspondence",
-            "optimizer",
-        ]
-        self.save_hyperparameters(logger=False, ignore=ignore)
+        self.save_hyperparameters(logger=False, ignore=["renderer", "flame", "logger"])
         self.first_train_params = None
         self.first_val_params = None
         self.default_w_module = DummyWeightModule()
@@ -38,32 +29,6 @@ class OptimizerFramework(L.LightningModule):
 
     def forward(self, batch: dict):
         raise NotImplementedError()
-
-    # def on_before_optimizer_step(self, optimizer):
-    #     param_first = optimizer.param_groups[0]["params"][0]
-    #     param_last = optimizer.param_groups[0]["params"][-1]
-    #     grad = param_first.grad
-
-    #     # Access moments after an update
-    #     min_abs_grad = 100.0
-    #     min_idx = -1
-    #     max_abs_grad = -1.0
-    #     max_idx = -1
-    #     for i, param in enumerate(self.w_module.parameters()):
-    #         abs_min = torch.abs(param.grad).min()
-    #         if abs_min < min_abs_grad and abs_min > 0:
-    #             min_abs_grad = abs_min
-    #             min_idx = i
-    #         abs_max = torch.abs(param.grad).max()
-    #         if abs_max > max_abs_grad:
-    #             max_abs_grad = abs_max
-    #             max_idx = i
-
-    #     self.log(name="debug/grad_norm", value=torch.linalg.norm(param.grad))
-    #     self.log(name="debug/min_abs_grad", value=min_abs_grad)
-    #     self.log(name="debug/min_idx", value=min_idx)
-    #     self.log(name="debug/max_abs_grad", value=max_abs_grad)
-    #     self.log(name="debug/max_idx", value=max_idx)
 
     def configure_optimizer(self):
         raise NotImplementedError()
@@ -309,7 +274,7 @@ class NeuralOptimizer(OptimizerFramework):
         regularize: torch.nn.Module,
         optimizer: DifferentiableOptimizer,
         # logging
-        logger: FlameLogger,
+        logger: FlameLogger | None = None,
         verbose: bool = True,
         max_iters: int = 1,
         max_optims: int = 1,
@@ -318,10 +283,10 @@ class NeuralOptimizer(OptimizerFramework):
         super().__init__(**kwargs)
         # optimizer settings
         self.flame = flame
+        self.renderer = renderer
         self.c_module = correspondence
         self.w_module = weighting
         self.r_module = regularize
-        self.renderer = renderer
         self.optimizer = optimizer
         self.residuals = residuals
         self.max_iters = max_iters
@@ -347,7 +312,6 @@ class NeuralOptimizer(OptimizerFramework):
         self.optimizer._p_names = list(self.hparams["params"].keys())  # type: ignore
 
         for iter_step in range(self.max_iters):
-            self.logger.iter_step = iter_step
             # render the current state of the model
             out = self.flame.render(
                 renderer=self.renderer,
