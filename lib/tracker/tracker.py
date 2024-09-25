@@ -4,7 +4,7 @@ import torch
 from tqdm import tqdm
 
 from lib.data.datamodule import DPHMDataModule
-from lib.data.synthesis import generate_params
+from lib.data.synthetic import generate_params
 from lib.optimizer.framework import LandmarkRigidOptimizer, OptimizerFramework
 from lib.optimizer.residuals import LandmarkResiduals
 from lib.tracker.scheduler import (
@@ -247,7 +247,7 @@ class SequentialTracker:
 
 
 # class PCGSamplingTrainer(BaseTrainer):
-#     def __init__(self, init_idxs: list[int] = [], max_samplings: int = 1000, **kwargs):
+#     def __init__(self, init_idxs: list[int] = [], max_samplings: int = 1000,**kwargs):
 #         super().__init__(**kwargs)
 #         self.mode = "pcg"
 #         assert len(init_idxs) > 0

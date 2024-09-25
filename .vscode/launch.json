@@ -32,8 +32,8 @@
                 "sequential_tracker.max_optims=1",
                 "sequential_tracker.coarse2fine.milestones=[0]",
                 "sequential_tracker.coarse2fine.scales=[8]",
-                "data.data_dir=/home/borth/GuidedResearch/data/debug",
-                "data.dataset_name=christoph_mouthmove"
+                // "data.data_dir=/home/borth/GuidedResearch/data/debug",
+                // "data.dataset_name=christoph_mouthmove"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

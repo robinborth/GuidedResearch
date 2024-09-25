@@ -9,7 +9,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
-from lib.data.synthesis import generate_params
+from lib.data.synthetic import generate_params
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
