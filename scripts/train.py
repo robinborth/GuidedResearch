@@ -3,14 +3,14 @@ from pathlib import Path
 
 import hydra
 import lightning as L
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
 from lib.model import Flame
 from lib.renderer import Camera, Rasterizer, Renderer
 from lib.tracker.logger import FlameLogger
-from lib.utils.config import instantiate_callbacks, log_hyperparameters, set_configs
+from lib.utils.config import instantiate_callbacks, set_configs
 
 log = logging.getLogger()
 
@@ -84,17 +84,9 @@ def optimize(cfg: DictConfig):
     log.info("==> initializing trainer ...")
     trainer = hydra.utils.instantiate(cfg.trainer, logger=logger, callbacks=callbacks)
 
-    object_dict = {
-        "cfg": cfg,
-        "datamodule": datamodule,
-        "model": model,
-        "callbacks": callbacks,
-        "logger": logger,
-        "trainer": trainer,
-    }
     if logger:
         log.info("==> logging hyperparameters ...")
-        log_hyperparameters(object_dict)
+        trainer.logger.log_hyperparams(OmegaConf.to_container(cfg))
 
     if cfg.get("train"):
         log.info("==> start training ...")

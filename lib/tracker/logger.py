@@ -168,7 +168,7 @@ class FlameLogger(WandbLogger):
         scale = renderer.camera.scale
         renderer.update(scale=2)
         gt_out = flame.render(renderer=renderer, params=batch["params"])
-        first_out = flame.render(renderer=renderer, params=batch["first_params"])
+        icp_out = flame.render(renderer=renderer, params=batch["icp_params"])
         init_out = flame.render(renderer=renderer, params=batch["init_params"])
         new_out = flame.render(renderer=renderer, params=params)
 
@@ -179,7 +179,7 @@ class FlameLogger(WandbLogger):
         plt.close()
 
         # flame first icp step
-        images = first_out["color"]
+        images = icp_out["color"]
         images = images[..., y_margin:-y_margin, x_margin:-x_margin, :]
         visualize_grid(images=images)
         wandb_images.append(wandb.Image(plt))

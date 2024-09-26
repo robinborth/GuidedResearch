@@ -3,7 +3,7 @@
 defaults:
   - model: flame 
   - logger: flame_wandb
-  - data: debug # synthetic, kinect, debug
+  - data: synthetic # synthetic, kinect, debug
   - residuals: neural  # face2face, neural 
   - optimizer:  gauss_newton 
   - framework : neural
@@ -31,13 +31,14 @@ tags:
 # override framework settings
 framework:
   max_iters: 1
-  lr: 5e-04
-  residual_weight: 0.2
+  lr: 1e-04
+  residual_weight: 0.1
   geometric_weight: 0.0
-  param_weight: 1.0
+  param_weight: 0.0
+  vertices_weight: 1.0
 
 # override trainer settings
 trainer:
   max_epochs: 100
-  accumulate_grad_batches: 4
+  accumulate_grad_batches: 8
   limit_train_batches: 256

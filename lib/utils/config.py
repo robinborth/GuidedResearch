@@ -80,4 +80,4 @@ def log_hyperparameters(object_dict) -> None:
     hparams["seed"] = cfg.get("seed")
 
     # send hparams to all loggers
-    trainer.logger.log_hyperparams(hparams)
+    trainer.logger.log_hyperparams(cfg)

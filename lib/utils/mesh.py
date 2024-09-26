@@ -19,15 +19,6 @@ def face_normals(vertices: torch.Tensor, faces: torch.Tensor):
     return f_normals / torch.norm(f_normals, dim=-1).unsqueeze(-1)
 
 
-def compute_alpha(a, b):
-    # https://trimesh.org/trimesh.geometry.html weighted vertex normal
-    n = torch.linalg.cross(a, b, dim=-1)  # (F, 3)
-    da = torch.norm(a, dim=-1)
-    db = torch.norm(b, dim=-1)
-    dn = torch.norm(n, dim=-1)
-    return torch.arcsin(dn / (da * db))
-
-
 def normalize(a: torch.Tensor):
     return a / torch.norm(a, dim=-1).unsqueeze(-1)
 
@@ -73,7 +64,8 @@ def vertex_normals(vertices: torch.Tensor, faces: torch.Tensor):
     B, V, _ = vertices.shape
     F = faces.shape[0]
 
-    f_angles = face_angles(vertices, faces)  # (B, F, 3)
+    # remove from computational graph because of arccos
+    f_angles = face_angles(vertices, faces).detach()  # (B, F, 3)
 
     # the flat indexes, if you have 2 batches the flat list can be just splitted by the
     # half and then the left half is the first batch.
@@ -88,7 +80,7 @@ def vertex_normals(vertices: torch.Tensor, faces: torch.Tensor):
     v_normals = torch.bmm(vf, f_normals)  # (B, V, 3)
     v_normals = v_normals / torch.norm(v_normals, dim=-1).unsqueeze(-1)  # (V, 3)
 
-    return v_normals.detach()
+    return v_normals
 
 
 def compute_normal_map(vertex_map, mask):

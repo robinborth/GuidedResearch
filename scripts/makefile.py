@@ -81,133 +81,48 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    # data_dir = Path("/home/borth/GuidedResearch/data/dphm_kinect")
-    # dataset_names = sorted(list(p.name for p in data_dir.iterdir()))
-
-    values = [
-        "PytorchCholeskySolver",
-        "PytorchEpsSolver",
-        "PytorchSolver",
-        "PytorchLSTSQSolver",
-    ]
+    values = [1.0]
     prefixs = values
-
-    group_name = "train_solver"
+    group_name = "train_params"
     template_generator = """
-    python scripts/training.py \\
+    python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    optimizer.lin_solver._target_=lib.optimizer.solver.{value} \\
-    residuals.chain.point2plane.weight=1000 \\
-    residuals.chain.neural_expression_regularization.weight=1.0 \\
+    framework.param_weight=1.0 \\
+    framework.vertices_weight=0.0 \\
+    framework.residual_weight=0.01 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = [5, 10, 20, 40, 80]
+    values = [0.5]
     prefixs = values
-    group_name = "train_batch"
+    group_name = "train_vertices"
     template_generator = """
-    python scripts/training.py \\
+    python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    trainer.accumulate_grad_batches={value} \\
+    framework.param_weight=0.0 \\
+    framework.vertices_weight=0.5 \\
+    framework.residual_weight=0.01 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = [1, 2, 3]
+    values = ["1.0_0.5"]
     prefixs = values
-    group_name = "train_iters"
+    group_name = "train_params_vertices"
     template_generator = """
-    python scripts/training.py \\
+    python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.max_iters={value}
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = [3e-03, 1e-03, 7e-04]
-    prefixs = values
-    group_name = "train_iters"
-    template_generator = """
-    python scripts/training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    framework.lr={value}
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = [0.3, 0.2, 0.1]
-    prefixs = values
-    group_name = "train_weight"
-    template_generator = """
-    python scripts/training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    framework.residual_weight={value}
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = [3, 4]
-    prefixs = values
-    group_name = "train_unet"
-    template_generator = """
-    python scripts/training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    weighting=unet \\
-    weighting.depth={value}
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = [3, 4]
-    prefixs = values
-    group_name = "train_cnn"
-    template_generator = """
-    python scripts/training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    weighting=cnn \\
-    weighting.depth={value}
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = ["dummy", "mlp"]
-    prefixs = values
-    group_name = "train_regularize"
-    template_generator = """
-    python scripts/training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    regularize={value} \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = ["Null", 0.1, 0.2, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0]
-    prefixs = values
-    group_name = "train_grad_clipping"
-    template_generator = """
-    python scripts/training.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    trainer.gradient_clip_val={value} \\
+    framework.param_weight=1.0 \\
+    framework.vertices_weight=0.5 \\
+    framework.residual_weight=0.01 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 

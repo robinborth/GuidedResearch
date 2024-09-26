@@ -31,16 +31,27 @@ class OptimizerFramework(L.LightningModule):
             "regularize",
         ]
         self.save_hyperparameters(logger=False, ignore=ignore)
-        self.first_train_params = None
-        self.first_val_params = None
-        self.default_w_module = DummyWeightModule()
-        self.default_r_module = DummyRegularizeModule()
+        self._default_w_module = DummyWeightModule()
+        self._default_r_module = DummyRegularizeModule()
 
     def forward(self, batch: dict):
         raise NotImplementedError()
 
     def configure_optimizer(self):
         raise NotImplementedError()
+
+    def icp_model_step(self, batch, mode):
+        # store the module
+        w_module = self.w_module
+        r_module = self.r_module
+        # inference the default module
+        self.w_module = self._default_w_module
+        self.r_module = self._default_r_module
+        out_icp = self.model_step(batch, mode=mode)
+        # default training module[]
+        self.w_module = w_module
+        self.r_module = r_module
+        return out_icp
 
     def model_step(self, batch: dict, mode: str):
         out = self.forward(batch)
@@ -73,9 +84,8 @@ class OptimizerFramework(L.LightningModule):
         self.logger.mode = "train"  # type: ignore
         out = self.model_step(batch, mode="train")
         if self.perform_log_step(batch=batch, mode="train"):
-            if self.first_train_params is None:
-                self.first_train_params = out["params"]
-            batch["first_params"] = self.first_train_params
+            out_icp = self.icp_model_step(batch, mode="val_icp")
+            batch["icp_params"] = out_icp["params"]
             self.logger.log_step(  # type: ignore
                 batch=batch,
                 params=out["params"],
@@ -87,25 +97,10 @@ class OptimizerFramework(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         self.logger.mode = "val"  # type: ignore
-
-        # inference the module
         out = self.model_step(batch, mode="val")
-
-        # store the module
-        w_module = self.w_module
-        r_module = self.r_module
-        # inference the default module
-        self.w_module = self.default_w_module
-        self.r_module = self.default_r_module
-        self.model_step(batch, mode="val_icp")
-        # default training module[]
-        self.w_module = w_module
-        self.r_module = r_module
-
+        out_icp = self.icp_model_step(batch, mode="val_icp")
         if self.perform_log_step(batch=batch, mode="val"):
-            if self.first_val_params is None:
-                self.first_val_params = out["params"]
-            batch["first_params"] = self.first_val_params
+            batch["icp_params"] = out_icp["params"]
             self.logger.log_step(  # type: ignore
                 batch=batch,
                 params=out["params"],
@@ -139,12 +134,10 @@ class OptimizerFramework(L.LightningModule):
         s_mask: torch.Tensor,
         s_point: torch.Tensor,
         s_normal: torch.Tensor,
+        s_vertices: torch.Tensor,
         params: dict,
     ):
-        out = self.flame.render(
-            renderer=self.renderer,
-            params=params,
-        )
+        out = self.flame.render(renderer=self.renderer, params=params)
         mask, _ = self.c_module.mask(
             s_mask=s_mask,
             s_point=s_point,
@@ -166,7 +159,15 @@ class OptimizerFramework(L.LightningModule):
         )
         point2point = point2point.mean() * 1e03  # from m to mm
 
-        return dict(point2plane=point2plane, point2point=point2point)
+        vertices_loss = torch.linalg.vector_norm(out["vertices"] - s_vertices, dim=-1)
+        vertices_loss = vertices_loss.mean() * 1e03  # from m to mm
+
+        return dict(
+            geometric=point2plane,
+            geometric_point2plane=point2plane,
+            geometric_point2point=point2point,
+            vertices=vertices_loss,
+        )
 
     def compute_param_loss(self, params, gt_params):
         param_loss = {}
@@ -177,69 +178,73 @@ class OptimizerFramework(L.LightningModule):
         param_loss = {k: v.mean() for k, v in param_loss.items()}
         return param_loss
 
-    def compute_residual_loss(self, optim_weights: list, optim_masks: list):
+    def compute_regularize_loss(self, optim_weights: list, optim_masks: list):
         loss = []
         for weight, mask in zip(optim_weights, optim_masks):
             loss.append(torch.abs(weight))
-        return torch.cat(loss).mean()
+        return dict(weight=torch.cat(loss).mean())
 
     def compute_loss(self, batch: dict, out: dict):
         # extract the params
-        init_params = batch["init_params"]
         gt_params = batch["params"]
         new_params = out["params"]
 
         # param loss
         param_loss = self.compute_param_loss(gt_params, new_params)
-        init_param_loss = self.compute_param_loss(gt_params, init_params)
 
         # geometric loss
         geometric_loss = self.compute_geometric_loss(
             s_mask=batch["mask"],
             s_point=batch["point"],
             s_normal=batch["normal"],
+            s_vertices=batch["vertices"],
             params=new_params,
         )
 
-        if self.hparams["verbose"]:
-            init_geometric_loss = self.compute_geometric_loss(
-                s_mask=batch["mask"],
-                s_point=batch["point"],
-                s_normal=batch["normal"],
-                params=init_params,
-            )
-            gt_geometric_loss = self.compute_geometric_loss(
-                s_mask=batch["mask"],
-                s_point=batch["point"],
-                s_normal=batch["normal"],
-                params=gt_params,
-            )
-
         # residual weight loss
-        residual_loss = self.compute_residual_loss(
+        regularize_loss = self.compute_regularize_loss(
             optim_masks=out["optim_masks"],
             optim_weights=out["optim_weights"],
         )
 
         # final loss
         p_loss = self.hparams["param_weight"] * param_loss["param"]
-        g_loss = self.hparams["geometric_weight"] * geometric_loss["point2plane"]
-        r_loss = self.hparams["residual_weight"] * residual_loss
-        loss = p_loss + g_loss + r_loss
+        g_loss = self.hparams["geometric_weight"] * geometric_loss["geometric"]
+        w_loss = self.hparams["residual_weight"] * regularize_loss["weight"]
+        v_loss = self.hparams["vertices_weight"] * geometric_loss["vertices"]
+        loss = p_loss + g_loss + w_loss + v_loss
 
         # return loss information
         out = dict(
             loss=loss,
-            loss_residual=r_loss,
-            loss_param=p_loss,
-            loss_geometric=g_loss,
-            **param_loss,
-            **geometric_loss,
-            **{f"init_{k}": v for k , v in init_param_loss.items()},
+            weighted_loss_weight=w_loss,
+            weighted_loss_vertices=v_loss,
+            weighted_loss_param=p_loss,
+            weighted_loss_geometric=g_loss,
+            **{f"loss_{k}": v for k, v in param_loss.items()},
+            **{f"loss_{k}": v for k, v in regularize_loss.items()},
+            **{f"loss_{k}": v for k, v in geometric_loss.items()},
         )
         if self.hparams["verbose"]:
-            out.update({f"gt_{k}": v for k , v in gt_geometric_loss.items()})
-            out.update({f"init_{k}": v for k, v in init_geometric_loss.items()})
+            init_params = batch["init_params"]
+            init_param_loss = self.compute_param_loss(gt_params, init_params)
+            init_geometric_loss, _ = self.compute_geometric_loss(
+                s_mask=batch["mask"],
+                s_point=batch["point"],
+                s_normal=batch["normal"],
+                s_vertices=batch["vertices"],
+                params=init_params,
+            )
+            gt_geometric_loss, _ = self.compute_geometric_loss(
+                s_mask=batch["mask"],
+                s_point=batch["point"],
+                s_normal=batch["normal"],
+                s_vertices=batch["vertices"],
+                params=gt_params,
+            )
+            out.update({f"init_loss_{k}": v for k, v in init_param_loss.items()})
+            out.update({f"init_loss_{k}": v for k, v in init_geometric_loss.items()})
+            out.update({f"gt_loss_{k}": v for k, v in gt_geometric_loss.items()})
         return out
 
     def compute_optim_stats(self, out: dict):

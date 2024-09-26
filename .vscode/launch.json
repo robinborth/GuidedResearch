@@ -5,7 +5,7 @@
             "name": "Debug: Train",
             "type": "debugpy",
             "request": "launch",
-            "program": "scripts/training.py",
+            "program": "scripts/train.py",
             "args": [],
             "console": "integratedTerminal",
             "justMyCode": false,

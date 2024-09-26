@@ -19,6 +19,7 @@ lr: 1e-03
 residual_weight: 0.1
 geometric_weight: 1.0
 param_weight: 1.0
+vertices_weight: 0.0
 params:
   global_pose: 100.0
   transl: 500.0
