@@ -32,13 +32,13 @@ tags:
 framework:
   max_iters: 1
   lr: 1e-04
-  residual_weight: 0.1
+  residual_weight: 0.01
   geometric_weight: 0.0
-  param_weight: 0.0
-  vertices_weight: 1.0
+  param_weight: 1.0
+  vertices_weight: 0.5
 
 # override trainer settings
 trainer:
-  max_epochs: 100
-  accumulate_grad_batches: 8
+  max_epochs: 400  # 400
+  accumulate_grad_batches: 32  # 8, 32 
   limit_train_batches: 256

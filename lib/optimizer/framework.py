@@ -264,20 +264,31 @@ class OptimizerFramework(L.LightningModule):
 
         # compute the regularize delta stats from the GN
         optim_deltas = defaultdict(list)
-        for optim_out in out["optim_deltas"]:
+        for optim_out in out["optim_reg_deltas"]:
             for key, value in optim_out.items():
                 if value is not None:
-                    optim_deltas[f"min_{key}"].append(value.min())
-                    optim_deltas[f"max_{key}"].append(value.max())
-                    optim_deltas[f"mean_{key}"].append(value.mean())
-        optim_regularize = {k: torch.stack(v).mean() for k, v in optim_deltas.items()}
+                    optim_deltas[f"min_reg_delta_{key}"].append(value.min())
+                    optim_deltas[f"max_reg_delta_{key}"].append(value.max())
+                    optim_deltas[f"mean_reg_delta_{key}"].append(value.mean())
+        optim_reg_delta = {k: torch.stack(v).mean() for k, v in optim_deltas.items()}
+
+        # compute the regularize weights stats from the GN
+        optim_rweights = defaultdict(list)
+        for optim_out in out["optim_reg_weights"]:
+            for key, value in optim_out.items():
+                if value is not None:
+                    optim_rweights[f"min_reg_weight_{key}"].append(value.min())
+                    optim_rweights[f"max_reg_weight_{key}"].append(value.max())
+                    optim_rweights[f"mean_reg_weight_{key}"].append(value.mean())
+        optim_reg_weight = {k: torch.stack(v).mean() for k, v in optim_rweights.items()}
 
         # compute statistics
         return dict(
             max_weight=optim_weights[-1].max(),
             min_weight=optim_weights[-1].min(),
             **optim_outs,
-            **optim_regularize,
+            **optim_reg_delta,
+            **optim_reg_weight,
         )
 
 
@@ -324,7 +335,8 @@ class NeuralOptimizer(OptimizerFramework):
         optim_masks: list = []
         optim_weights: list = []
         optim_outs: list = []
-        optim_deltas: list = []
+        optim_reg_deltas: list = []
+        optim_reg_weights: list = []
 
         self.optimizer.set_params(batch["init_params"])
         self.optimizer._p_names = list(self.hparams["params"].keys())  # type: ignore
@@ -358,7 +370,8 @@ class NeuralOptimizer(OptimizerFramework):
                 params=self.optimizer._aktive_params,
                 latent=w_out["latent"],
             )
-            optim_deltas.append(r_out["deltas"])
+            optim_reg_deltas.append(r_out["deltas"])
+            optim_reg_weights.append(r_out["weights"])
 
             def residual_closure(*args):
                 # differentiable rendering without rasterization
@@ -378,7 +391,8 @@ class NeuralOptimizer(OptimizerFramework):
                     t_normal=out["normal"][mask],
                     t_point=t_point,
                     weights=w_out["weights"][mask],
-                    regularize=r_out["regularize"],
+                    reg_priors=r_out["priors"],
+                    reg_weights=r_out["weights"],
                     params=new_params,
                 )
                 return F, (F, info)  # first jacobian, then two aux
@@ -395,7 +409,8 @@ class NeuralOptimizer(OptimizerFramework):
             optim_weights=optim_weights,
             optim_outs=optim_outs,
             optim_masks=optim_masks,
-            optim_deltas=optim_deltas,
+            optim_reg_deltas=optim_reg_deltas,
+            optim_reg_weights=optim_reg_weights,
         )
 
 

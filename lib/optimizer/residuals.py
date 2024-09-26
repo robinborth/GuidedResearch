@@ -114,9 +114,10 @@ class NeuralRegularizationResiduals(Residuals):
 
     def forward(self, **kwargs):
         params = kwargs["params"][self.name]
-        delta_params = kwargs["regularize"][self.name]
-        residuals = (params - delta_params).view(-1)
-        return [self.weight * residuals]
+        reg_priors = kwargs["reg_priors"][self.name]
+        reg_weights = kwargs["reg_weights"][self.name]
+        residuals = (params - reg_priors).view(-1)
+        return [self.weight * residuals * reg_weights.view(-1)]
 
 
 ####################################################################################

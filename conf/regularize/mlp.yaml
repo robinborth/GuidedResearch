@@ -8,3 +8,5 @@ unet_depth: ${weighting.depth}
 unet_size: ${weighting.size}
 expression_params: ${model.expression_params}
 shape_params: ${model.shape_params}
+dummy_weight: False 
+dummy_delta: False

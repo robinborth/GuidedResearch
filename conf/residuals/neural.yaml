@@ -9,3 +9,15 @@ chain:
     _target_: lib.optimizer.residuals.NeuralRegularizationResiduals
     name: expression_params
     weight: 1e-03 
+  transl_regularization: 
+    _target_: lib.optimizer.residuals.NeuralRegularizationResiduals
+    name: transl
+    weight: 1e-03 
+  global_pose_regularization: 
+    _target_: lib.optimizer.residuals.NeuralRegularizationResiduals
+    name: global_pose 
+    weight: 1e-03
+  neck_pose_regularization: 
+    _target_: lib.optimizer.residuals.NeuralRegularizationResiduals
+    name: neck_pose 
+    weight: 1e-03

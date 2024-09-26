@@ -81,48 +81,63 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    values = [1.0]
+    values = ["train_regularize_weight_delta"]
     prefixs = values
-    group_name = "train_params"
+    group_name = "train_regularize_weight_delta"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.param_weight=1.0 \\
-    framework.vertices_weight=0.0 \\
-    framework.residual_weight=0.01 \\
+    regularize=mlp \\
+    regularize.dummy_weight=False \\
+    regularize.dummy_delta=False \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = [0.5]
+    values = ["train_regularize_weight"]
     prefixs = values
-    group_name = "train_vertices"
+    group_name = "train_regularize_weight"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.param_weight=0.0 \\
-    framework.vertices_weight=0.5 \\
-    framework.residual_weight=0.01 \\
+    regularize=mlp \\
+    regularize.dummy_weight=False \\
+    regularize.dummy_delta=True \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = ["1.0_0.5"]
+    values = ["train_regularize_delta"]
     prefixs = values
-    group_name = "train_params_vertices"
+    group_name = "train_regularize_delta"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.param_weight=1.0 \\
-    framework.vertices_weight=0.5 \\
-    framework.residual_weight=0.01 \\
+    regularize=mlp \\
+    regularize.dummy_weight=True \\
+    regularize.dummy_delta=False \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    values = ["train_regularize"]
+    prefixs = values
+    group_name = "train_regularize"
+    template_generator = """
+    python scripts/train.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    regularize=mlp \\
+    regularize.dummy_weight=True \\
+    regularize.dummy_delta=True \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
