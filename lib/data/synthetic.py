@@ -33,3 +33,31 @@ def generate_params(
         return params
 
     return {k: v for k, v in params.items() if k in select}
+
+
+def generate_synthetic_params(
+    flame: Flame,
+    window_size: int = 1,
+    default: dict = {},
+    sigmas: dict = {},
+    select: list[str] | None = None,
+    sparsity: float = 0.5,
+):
+    full_params = generate_params(
+        flame=flame,
+        window_size=window_size,
+        default=default,
+        sigmas=sigmas,
+        select=select,
+    )
+    params = {}
+    for key, value in full_params.items():
+        if key in ["transl", "global_pose", "scale"]:
+            params[key] = value
+            continue
+        if key == "expression_params":
+            value += torch.abs(value) * 0.5
+        zero_mask = torch.rand_like(value) < sparsity
+        value[zero_mask] = 0.0
+        params[key] = value
+    return params

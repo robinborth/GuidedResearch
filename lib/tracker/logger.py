@@ -51,6 +51,7 @@ class FlameLogger(WandbLogger):
         flame: Flame,
         renderer: Renderer,
         batch_idx: int = 0,
+        dataset: str | None = None,
     ):
         # update full resolution
         # gt_out = flame.render(renderer=renderer, params=batch["params"])
@@ -201,7 +202,10 @@ class FlameLogger(WandbLogger):
 
         renderer.update(scale=scale)
 
-        self.log_image(f"{self.mode}/images", wandb_images)  # type:ignore
+        if dataset is None:
+            self.log_image(f"{self.mode}/images", wandb_images)  # type:ignore
+        else:
+            self.log_image(f"{self.mode}/{dataset}/images", wandb_images)  # type:ignore
 
     def log_params(
         self,

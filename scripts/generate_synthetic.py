@@ -9,7 +9,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from lib.data.loader import load_intrinsics
-from lib.data.synthetic import generate_params
+from lib.data.synthetic import generate_synthetic_params
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
@@ -43,20 +43,22 @@ def optimize(cfg: DictConfig):
         # define the sequence directory
         sequence_dir = Path(cfg.data.data_dir) / f"s{sequence_idx:05}"
         # create default params for the sequence
-        default_params = generate_params(
+        default_params = generate_synthetic_params(
             flame,
             window_size=cfg.data.params_settings.window_size,
             default=cfg.data.params_settings.default,
             sigmas=cfg.data.params_settings.sigmas,
+            sparsity=cfg.data.params_settings.sparsity,
             select=cfg.data.params_filter,
         )
         for frame_idx in tqdm(range(cfg.data.frame_size)):
             # create the offset for the frame
-            offset = generate_params(
+            offset = generate_synthetic_params(
                 flame,
                 window_size=cfg.data.offset_settings.window_size,
                 default=cfg.data.offset_settings.default,
                 sigmas=cfg.data.offset_settings.sigmas,
+                sparsity=cfg.data.offset_settings.sparsity,
                 select=cfg.data.params_filter,
             )
             # add the offset to the default params for the sequence

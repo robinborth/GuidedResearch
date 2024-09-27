@@ -92,6 +92,7 @@ class OptimizerFramework(L.LightningModule):
                 weights=out["weights"],
                 flame=self.flame,
                 renderer=self.renderer,
+                dataset=batch["dataset"][0],
             )
         return out["loss"]
 
@@ -107,6 +108,7 @@ class OptimizerFramework(L.LightningModule):
                 weights=out["weights"],
                 flame=self.flame,
                 renderer=self.renderer,
+                dataset=batch["dataset"][0],
             )
         return out["loss"]
 
@@ -125,7 +127,7 @@ class OptimizerFramework(L.LightningModule):
     def perform_log_step(self, batch: dict, mode: str):
         return (
             batch["frame_idx"][0] == self.hparams[f"log_{mode}_frame_idx"]
-            and batch["dataset"][0] == self.hparams[f"log_{mode}_dataset"]
+            and batch["dataset"][0] in self.hparams[f"log_{mode}_dataset"]
             and (self.current_epoch % self.hparams[f"log_{mode}_interval"]) == 0
         )
 

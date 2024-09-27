@@ -96,36 +96,6 @@ def main():
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = ["train_regularize_weight"]
-    prefixs = values
-    group_name = "train_regularize_weight"
-    template_generator = """
-    python scripts/train.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    regularize=mlp \\
-    regularize.dummy_weight=False \\
-    regularize.dummy_delta=True \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = ["train_regularize_delta"]
-    prefixs = values
-    group_name = "train_regularize_delta"
-    template_generator = """
-    python scripts/train.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    regularize=mlp \\
-    regularize.dummy_weight=True \\
-    regularize.dummy_delta=False \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
     values = ["train_regularize"]
     prefixs = values
     group_name = "train_regularize"
@@ -140,6 +110,36 @@ def main():
     regularize.dummy_delta=True \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    # values = ["train_regularize_weight"]
+    # prefixs = values
+    # group_name = "train_regularize_weight"
+    # template_generator = """
+    # python scripts/train.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # regularize=mlp \\
+    # regularize.dummy_weight=False \\
+    # regularize.dummy_delta=True \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    # values = ["train_regularize_delta"]
+    # prefixs = values
+    # group_name = "train_regularize_delta"
+    # template_generator = """
+    # python scripts/train.py \\
+    # logger.group={group_name} \\
+    # logger.name={task_name} \\
+    # logger.tags=[{group_name},{task_name}] \\
+    # task_name={task_name} \\
+    # regularize=mlp \\
+    # regularize.dummy_weight=True \\
+    # regularize.dummy_delta=False \\
+    # """
+    # groups.append(build_group(template_generator, values, prefixs, group_name))
 
     with open(f"Makefile.{SUFFIX}", "w") as f:
         f.write(build_makefile(groups))
