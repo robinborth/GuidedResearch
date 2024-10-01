@@ -205,7 +205,7 @@ class FlameLogger(WandbLogger):
         if dataset is None:
             self.log_image(f"{self.mode}/images", wandb_images)  # type:ignore
         else:
-            self.log_image(f"{self.mode}/{dataset}/images", wandb_images)  # type:ignore
+            self.log_image(f"{self.mode}/images/{dataset}", wandb_images)  # type:ignore
 
     def log_params(
         self,

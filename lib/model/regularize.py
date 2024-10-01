@@ -33,7 +33,7 @@ class MLPRegularizeModule(nn.Module):
             kernel_size=1,
         )
         self.mlp = self._mlp_body(
-            in_dim=(unet_size * unet_size),
+            in_dim=(unet_size * unet_size) + 59,
             features=features,
             depth=depth,
         )
@@ -71,13 +71,16 @@ class MLPRegularizeModule(nn.Module):
             in_dim=features,
             out_dim=out_dim,
             hidden_dim=features,
-            num_layers=1,
+            num_layers=0,
         )
 
     def forward(self, params: dict[str, torch.Tensor], latent: torch.Tensor):
         # global shared feature
         x = self.conv(latent)  # (B, 1, H, W)
         x = x.flatten(start_dim=1)
+
+        x_params = torch.cat(list(params.values()), dim=-1)
+        x = torch.cat([x_params, x], dim=-1)
         x = self.mlp(x)
 
         # compute the per parameter weights and deltas

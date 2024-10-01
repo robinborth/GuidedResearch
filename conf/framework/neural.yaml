@@ -17,13 +17,13 @@ max_optims: 1
 # loss settings
 lr: 1e-03
 residual_weight: 0.1
-geometric_weight: 1.0
+geometric_weight: 0.0
 param_weight: 1.0
 vertices_weight: 0.0
 params:
-  global_pose: 100.0
-  transl: 500.0
-  neck_pose: 20.0
+  global_pose: 1.0
+  transl: 1.0
+  neck_pose: 1.0
   expression_params: 1.0
 
 # logging settings

@@ -175,8 +175,12 @@ class OptimizerFramework(L.LightningModule):
         param_loss = {}
         for p_names, weight in self.hparams["params"].items():
             l1_loss = torch.abs(params[p_names] - gt_params[p_names])
-            param_loss[f"param_{p_names}"] = l1_loss * weight
-        param_loss["param"] = torch.cat([p.flatten() for p in param_loss.values()])
+            param_loss[f"param_{p_names}"] = l1_loss
+            param_loss[f"weighted_param_{p_names}"] = l1_loss * weight
+        p = [p.flatten() for k, p in param_loss.items() if k.startswith("param")]
+        param_loss["param"] = torch.cat(p)
+        wp = [p.flatten() for k, p in param_loss.items() if k.startswith("weighted")]
+        param_loss["weighted_param"] = torch.cat(wp)
         param_loss = {k: v.mean() for k, v in param_loss.items()}
         return param_loss
 
