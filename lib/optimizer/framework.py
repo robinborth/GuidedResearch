@@ -327,6 +327,7 @@ class NeuralOptimizer(OptimizerFramework):
         self.max_iters = max_iters
         self.max_optims = max_optims
         # debugging
+        self.time_tracker = TimeTracker()
         self._logger = logger
         self.verbose = verbose
 
@@ -347,8 +348,10 @@ class NeuralOptimizer(OptimizerFramework):
         self.optimizer.set_params(batch["init_params"])
         self.optimizer._p_names = list(self.hparams["params"].keys())  # type: ignore
 
+        self.time_tracker.start("outer_loop")
         for iter_step in range(self.max_iters):
             # render the current state of the model
+            self.time_tracker.start("correspondences")
             out = self.flame.render(
                 renderer=self.renderer,
                 params=self.optimizer.get_params(),
@@ -363,7 +366,10 @@ class NeuralOptimizer(OptimizerFramework):
                 t_normal=out["normal"],
             )
             optim_masks.append(mask)
+            self.time_tracker.stop("correspondences")
+
             # predict weights
+            self.time_tracker.start("weighting")
             w_out = self.w_module(
                 s_point=batch["point"],
                 s_normal=batch["normal"],
@@ -371,13 +377,16 @@ class NeuralOptimizer(OptimizerFramework):
                 t_normal=out["normal"],
             )
             optim_weights.append(w_out["weights"])
+            self.time_tracker.stop("weighting")
             # regress regularization
+            self.time_tracker.start("regularization")
             r_out = self.r_module(
                 params=self.optimizer._aktive_params,
                 latent=w_out["latent"],
             )
             optim_reg_deltas.append(r_out["deltas"])
             optim_reg_weights.append(r_out["weights"])
+            self.time_tracker.stop("regularization")
 
             def residual_closure(*args):
                 # differentiable rendering without rasterization
@@ -390,6 +399,7 @@ class NeuralOptimizer(OptimizerFramework):
                     attributes=m_out["vertices"],
                     mask=mask,
                 )
+
                 # perform the residuals
                 F, info = self.residuals.step(
                     s_normal=batch["normal"][mask],
@@ -404,9 +414,12 @@ class NeuralOptimizer(OptimizerFramework):
                 return F, (F, info)  # first jacobian, then two aux
 
             # inner optimization loop
+            self.time_tracker.start("inner_loop")
             for optim_step in range(self.max_optims):
                 optim_out = self.optimizer.step(residual_closure)
                 optim_outs.append(optim_out)
+            self.time_tracker.stop("inner_loop")
+        self.time_tracker.stop("outer_loop")
 
         new_params = self.optimizer.get_params()
 

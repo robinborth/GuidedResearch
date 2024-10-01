@@ -81,9 +81,9 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    values = ["train_regularize_weight_delta"]
+    values = ["regularize"]
     prefixs = values
-    group_name = "train_regularize_weight_delta"
+    group_name = "train_neural"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
@@ -96,9 +96,9 @@ def main():
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = ["train_regularize"]
+    values = ["regularize"]
     prefixs = values
-    group_name = "train_regularize"
+    group_name = "train_default"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\

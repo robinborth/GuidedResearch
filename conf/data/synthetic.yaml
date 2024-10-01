@@ -1085,7 +1085,7 @@ val_dataset:
     - s00997
     - s00998
     - s00999  
-  log_interval: 5
+  log_interval: 1
   datasets: 
     - s00992
     - s00993

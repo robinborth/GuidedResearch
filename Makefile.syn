@@ -1,0 +1,59 @@
+##########################################################################
+# make all -f Makefile.syn -j 2
+##########################################################################
+
+.PHONY: all abblation_w_single_optim abblation_w_single_corresp abblation_wo_neural_weights abblation_wo_neural_prior abblation_ours
+all: abblation_w_single_optim abblation_w_single_corresp abblation_wo_neural_weights abblation_wo_neural_prior abblation_ours
+
+abblation_w_single_optim:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_w_single_optim \
+	logger.tags=[abblation,abblation_w_single_optim] \
+	task_name=abblation_w_single_optim \
+    data=synthetic \
+    framework.max_iters=1 \
+    framework.max_optims=1 \
+
+abblation_w_single_corresp:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_w_single_corresp \
+	logger.tags=[abblation,abblation_w_single_corresp] \
+	task_name=abblation_w_single_corresp \
+    data=synthetic \
+    framework.max_iters=1 \
+    framework.max_optims=3 \
+
+abblation_wo_neural_weights:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_wo_neural_weights \
+	logger.tags=[abblation,abblation_wo_neural_weights] \
+	task_name=abblation_wo_neural_weights \
+    data=synthetic \
+    framework.max_iters=3 \
+    framework.max_optims=1 \
+    weighting.dummy_weight=True \
+
+abblation_wo_neural_prior:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_wo_neural_prior \
+	logger.tags=[abblation,abblation_wo_neural_prior] \
+	task_name=abblation_wo_neural_prior \
+    data=synthetic \
+    framework.max_iters=3 \
+    framework.max_optims=1 \
+    regularize.dummy_weight=True \
+    regularize.dummy_delta=True \
+
+abblation_ours:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_ours \
+	logger.tags=[abblation,abblation_ours] \
+	task_name=abblation_ours \
+    data=synthetic \
+    framework.max_iters=3 \
+    framework.max_optims=1 \

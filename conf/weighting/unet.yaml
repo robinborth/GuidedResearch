@@ -8,4 +8,5 @@ max_weight: null
 size: 256
 layer_norm: True 
 final_activation: elu 
+dummy_weight: False
 device: ${device}

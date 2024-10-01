@@ -106,6 +106,7 @@ class UNetWeightModule(WeightModule):
         max_weight: float = 100.0,
         layer_norm: bool = True,
         final_activation: str = "none",  # none, relu, elu, exp
+        dummy_weight: bool = False,
         device: str = "cuda",
     ):
         super().__init__()
@@ -117,6 +118,7 @@ class UNetWeightModule(WeightModule):
         self.layer_norm = layer_norm
         self.depth = depth
         self.size = size
+        self.dummy_weight = dummy_weight
         in_channels = self.compute_in_channels(mode=mode)
 
         # Contracting Path (Encoder)
@@ -162,6 +164,10 @@ class UNetWeightModule(WeightModule):
 
         # bottleneck layers
         bottleneck = self.bottleneck(x)  # (B, C, H, W)
+
+        if self.dummy_weight:
+            weights = torch.ones((B, H, W), device=s_point.device)
+            return dict(weights=weights, latent=bottleneck)
 
         # decoder blocks
         for i in range(self.depth):
