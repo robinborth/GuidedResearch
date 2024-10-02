@@ -3,6 +3,7 @@
 _target_: lib.model.regularize.MLPRegularizeModule
 features: 128
 depth: 3
+latent_scale: 2
 unet_features: ${weighting.features}
 unet_depth: ${weighting.depth}
 unet_size: ${weighting.size}

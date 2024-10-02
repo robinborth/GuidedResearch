@@ -9,6 +9,7 @@ class MLPRegularizeModule(nn.Module):
         self,
         features: int = 100,
         depth: int = 3,
+        latent_scale: int = 4,
         unet_features: int = 64,
         unet_depth: int = 4,
         unet_size: int = 256,
@@ -29,11 +30,11 @@ class MLPRegularizeModule(nn.Module):
         # merge to one shared latent
         self.conv = nn.Conv2d(
             in_channels=unet_features,
-            out_channels=1,
+            out_channels=latent_scale,
             kernel_size=1,
         )
         self.mlp = self._mlp_body(
-            in_dim=(unet_size * unet_size) + 59,
+            in_dim=(unet_size * unet_size * latent_scale) + 59,
             features=features,
             depth=depth,
         )

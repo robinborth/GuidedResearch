@@ -36,7 +36,14 @@ log_val_interval: ${data.val_dataset.log_frame_idx}
 verbose: False
 
 # training settings
-scheduler: null
+monitor: train/loss
+# scheduler: null
+scheduler:
+  _partial_: True
+  _target_: torch.optim.lr_scheduler.LinearLR
+  total_iters: 500 
+  start_factor: 1.0
+  end_factor: 1e-01
 train_optimizer:
   _target_: torch.optim.Adam 
   _partial_: True

@@ -1,8 +1,6 @@
 import logging
-from pathlib import Path
 
 import hydra
-import lightning as L
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 

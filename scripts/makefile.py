@@ -81,33 +81,42 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    values = ["regularize"]
-    prefixs = values
-    group_name = "train_neural"
+    values = [1e-03, 1e-04]
+    prefixs = float_to_scientific(values)
+    group_name = "train_lr"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    regularize=mlp \\
-    regularize.dummy_weight=False \\
-    regularize.dummy_delta=False \\
+    framework.lr={value} \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = ["regularize"]
+    values = [2e-01, 5e-01, 1.0]
     prefixs = values
-    group_name = "train_default"
+    group_name = "train_vertices"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    regularize=mlp \\
-    regularize.dummy_weight=True \\
-    regularize.dummy_delta=True \\
+    framework.vertices_weight={value} \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    values = [128, 32]
+    prefixs = values
+    group_name = "train_batch"
+    template_generator = """
+    python scripts/train.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    trainer.accumulate_grad_batches={value} \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 

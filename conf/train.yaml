@@ -35,10 +35,11 @@ framework:
   residual_weight: 0.01
   geometric_weight: 0.0
   param_weight: 1.0
-  vertices_weight: 5e-02
+  vertices_weight: 0.2
 
 # override trainer settings
 trainer:
-  max_epochs: 500  # 400
+  max_epochs: 500 # 400
   accumulate_grad_batches: 64  # 8, 32 
   limit_train_batches: 256
+  # check_val_every_n_epoch: 5

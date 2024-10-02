@@ -1,7 +1,7 @@
 # @package weighting 
 
 _target_: lib.model.weighting.UNetWeightModule
-features: 64
+features: 32
 depth: 3
 mode: point_normal
 max_weight: null 
