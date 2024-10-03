@@ -39,7 +39,7 @@ framework:
 
 # override trainer settings
 trainer:
-  max_epochs: 500 # 400
+  max_epochs: 1000 # 500
   accumulate_grad_batches: 64  # 8, 32 
   limit_train_batches: 256
   # check_val_every_n_epoch: 5

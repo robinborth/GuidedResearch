@@ -2,8 +2,8 @@
 # make all -f Makefile.syn -j 2
 ##########################################################################
 
-.PHONY: all abblation_w_single_optim abblation_w_single_corresp abblation_wo_neural_weights abblation_wo_neural_prior abblation_ours
-all: abblation_w_single_optim abblation_w_single_corresp abblation_wo_neural_weights abblation_wo_neural_prior abblation_ours
+.PHONY: all abblation_wo_neural_weights abblation_w_single_corresp abblation_ours abblation_wo_neural_prior abblation_w_single_optim
+all: abblation_wo_neural_weights abblation_w_single_corresp abblation_ours abblation_wo_neural_prior abblation_w_single_optim
 
 abblation_w_single_optim:
 	python scripts/train.py \
@@ -45,8 +45,7 @@ abblation_wo_neural_prior:
     data=synthetic \
     framework.max_iters=3 \
     framework.max_optims=1 \
-    regularize.dummy_weight=True \
-    regularize.dummy_delta=True \
+	regularize=dummy \
 
 abblation_ours:
 	python scripts/train.py \
