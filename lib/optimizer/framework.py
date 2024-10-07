@@ -219,6 +219,7 @@ class OptimizerFramework(L.LightningModule):
         w_loss = self.hparams["residual_weight"] * regularize_loss["weight"]
         v_loss = self.hparams["vertices_weight"] * geometric_loss["vertices"]
         loss = p_loss + g_loss + w_loss + v_loss
+        # loss = p_loss + w_loss + v_loss
 
         # return loss information
         out = dict(

@@ -56,3 +56,69 @@ abblation_ours:
     data=synthetic \
     framework.max_iters=3 \
     framework.max_optims=1 \
+
+abblation_ours_ckpt:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_ours_ckpt \
+	logger.tags=[abblation,abblation_ours_ckpt] \
+	task_name=abblation_ours_ckpt \
+    data=synthetic \
+    framework.max_iters=3 \
+    framework.max_optims=1 \
+	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-04/16-00-30_abblation_ours/checkpoints/epoch_919.ckpt \
+
+
+abblation_w_multi5_optim:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_w_multi5_optim \
+	logger.tags=[abblation,abblation_w_multi5_optim] \
+	task_name=abblation_w_multi5_optim \
+    data=synthetic \
+    framework.max_iters=5 \
+    framework.max_optims=1 \
+
+abblation_w_multi5_optim_ckpt:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_w_multi5_optim_ckpt \
+	logger.tags=[abblation,abblation_w_multi5_optim_ckpt] \
+	task_name=abblation_w_multi5_optim_ckpt \
+    data=synthetic \
+    framework.max_iters=5 \
+    framework.max_optims=1 \
+	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-06/09-38-38_abblation_w_multi5_optim/checkpoints/epoch_119.ckpt \
+
+abblation_ours_full:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_ours_full \
+	logger.tags=[abblation,abblation_ours_full] \
+	task_name=abblation_ours_full \
+    data=synthetic \
+    framework.max_iters=3 \
+    framework.max_optims=1 \
+	optimizer.step_size=1.0 \
+
+abblation_single_optim_full:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_single_optim_full \
+	logger.tags=[abblation,abblation_single_optim_full] \
+	task_name=abblation_single_optim_full \
+    data=synthetic \
+    framework.max_iters=1 \
+    framework.max_optims=1 \
+	optimizer.step_size=1.0 \
+
+abblation_hard_optim_full:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_hard_optim_full \
+	logger.tags=[abblation,abblation_hard_optim_full] \
+	task_name=abblation_hard_optim_full \
+    data=synthetic_hard \
+    framework.max_iters=3 \
+    framework.max_optims=1 \
+	optimizer.step_size=1.0 \
