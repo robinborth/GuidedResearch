@@ -42,19 +42,24 @@ def optimize(cfg: DictConfig):
 
     data_dirs = sorted(list(Path(cfg.data.data_dir).iterdir()))
     for data_dir in tqdm(data_dirs):
-        dataset = DPHMDataset(data_dir=cfg.data.data_dir, scale=cfg.data.scale)
-        for frame_idx in list(dataset.iter_frame_idx(dataset=data_dir.name)):
-            params = dataset.load_param(dataset=data_dir.name, frame_idx=frame_idx)
-            params = {k: v.to(cfg.device) for k, v in params.items()}
-            out = flame.render(renderer=renderer, params=params, vertices_mask="face")
+        try:
+            dataset = DPHMDataset(data_dir=cfg.data.data_dir, scale=cfg.data.scale)
+            for frame_idx in list(dataset.iter_frame_idx(dataset=data_dir.name)):
+                params = dataset.load_param(dataset=data_dir.name, frame_idx=frame_idx)
+                params = {k: v.to(cfg.device) for k, v in params.items()}
+                out = flame.render(
+                    renderer=renderer, params=params, vertices_mask="face"
+                )
 
-            path = data_dir / f"cache/{cfg.data.scale}_face_mask/{frame_idx:05}.pt"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            torch.save(out["mask"][0].detach().cpu(), path)
+                path = data_dir / f"cache/{cfg.data.scale}_face_mask/{frame_idx:05}.pt"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                torch.save(out["mask"][0].detach().cpu(), path)
 
-            path = data_dir / f"vertices/{frame_idx:05}.pt"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            torch.save(out["vertices"][0].detach().cpu(), path)
+                path = data_dir / f"vertices/{frame_idx:05}.pt"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                torch.save(out["vertices"][0].detach().cpu(), path)
+        except Exception as e:
+            log.info(data_dir)
 
 
 if __name__ == "__main__":
