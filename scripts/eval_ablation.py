@@ -7,7 +7,7 @@ from tqdm.notebook import tqdm
 
 import wandb
 from lib.data.loader import load_intrinsics
-from lib.optimizer.framework import NeuralOptimizer, NeuralOptimizer2
+from lib.optimizer.framework import NeuralOptimizer
 from lib.rasterizer import Rasterizer
 from lib.renderer.camera import Camera
 from lib.renderer.renderer import Renderer
@@ -20,13 +20,7 @@ def path_to_abblation(path):
     return "_".join(path.split("/")[-3].split("_")[1:])
 
 
-def eval_iterations(
-    optimizer,
-    datamodule,
-    N: int = 1,
-    value: str = "loss_param",
-    mode="iters",
-):
+def eval_iterations(optimizer, datamodule, N: int = 1, mode="iters"):
     optimizer.max_iters = 1
     optimizer.max_optims = 1
 
@@ -104,8 +98,9 @@ def load_flame_renderer():
     return flame, renderer
 
 
-def load_neural_optimizer(flame, renderer, path):
-    cfg = load_config("train", ["data=synthetic"])
+def load_neural_optimizer(flame, renderer, path, override=[]):
+    o = ["data=synthetic"] + override
+    cfg = load_config("train", o)
     correspondence = hydra.utils.instantiate(cfg.correspondence)
     weighting = hydra.utils.instantiate(cfg.weighting)
     residuals = hydra.utils.instantiate(cfg.residuals)
@@ -122,35 +117,14 @@ def load_neural_optimizer(flame, renderer, path):
     return neural_optimizer
 
 
-def load_neural_optimizer1(flame, renderer, path):
-    cfg = load_config("train", ["data=synthetic", "regularize=dummy"])
-    correspondence = hydra.utils.instantiate(cfg.correspondence)
-    weighting = hydra.utils.instantiate(cfg.weighting)
-    regularize = hydra.utils.instantiate(cfg.regularize)
-    residuals = hydra.utils.instantiate(cfg.residuals)
-    neural_optimizer = NeuralOptimizer.load_from_checkpoint(
-        path,
-        renderer=renderer,
-        flame=flame,
-        correspondence=correspondence,
-        regularize=regularize,
-        residuals=residuals,
-        weighting=weighting,
-    )
-    return neural_optimizer
-
-
-def load_icp_optimizer(flame, renderer, overrides, neural_optimizer2: bool = False):
-    cfg = load_config(
-        "train", ["data=synthetic", "optimizer.output_dir=none"] + overrides
-    )
+def load_icp_optimizer(flame, renderer, overrides):
+    o = ["data=synthetic", "optimizer.output_dir=none"] + overrides
+    cfg = load_config("train", o)
     correspondence = hydra.utils.instantiate(cfg.correspondence)
     weighting = hydra.utils.instantiate(cfg.weighting)
     residuals = hydra.utils.instantiate(cfg.residuals)
     optimizer = hydra.utils.instantiate(cfg.optimizer)
     regularize = hydra.utils.instantiate(cfg.regularize)
-    if neural_optimizer2:
-        cfg.framework._target_ = "lib.optimizer.framework.NeuralOptimizer2"
     icp_optimizer = hydra.utils.instantiate(
         cfg.framework,
         flame=flame,
@@ -184,8 +158,7 @@ def main():
 
     # settings
     N = 3
-    value = "loss_param"  #  loss_vertices, loss_param
-    start_frame = None
+    start_frame = None 
     end_frame = None
 
     # checkpoints
@@ -194,7 +167,6 @@ def main():
     w_single_corresp = "/home/borth/GuidedResearch/logs/2024-10-03/09-54-41_abblation_w_single_corresp/checkpoints/last.ckpt"
     w_single_optim = "/home/borth/GuidedResearch/logs/2024-10-06/12-55-40_abblation_w_single_optim/checkpoints/last.ckpt"
     wo_neural_weights = "/home/borth/GuidedResearch/logs/2024-10-03/09-54-41_abblation_wo_neural_weights/checkpoints/last.ckpt"
-    w_multi5_optim = "/home/borth/GuidedResearch/logs/2024-10-06/20-02-37_abblation_w_multi5_optim_ckpt/checkpoints/last.ckpt"
 
     # loadings
     times = {}
@@ -205,9 +177,7 @@ def main():
 
     path = ours
     optimizer = load_neural_optimizer(flame, renderer, path)
-    p_loss, v_loss, time = eval_iterations(
-        optimizer, datamodule, N=N, value=value, mode="iters"
-    )
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
     key = path_to_abblation(path)
     times[key] = time[N].median().item()
     p_losses[key] = p_loss[N].mean().item()
@@ -217,10 +187,10 @@ def main():
     )
 
     path = wo_neural_weights
-    optimizer = load_neural_optimizer(flame, renderer, path)
-    p_loss, v_loss, time = eval_iterations(
-        optimizer, datamodule, N=N, value=value, mode="iters"
+    optimizer = load_neural_optimizer(
+        flame, renderer, path, ["weighting.dummy_weight=True"]
     )
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
     key = path_to_abblation(path)
     times[key] = time[N].median().item()
     p_losses[key] = p_loss[N].mean().item()
@@ -230,10 +200,8 @@ def main():
     )
 
     path = wo_neural_prior
-    optimizer = load_neural_optimizer1(flame, renderer, path)
-    p_loss, v_loss, time = eval_iterations(
-        optimizer, datamodule, N=N, value=value, mode="iters"
-    )
+    optimizer = load_neural_optimizer(flame, renderer, path, ["regularize=dummy"])
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
     key = path_to_abblation(path)
     times[key] = time[N].median().item()
     p_losses[key] = p_loss[N].mean().item()
@@ -244,9 +212,7 @@ def main():
 
     path = w_single_corresp
     optimizer = load_neural_optimizer(flame, renderer, path)
-    p_loss, v_loss, time = eval_iterations(
-        optimizer, datamodule, N=N, value=value, mode="optims"
-    )
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="optims")
     key = path_to_abblation(path)
     times[key] = time[N].median().item()
     p_losses[key] = p_loss[N].mean().item()
@@ -257,9 +223,7 @@ def main():
 
     path = w_single_optim
     optimizer = load_neural_optimizer(flame, renderer, path)
-    p_loss, v_loss, time = eval_iterations(
-        optimizer, datamodule, N=N, value=value, mode="iters"
-    )
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
     key = "abblation_wo_end_to_end"
     times[key] = time[N].median().item()
     p_losses[key] = p_loss[N].mean().item()

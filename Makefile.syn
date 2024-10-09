@@ -88,7 +88,7 @@ abblation_w_multi5_optim_ckpt:
     data=synthetic \
     framework.max_iters=5 \
     framework.max_optims=1 \
-	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-06/09-38-38_abblation_w_multi5_optim/checkpoints/epoch_119.ckpt \
+	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-06/20-02-37_abblation_w_multi5_optim_ckpt/checkpoints/last.ckpt \
 
 abblation_ours_full:
 	python scripts/train.py \
