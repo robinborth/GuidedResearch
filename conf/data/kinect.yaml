@@ -32,7 +32,7 @@ train_dataset:
   log_dataset: christoph_mouthmove
   log_interval: 1
   datasets: 
-      - christoph_mouthmove
+      # - christoph_mouthmove
       - ali_kocal_rotatemouth
       - aria_talebizadeh_rotatemouth
       - arnefucks_rotatemouth
@@ -49,8 +49,8 @@ val_dataset:
   _partial_: True
   scale: ???
   data_dir: ${data.data_dir}
-  start_frame: 100
-  end_frame: 108
+  start_frame: 40
+  end_frame: 48 
   jump_size: 1
   mode: fix
   memory: ram
@@ -59,7 +59,6 @@ val_dataset:
   log_interval: 1
   datasets: 
     - christoph_mouthmove
-    - ali_kocal_rotatemouth
     - innocenzo_fulgintl_rotatemouth
 
 renderer: ???

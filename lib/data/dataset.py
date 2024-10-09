@@ -74,7 +74,6 @@ class DPHMOptimizeDataset(DPHMDataset):
         self.data_dir = data_dir
         self.dataset = dataset
         self.mask = self.load(dataset, "mask")
-        self.face_mask = self.load(dataset, "face_mask")
         self.normal = self.load(dataset, "normal")
         self.color = self.load(dataset, "color")
         self.point = self.load(dataset, "point")
