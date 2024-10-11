@@ -770,11 +770,3 @@ tracking3:
 	data.data_dir=/home/borth/GuidedResearch/data/debug \
 	data.dataset_name=christoph_mouthmove \
 
-christoph_rotatemouth:
-	python scripts/optimize.py \
-	logger.group=optimize \
-	logger.name=optimize__christoph_rotatemouth \
-	logger.tags=[optimize,optimize__christoph_rotatemouth] \
-	task_name=optimize__christoph_rotatemouth \
-	data.dataset_name=christoph_rotatemouth \
-	store_params=false \

@@ -1,0 +1,56 @@
+# @package data
+_target_: lib.data.datamodule.DPHMTrainDataModule
+
+# dataset settings
+data_dir: ${paths.data_dir}/dphm_kinect
+intrinsics_dir: ${paths.data_dir}/dphm_kinect/ali_kocal_eyeblink
+
+# camera settings
+width: 1920
+height: 1080
+near: 0.01
+far: 100
+scale: 8
+
+# training settings
+batch_size: 1
+num_workers: 0
+pin_memory: False
+persistent_workers: False 
+
+train_dataset:
+  _target_: lib.data.dataset.DPHMTrainDataset
+  _partial_: True
+  scale: ???
+  data_dir: ${data.data_dir}
+  start_frame: 20 # 52
+  end_frame: null # 53
+  jump_size: 4
+  mode: fix 
+  memory: disk 
+  log_frame_idx: 52
+  log_dataset: christoph_mouthmove
+  log_interval: 1
+  datasets: 
+    - christoph_fastalk
+    - christoph_mouthmove
+    - christoph_smile
+  
+
+val_dataset:
+  _target_: lib.data.dataset.DPHMTrainDataset
+  _partial_: True
+  scale: ???
+  data_dir: ${data.data_dir}
+  start_frame: 48
+  end_frame: 56
+  jump_size: 4
+  mode: fix 
+  memory: disk 
+  log_frame_idx: 52
+  log_dataset: christoph_rotatemouth
+  log_interval: 1
+  datasets: 
+    - christoph_rotatemouth
+
+renderer: ???

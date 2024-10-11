@@ -57,18 +57,6 @@ abblation_ours:
     framework.max_iters=3 \
     framework.max_optims=1 \
 
-abblation_ours_ckpt:
-	python scripts/train.py \
-	logger.group=abblation \
-	logger.name=abblation_ours_ckpt \
-	logger.tags=[abblation,abblation_ours_ckpt] \
-	task_name=abblation_ours_ckpt \
-    data=synthetic \
-    framework.max_iters=3 \
-    framework.max_optims=1 \
-	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-04/16-00-30_abblation_ours/checkpoints/epoch_919.ckpt \
-
-
 abblation_w_multi5_optim:
 	python scripts/train.py \
 	logger.group=abblation \
@@ -79,46 +67,76 @@ abblation_w_multi5_optim:
     framework.max_iters=5 \
     framework.max_optims=1 \
 
-abblation_w_multi5_optim_ckpt:
-	python scripts/train.py \
-	logger.group=abblation \
-	logger.name=abblation_w_multi5_optim_ckpt \
-	logger.tags=[abblation,abblation_w_multi5_optim_ckpt] \
-	task_name=abblation_w_multi5_optim_ckpt \
-    data=synthetic \
-    framework.max_iters=5 \
-    framework.max_optims=1 \
-	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-06/20-02-37_abblation_w_multi5_optim_ckpt/checkpoints/last.ckpt \
 
-abblation_ours_full:
+
+abblation_wo_neural_weights_lr:
 	python scripts/train.py \
 	logger.group=abblation \
-	logger.name=abblation_ours_full \
-	logger.tags=[abblation,abblation_ours_full] \
-	task_name=abblation_ours_full \
+	logger.name=abblation_wo_neural_weights_lr \
+	logger.tags=[abblation,abblation_wo_neural_weights_lr] \
+	task_name=abblation_wo_neural_weights_lr \
     data=synthetic \
     framework.max_iters=3 \
     framework.max_optims=1 \
-	optimizer.step_size=1.0 \
+    weighting.dummy_weight=True \
+	optimizer.step_size=0.7 \
 
-abblation_single_optim_full:
+abblation_wo_neural_prior_lr:
 	python scripts/train.py \
 	logger.group=abblation \
-	logger.name=abblation_single_optim_full \
-	logger.tags=[abblation,abblation_single_optim_full] \
-	task_name=abblation_single_optim_full \
+	logger.name=abblation_wo_neural_prior_lr \
+	logger.tags=[abblation,abblation_wo_neural_prior_lr] \
+	task_name=abblation_wo_neural_prior_lr \
+    data=synthetic \
+    framework.max_iters=3 \
+    framework.max_optims=1 \
+	regularize=dummy \
+	optimizer.step_size=0.7 \
+
+abblation_w_single_corresp_lr:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_w_single_corresp_lr \
+	logger.tags=[abblation,abblation_w_single_corresp_lr] \
+	task_name=abblation_w_single_corresp_lr \
+    data=synthetic \
+    framework.max_iters=1 \
+    framework.max_optims=3 \
+	optimizer.step_size=0.7 \
+
+abblation_ours_lr:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_ours_lr \
+	logger.tags=[abblation,abblation_ours_lr] \
+	task_name=abblation_ours_lr \
+    data=synthetic \
+    framework.lr=1e-03 \
+    framework.max_iters=3 \
+    framework.max_optims=1 \
+	optimizer.step_size=0.7 \
+	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-09/21-19-03_abblation_ours_lr/checkpoints/epoch_299.ckpt \
+
+abblation_w_single_optim_lr:
+	python scripts/train.py \
+	logger.group=abblation \
+	logger.name=abblation_w_single_optim_lr \
+	logger.tags=[abblation,abblation_w_single_optim_lr] \
+	task_name=abblation_w_single_optim_lr \
     data=synthetic \
     framework.max_iters=1 \
     framework.max_optims=1 \
-	optimizer.step_size=1.0 \
+	optimizer.step_size=0.7 \
+	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-10/09-28-51_abblation_w_single_optim_lr/checkpoints/epoch_299.ckpt \
 
-abblation_hard_optim_full:
+abblation_w_multi2_optim_lr:
 	python scripts/train.py \
 	logger.group=abblation \
-	logger.name=abblation_hard_optim_full \
-	logger.tags=[abblation,abblation_hard_optim_full] \
-	task_name=abblation_hard_optim_full \
-    data=synthetic_hard \
-    framework.max_iters=3 \
+	logger.name=abblation_w_multi2_optim_lr \
+	logger.tags=[abblation,abblation_w_multi2_optim_lr] \
+	task_name=abblation_w_multi2_optim_lr \
+    data=synthetic \
+    framework.max_iters=2 \
     framework.max_optims=1 \
-	optimizer.step_size=1.0 \
+	optimizer.step_size=0.7 \
+	ckpt_path=/home/borth/GuidedResearch/logs/2024-10-10/13-33-40_abblation_w_multi2_optim_lr/checkpoints/epoch_299.ckpt \

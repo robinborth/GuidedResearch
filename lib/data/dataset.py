@@ -11,8 +11,8 @@ class DPHMDataset(Dataset):
         self.data_dir = data_dir
 
     def frame_count(self, dataset: str):
-        path = Path(self.data_dir) / dataset / "color"
-        return len([p for p in path.iterdir() if str(p).endswith(".png")])
+        path = Path(self.data_dir) / dataset / "cache/8_mask"
+        return len([p for p in path.iterdir() if str(p).endswith(".pt")])
 
     def iter_frame_idx(self, dataset: str):
         return list(range(self.frame_count(dataset)))
@@ -161,6 +161,8 @@ class DPHMTrainDataset(DPHMDataset):
             end_frame = self._end_frame
             if end_frame is None:
                 end_frame = self.frame_count(dataset)
+                if self.mode == "dynamic":
+                    end_frame -= self.jump_size
             assert end_frame <= self.frame_count(dataset)
             self.end_frame[dataset] = end_frame
 

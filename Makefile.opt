@@ -1,0 +1,66 @@
+.PHONY: all christoph_rotatemouth haoxuan_mouthmove ali_kocal_eyeblink elias_wohlgemuth_eyeblink ali_kocal_mouthmove siyunliang_mouthmove changluo_rotatemouth
+all: christoph_rotatemouth haoxuan_mouthmove ali_kocal_eyeblink elias_wohlgemuth_eyeblink ali_kocal_mouthmove siyunliang_mouthmove changluo_rotatemouth
+
+christoph_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=christoph_rotatemouth \
+	logger.tags=[optimize,christoph_rotatemouth] \
+	task_name=christoph_rotatemouth \
+	data.dataset_name=christoph_rotatemouth \
+	store_params=false \
+	optimizer.step_size=0.3 \
+
+haoxuan_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=haoxuan_mouthmove \
+	logger.tags=[optimize,haoxuan_mouthmove] \
+	task_name=haoxuan_mouthmove \
+	data.dataset_name=haoxuan_mouthmove \
+	store_params=false \
+
+elias_wohlgemuth_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=elias_wohlgemuth_eyeblink \
+	logger.tags=[optimize,elias_wohlgemuth_eyeblink] \
+	task_name=elias_wohlgemuth_eyeblink \
+	data.dataset_name=elias_wohlgemuth_eyeblink \
+	store_params=false \
+
+ali_kocal_eyeblink:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=ali_kocal_eyeblink \
+	logger.tags=[optimize,ali_kocal_eyeblink] \
+	task_name=ali_kocal_eyeblink \
+	data.dataset_name=ali_kocal_eyeblink \
+	store_params=false \
+
+ali_kocal_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=ali_kocal_mouthmove \
+	logger.tags=[optimize,ali_kocal_mouthmove] \
+	task_name=ali_kocal_mouthmove \
+	data.dataset_name=ali_kocal_mouthmove \
+	store_params=false \
+
+siyunliang_mouthmove:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=siyunliang_mouthmove \
+	logger.tags=[optimize,siyunliang_mouthmove] \
+	task_name=siyunliang_mouthmove \
+	data.dataset_name=siyunliang_mouthmove \
+	store_params=false \
+
+changluo_rotatemouth:
+	python scripts/optimize.py \
+	logger.group=optimize \
+	logger.name=changluo_rotatemouth \
+	logger.tags=[optimize,changluo_rotatemouth] \
+	task_name=changluo_rotatemouth \
+	data.dataset_name=changluo_rotatemouth \
+	store_params=false \

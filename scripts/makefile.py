@@ -81,21 +81,26 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    values = [1e-03, 1e-04]
+    values = [0.7, 0.5, 0.3, 0.1]
     prefixs = float_to_scientific(values)
-    group_name = "train_lr"
+    group_name = "train_step_size"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.lr={value} \\
+    data=kinect \\
+    framework.residual_weight=0.05 \\
+    framework.max_iters=2 \\
+    framework.max_optims=1 \\
+    trainer.max_epochs=50 \\
+	optimizer.step_size={value} \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = [2e-01, 5e-01, 1.0]
-    prefixs = values
+    values = [1.0, 0.5, 0.2, 0.1, 0.0]
+    prefixs = float_to_scientific(values)
     group_name = "train_vertices"
     template_generator = """
     python scripts/train.py \\
@@ -103,52 +108,93 @@ def main():
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    framework.vertices_weight={value} \\
+    data=kinect \\
+    framework.residual_weight=0.05 \\
+    framework.max_iters=2 \\
+    framework.max_optims=1 \\
+    trainer.max_epochs=50 \\
+    optimizer.step_size=0.7 \\
+    framework.vertices_weight={value}
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    values = [128, 32]
-    prefixs = values
-    group_name = "train_batch"
+    values = [1, 2, 3]
+    prefixs = float_to_scientific(values)
+    group_name = "train_iterations"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    trainer.accumulate_grad_batches={value} \\
+    data=kinect \\
+    framework.residual_weight=0.05 \\
+    framework.max_iters={value} \\
+    framework.max_optims=1 \\
+    trainer.max_epochs=50 \\
+    optimizer.step_size=0.7 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    # values = ["train_regularize_weight"]
-    # prefixs = values
-    # group_name = "train_regularize_weight"
-    # template_generator = """
-    # python scripts/train.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # regularize=mlp \\
-    # regularize.dummy_weight=False \\
-    # regularize.dummy_delta=True \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
+    values = [0, 1, 2, 3, 4]
+    prefixs = float_to_scientific(values)
+    group_name = "train_frame_jumps"
+    template_generator = """
+    python scripts/train.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    data=kinect \\
+    framework.residual_weight=0.05 \\
+    framework.max_iters=2 \\
+    framework.max_optims=1 \\
+    trainer.max_epochs=50 \\
+    optimizer.step_size=0.7 \\
+    data.train_dataset.jump_size={value} \\
+    data.train_dataset.mode=fix \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
 
-    # values = ["train_regularize_delta"]
-    # prefixs = values
-    # group_name = "train_regularize_delta"
-    # template_generator = """
-    # python scripts/train.py \\
-    # logger.group={group_name} \\
-    # logger.name={task_name} \\
-    # logger.tags=[{group_name},{task_name}] \\
-    # task_name={task_name} \\
-    # regularize=mlp \\
-    # regularize.dummy_weight=True \\
-    # regularize.dummy_delta=False \\
-    # """
-    # groups.append(build_group(template_generator, values, prefixs, group_name))
+    values = ["neural", "neural_face2face"]
+    prefixs = float_to_scientific(values)
+    group_name = "train_residuals"
+    template_generator = """
+    python scripts/train.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    data=kinect \\
+    residuals={value} \\
+    framework.residual_weight=0.05 \\
+    framework.max_iters=2 \\
+    framework.max_optims=1 \\
+    trainer.max_epochs=50 \\
+    optimizer.step_size=0.7 \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    values = ["optimization"]
+    prefixs = float_to_scientific(values)
+    group_name = "train"
+    template_generator = """
+    python scripts/train.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+    data=kinect \\
+    residuals=neural_face2face \\
+    framework.residual_weight=0.05 \\
+    framework.max_iters=2 \\
+    framework.max_optims=1 \\
+    trainer.max_epochs=50 \\
+    optimizer.step_size=0.3 \\
+    data.scale=4 \\
+    weighting.size=512 \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
 
     with open(f"Makefile.{SUFFIX}", "w") as f:
         f.write(build_makefile(groups))

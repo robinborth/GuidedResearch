@@ -23,42 +23,163 @@ train_dataset:
   _partial_: True
   scale: ???
   data_dir: ${data.data_dir}
-  start_frame: 20  # 52
-  end_frame: 80  # 53
-  jump_size: 8
+  start_frame: 20 # 52
+  end_frame: null # 53
+  jump_size: 4
   mode: dynamic
-  memory: ram
+  memory: disk 
   log_frame_idx: 52
-  log_dataset: christoph_mouthmove
+  log_dataset: ali_kocal_mouthmove
   log_interval: 1
   datasets: 
-      # - christoph_mouthmove
-      - ali_kocal_rotatemouth
-      - aria_talebizadeh_rotatemouth
-      - arnefucks_rotatemouth
-      - elias_wohlgemuth_mouthmove
-      - honglixu_rotatemouth
-      - leni_rohe_rotatemouth
-      - medhansh_rotatemouth
-      - mohak_rotatemouth
-      - nikolas_rotatemouth
-      - seddik_houimli_rotatemouth
+    - ali_kocal_eyeblink
+    - ali_kocal_fastalk
+    - ali_kocal_mouthmove
+    - ali_kocal_rotatemouth
+    - ali_kocal_smile
+    - aria_talebizadeh_eyeblink
+    - aria_talebizadeh_fastalk
+    - aria_talebizadeh_mouthmove
+    - aria_talebizadeh_rotatemouth
+    - aria_talebizadeh_smile
+    - arnefucks_eyeblink
+    - arnefucks_fastalk
+    - arnefucks_mouthmove
+    - arnefucks_rotatemouth
+    - arnefucks_smile
+    - changluo_angry
+    - changluo_fastalk
+    - changluo_mouthmovelarge
+    - changluo_random2
+    - changluo_rotatemouth
+    - changluo_smile
+    - changluo_talk
+    # - christoph_eyeblink
+    # - christoph_fastalk
+    # - christoph_mouthmove
+    # - christoph_rotatemouth
+    # - christoph_smile
+    - elias_wohlgemuth_eyeblink
+    - elias_wohlgemuth_fastalk
+    - elias_wohlgemuth_mouthmove
+    - elias_wohlgemuth_rotatemouth
+    - elias_wohlgemuth_smile
+    - felix_eyeblink
+    - felix_fastalk
+    - felix_mouthmove
+    - felix_rotatemouth
+    - felix_smile
+    - haoxuan_eyeblink
+    - haoxuan_fastalk
+    - haoxuan_mouthmove
+    - haoxuan_rotatemouth
+    - haoxuan_smile
+    - honglixu_eyeblink
+    - honglixu_fastalk
+    - honglixu_mouthmove
+    - honglixu_rotatemouth
+    - honglixu_smile
+    - innocenzo_fulgintl_eyeblink
+    - innocenzo_fulgintl_fastalk
+    - innocenzo_fulgintl_mouthmove
+    - innocenzo_fulgintl_rotatemouth
+    - innocenzo_fulgintl_smile
+    - leni_rohe_eyeblink
+    - leni_rohe_mouthmove
+    - leni_rohe_rotatemouth
+    - leni_rohe_smile
+    - madhav_agarwal_eyeblink
+    - madhav_agarwal_fastalk
+    - madhav_agarwal_mouthmove
+    - madhav_agarwal_rotatemouth
+    - madhav_agarwal_smile
+    - mahabmarhai_eyeblink
+    - mahabmarhai_fastalk
+    - mahabmarhai_mouthmove
+      # - mahabmarhai_rotatemouth
+    - mahabmarhai_smile
+    - manuel_eyeblink
+    - manuel_fastalk
+    - manuel_mouthmove
+    - manuel_rotatemouth
+    - manuel_smile
+    - medhansh_eyeblink
+      # - medhansh_fastalk
+    - medhansh_mouthmove
+    - medhansh_rotatemouth
+    - medhansh_smile
+    - michaeldyer_eyeblink2
+    - michaeldyer_fastalk2
+    - michaeldyer_mouthmove2
+    - michaeldyer_rotatemouth2
+    - michaeldyer_smile2
+    - mohak_eyeblink
+    - mohak_fastalk
+    - mohak_mouthmove
+    - mohak_rotatemouth
+    - mohak_smile
+    - mykola_eyeblink
+    - mykola_fastalk
+    - mykola_mouthmove
+    - mykola_rotatemouth
+    - mykola_smile
+    - neha_rao_eyeblink
+    - neha_rao_mouthmove
+    - neha_rao_rotatemouth
+    - neha_rao_smile
+    - nikolas_eyeblink
+    - nikolas_fastalk
+    - nikolas_mouthmove
+    - nikolas_rotatemouth
+    - nikolas_smile
+    - seddik_houimli_eyeblink
+    - seddik_houimli_fastalk
+    - seddik_houimli_mouthmove
+    - seddik_houimli_rotatemouth
+    - seddik_houimli_smile
+    - siyunliang_eyeblink
+    - siyunliang_fastalk
+    - siyunliang_mouthmove
+      # - siyunliang_rotatemouth
+    - siyunliang_smile
+    - umur_gogebakan_eyeblink
+    - umur_gogebakan_fastalk
+    - umur_gogebakan_mouthmove
+    - umur_gogebakan_rotatemouth
+    - umur_gogebakan_smile
+    - viet_eyeblink
+    - viet_fastalk
+    - viet_mouthmove
+    - viet_rotatemouth
+    - viet_smile
+      # - weicao_angry
+      # - weicao_fastalk
+    - weicao_mouthmove
+    - weicao_mouthmovelarge
+    - weicao_random2
+    - weicao_rotatemouth
+    - weicao_smile
+    - weicao_smile2
+    - weicao_talk
 
 val_dataset:
   _target_: lib.data.dataset.DPHMTrainDataset
   _partial_: True
   scale: ???
   data_dir: ${data.data_dir}
-  start_frame: 40
-  end_frame: 48 
-  jump_size: 1
-  mode: fix
-  memory: ram
-  log_frame_idx: 100
+  start_frame: 48
+  end_frame: 56
+  jump_size: 4
+  mode: fix 
+  memory: disk 
+  log_frame_idx: 52
   log_dataset: christoph_mouthmove
   log_interval: 1
   datasets: 
+    - christoph_eyeblink
+    - christoph_fastalk
     - christoph_mouthmove
-    - innocenzo_fulgintl_rotatemouth
+    - christoph_rotatemouth
+    - christoph_smile
 
 renderer: ???

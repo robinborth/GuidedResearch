@@ -32,7 +32,7 @@ log_train_dataset: ${data.train_dataset.log_dataset}
 log_train_interval: ${data.train_dataset.log_interval} 
 log_val_frame_idx: ${data.val_dataset.log_frame_idx} 
 log_val_dataset: ${data.val_dataset.log_dataset} 
-log_val_interval: ${data.val_dataset.log_frame_idx} 
+log_val_interval: ${data.val_dataset.log_interval} 
 verbose: False
 
 # training settings
