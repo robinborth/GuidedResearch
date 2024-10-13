@@ -16,6 +16,11 @@ from lib.utils.config import load_config
 from lib.utils.progress import close_progress, reset_progress
 
 
+def print_out(times, p_losses, v_losses, key):
+    s = f"{key}: p_loss={p_losses[key]:.03f} v_loss={v_losses[key]:.03f} time={times[key]:.03f}ms"
+    print(s)
+
+
 def path_to_abblation(path):
     return "_".join(path.split("/")[-3].split("_")[1:])
 
@@ -157,16 +162,30 @@ def load_datamodule(renderer, start_frame, end_frame):
 def main():
 
     # settings
-    N = 3
-    start_frame = None 
-    end_frame = None
+    N = 2
+    step_size = 0.7
+    start_frame = 10
+    end_frame = 18
 
     # checkpoints
-    ours = "/home/borth/GuidedResearch/logs/2024-10-06/06-55-55_abblation_ours_ckpt/checkpoints/last.ckpt"
-    wo_neural_prior = "/home/borth/GuidedResearch/logs/2024-10-04/22-44-20_abblation_wo_neural_prior/checkpoints/last.ckpt"
-    w_single_corresp = "/home/borth/GuidedResearch/logs/2024-10-03/09-54-41_abblation_w_single_corresp/checkpoints/last.ckpt"
-    w_single_optim = "/home/borth/GuidedResearch/logs/2024-10-06/12-55-40_abblation_w_single_optim/checkpoints/last.ckpt"
-    wo_neural_weights = "/home/borth/GuidedResearch/logs/2024-10-03/09-54-41_abblation_wo_neural_weights/checkpoints/last.ckpt"
+    # ours = "/home/borth/GuidedResearch/logs/2024-10-06/06-55-55_abblation_ours_ckpt/checkpoints/last.ckpt"
+    # wo_neural_prior = "/home/borth/GuidedResearch/logs/2024-10-04/22-44-20_abblation_wo_neural_prior/checkpoints/last.ckpt"
+    # w_single_corresp = "/home/borth/GuidedResearch/logs/2024-10-03/09-54-41_abblation_w_single_corresp/checkpoints/last.ckpt"
+    # w_single_optim = "/home/borth/GuidedResearch/logs/2024-10-06/12-55-40_abblation_w_single_optim/checkpoints/last.ckpt"
+    # wo_neural_weights = "/home/borth/GuidedResearch/logs/2024-10-03/09-54-41_abblation_wo_neural_weights/checkpoints/last.ckpt"
+    ours = "/home/borth/GuidedResearch/checkpoints/synthetic_lr/ours2.ckpt"
+    wo_neural_prior = (
+        "/home/borth/GuidedResearch/checkpoints/synthetic_lr/wo_neural_prior.ckpt"
+    )
+    w_single_corresp = (
+        "/home/borth/GuidedResearch/checkpoints/synthetic_lr/w_single_corresp.ckpt"
+    )
+
+    w_single_optim = "/home/borth/GuidedResearch/checkpoints/synthetic_lr/ours1.ckpt"
+    w_multi_optim = "/home/borth/GuidedResearch/checkpoints/synthetic_lr/ours3.ckpt"
+    wo_neural_weights = (
+        "/home/borth/GuidedResearch/checkpoints/synthetic_lr/wo_neural_weights.ckpt"
+    )
 
     # loadings
     times = {}
@@ -177,67 +196,94 @@ def main():
 
     path = ours
     optimizer = load_neural_optimizer(flame, renderer, path)
+    optimizer.optimizer.step_size = step_size
     p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
-    key = path_to_abblation(path)
-    times[key] = time[N].median().item()
+    key = "ours2"
+    times[key] = time[N].min().item()
     p_losses[key] = p_loss[N].mean().item()
     v_losses[key] = v_loss[N].mean().item()
-    print(
-        f"{key}: p_loss={p_losses[key]:.03f} v_loss={v_losses[key]:.03f} time={times[key]:.03f}ms"
-    )
-
-    path = wo_neural_weights
-    optimizer = load_neural_optimizer(
-        flame, renderer, path, ["weighting.dummy_weight=True"]
-    )
-    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
-    key = path_to_abblation(path)
-    times[key] = time[N].median().item()
-    p_losses[key] = p_loss[N].mean().item()
-    v_losses[key] = v_loss[N].mean().item()
-    print(
-        f"{key}: p_loss={p_losses[key]:.03f} v_loss={v_losses[key]:.03f} time={times[key]:.03f}ms"
-    )
+    print_out(times, p_losses, v_losses, key)
 
     path = wo_neural_prior
     optimizer = load_neural_optimizer(flame, renderer, path, ["regularize=dummy"])
+    optimizer.optimizer.step_size = step_size
     p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
-    key = path_to_abblation(path)
-    times[key] = time[N].median().item()
+    key = "wo_neural_prior"
+    times[key] = time[N].min().item()
     p_losses[key] = p_loss[N].mean().item()
     v_losses[key] = v_loss[N].mean().item()
-    print(
-        f"{key}: p_loss={p_losses[key]:.03f} v_loss={v_losses[key]:.03f} time={times[key]:.03f}ms"
-    )
+    print_out(times, p_losses, v_losses, key)
+
+    overrides = ["weighting.dummy_weight=True"]
+    path = wo_neural_weights
+    optimizer = load_neural_optimizer(flame, renderer, path, overrides)
+    optimizer.optimizer.step_size = step_size
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
+    key = "wo_neural_weights"
+    times[key] = time[N].min().item()
+    p_losses[key] = p_loss[N].mean().item()
+    v_losses[key] = v_loss[N].mean().item()
+    print_out(times, p_losses, v_losses, key)
 
     path = w_single_corresp
     optimizer = load_neural_optimizer(flame, renderer, path)
+    optimizer.optimizer.step_size = step_size
     p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="optims")
-    key = path_to_abblation(path)
-    times[key] = time[N].median().item()
+    key = "w_single_corresp"
+    times[key] = time[N].min().item()
     p_losses[key] = p_loss[N].mean().item()
     v_losses[key] = v_loss[N].mean().item()
-    print(
-        f"{key}: p_loss={p_losses[key]:.03f} v_loss={v_losses[key]:.03f} time={times[key]:.03f}ms"
-    )
+    print_out(times, p_losses, v_losses, key)
 
     path = w_single_optim
     optimizer = load_neural_optimizer(flame, renderer, path)
+    optimizer.optimizer.step_size = step_size
     p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
-    key = "abblation_wo_end_to_end"
-    times[key] = time[N].median().item()
+    key = "abblation_wo_end_to_end_(1)"
+    times[key] = time[N].min().item()
     p_losses[key] = p_loss[N].mean().item()
     v_losses[key] = v_loss[N].mean().item()
-    print(
-        f"{key}: p_loss={p_losses[key]:.03f} v_loss={v_losses[key]:.03f} time={times[key]:.03f}ms"
-    )
-    key = path_to_abblation(path)
-    times[key] = time[1].median().item()
+    print_out(times, p_losses, v_losses, key)
+    key = "w_single_optim"
+    times[key] = time[1].min().item()
     p_losses[key] = p_loss[1].mean().item()
     v_losses[key] = v_loss[1].mean().item()
-    print(
-        f"{key}: p_loss={p_losses[key]:.03f} v_loss={v_losses[key]:.03f} time={times[key]:.03f}ms"
-    )
+    print_out(times, p_losses, v_losses, key)
+
+    path = w_multi_optim
+    optimizer = load_neural_optimizer(flame, renderer, path)
+    optimizer.optimizer.step_size = step_size
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N, mode="iters")
+    key = "abblation_wo_end_to_end_(3)"
+    times[key] = time[N].min().item()
+    p_losses[key] = p_loss[N].mean().item()
+    v_losses[key] = v_loss[N].mean().item()
+    print_out(times, p_losses, v_losses, key)
+
+    overrides = ["weighting=dummy", "regularize=dummy"]
+    optimizer = load_icp_optimizer(flame, renderer, overrides)
+    optimizer.optimizer.step_size = step_size
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N)
+    key = "icp-f2f"
+    times[key] = time[N].min().item()
+    p_losses[key] = p_loss[N].mean().item()
+    v_losses[key] = v_loss[N].mean().item()
+    print_out(times, p_losses, v_losses, key)
+
+    overrides = ["residuals=point2plane", "weighting=dummy", "regularize=dummy"]
+    optimizer = load_icp_optimizer(flame, renderer, overrides)
+    optimizer.optimizer.step_size = step_size
+    p_loss, v_loss, time = eval_iterations(optimizer, datamodule, N=N)
+    key = "icp-p2p"
+    times[key] = time[N].min().item()
+    p_losses[key] = p_loss[N].mean().item()
+    v_losses[key] = v_loss[N].mean().item()
+    print_out(times, p_losses, v_losses, key)
+    key = "no_optim"
+    times[key] = time[N].min().item()
+    p_losses[key] = p_loss[0].mean().item()
+    v_losses[key] = v_loss[0].mean().item()
+    print_out(times, p_losses, v_losses, key)
 
     wandb.init(project="guided-research", entity="robinborth")
     wandb.log({f"p/{k}": v for k, v in p_losses.items()})

@@ -30,15 +30,15 @@ tags:
 
 # override framework settings
 framework:
-  max_iters: 3
+  max_iters: 2
   lr: 1e-03  # 5e-04
-  residual_weight: 0.01
+  residual_weight: 0.5
   geometric_weight: 0.0
   param_weight: 1.0
-  vertices_weight: 0.2
+  vertices_weight: 0.03  # 0.2
 
 # override trainer settings
 trainer:
-  max_epochs: 500 # 500
+  max_epochs: 700 # 500
   accumulate_grad_batches: 64  # 64
   limit_train_batches: 256  # 256

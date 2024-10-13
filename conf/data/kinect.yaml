@@ -34,7 +34,7 @@ train_dataset:
   datasets: 
     - ali_kocal_eyeblink
     - ali_kocal_fastalk
-    - ali_kocal_mouthmove
+    # - ali_kocal_mouthmove
     - ali_kocal_rotatemouth
     - ali_kocal_smile
     - aria_talebizadeh_eyeblink
@@ -82,7 +82,7 @@ train_dataset:
     - innocenzo_fulgintl_eyeblink
     - innocenzo_fulgintl_fastalk
     - innocenzo_fulgintl_mouthmove
-    - innocenzo_fulgintl_rotatemouth
+    # - innocenzo_fulgintl_rotatemouth
     - innocenzo_fulgintl_smile
     - leni_rohe_eyeblink
     - leni_rohe_mouthmove
@@ -176,10 +176,10 @@ val_dataset:
   log_dataset: christoph_mouthmove
   log_interval: 1
   datasets: 
-    - christoph_eyeblink
-    - christoph_fastalk
     - christoph_mouthmove
     - christoph_rotatemouth
     - christoph_smile
+    - innocenzo_fulgintl_rotatemouth
+    - ali_kocal_mouthmove
 
 renderer: ???

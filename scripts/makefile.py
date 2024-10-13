@@ -91,10 +91,10 @@ def main():
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
     data=kinect \\
-    framework.residual_weight=0.05 \\
+    framework.residual_weight=0.5 \\
     framework.max_iters=2 \\
     framework.max_optims=1 \\
-    trainer.max_epochs=50 \\
+    trainer.max_epochs=100 \\
 	optimizer.step_size={value} \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
@@ -109,17 +109,17 @@ def main():
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
     data=kinect \\
-    framework.residual_weight=0.05 \\
+    framework.residual_weight=0.5 \\
     framework.max_iters=2 \\
     framework.max_optims=1 \\
-    trainer.max_epochs=50 \\
+    trainer.max_epochs=100 \\
     optimizer.step_size=0.7 \\
     framework.vertices_weight={value}
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
     values = [1, 2, 3]
-    prefixs = float_to_scientific(values)
+    prefixs = values
     group_name = "train_iterations"
     template_generator = """
     python scripts/train.py \\
@@ -128,16 +128,16 @@ def main():
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
     data=kinect \\
-    framework.residual_weight=0.05 \\
+    framework.residual_weight=0.5 \\
     framework.max_iters={value} \\
     framework.max_optims=1 \\
-    trainer.max_epochs=50 \\
+    trainer.max_epochs=100 \\
     optimizer.step_size=0.7 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
     values = [0, 1, 2, 3, 4]
-    prefixs = float_to_scientific(values)
+    prefixs = values
     group_name = "train_frame_jumps"
     template_generator = """
     python scripts/train.py \\
@@ -146,10 +146,10 @@ def main():
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
     data=kinect \\
-    framework.residual_weight=0.05 \\
+    framework.residual_weight=0.5 \\
     framework.max_iters=2 \\
     framework.max_optims=1 \\
-    trainer.max_epochs=50 \\
+    trainer.max_epochs=100 \\
     optimizer.step_size=0.7 \\
     data.train_dataset.jump_size={value} \\
     data.train_dataset.mode=fix \\
@@ -157,7 +157,7 @@ def main():
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
     values = ["neural", "neural_face2face"]
-    prefixs = float_to_scientific(values)
+    prefixs = values
     group_name = "train_residuals"
     template_generator = """
     python scripts/train.py \\
@@ -167,16 +167,16 @@ def main():
     task_name={task_name} \\
     data=kinect \\
     residuals={value} \\
-    framework.residual_weight=0.05 \\
+    framework.residual_weight=0.5 \\
     framework.max_iters=2 \\
     framework.max_optims=1 \\
-    trainer.max_epochs=50 \\
+    trainer.max_epochs=100 \\
     optimizer.step_size=0.7 \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
     values = ["optimization"]
-    prefixs = float_to_scientific(values)
+    prefixs = values
     group_name = "train"
     template_generator = """
     python scripts/train.py \\
@@ -186,10 +186,10 @@ def main():
     task_name={task_name} \\
     data=kinect \\
     residuals=neural_face2face \\
-    framework.residual_weight=0.05 \\
+    framework.residual_weight=0.5 \\
     framework.max_iters=2 \\
     framework.max_optims=1 \\
-    trainer.max_epochs=50 \\
+    trainer.max_epochs=100 \\
     optimizer.step_size=0.3 \\
     data.scale=4 \\
     weighting.size=512 \\
