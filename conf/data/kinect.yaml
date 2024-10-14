@@ -176,10 +176,12 @@ val_dataset:
   log_dataset: christoph_mouthmove
   log_interval: 1
   datasets: 
+    - christoph_eyeblink
+    - christoph_fastalk
     - christoph_mouthmove
     - christoph_rotatemouth
     - christoph_smile
-    - innocenzo_fulgintl_rotatemouth
-    - ali_kocal_mouthmove
+    # - innocenzo_fulgintl_rotatemouth
+    # - ali_kocal_mouthmove
 
 renderer: ???

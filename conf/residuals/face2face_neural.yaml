@@ -1,0 +1,15 @@
+# @package residuals
+
+_target_: lib.optimizer.residuals.ChainedResiduals
+chain: 
+  point2plane:
+    _target_: lib.optimizer.residuals.Point2PlaneResiduals
+    weight: 1.0
+  neck_regularization: 
+    _target_: lib.optimizer.residuals.NeuralRegularizationResiduals
+    name: neck_pose 
+    weight: 5e-02  # 5e-02
+  expression_regularization:
+    _target_: lib.optimizer.residuals.NeuralRegularizationResiduals
+    name: expression_params
+    weight: 3e-03  # 1e-03

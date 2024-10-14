@@ -81,118 +81,27 @@ def build_makefile(groups):
 def main():
     groups = []
 
-    values = [0.7, 0.5, 0.3, 0.1]
-    prefixs = float_to_scientific(values)
-    group_name = "train_step_size"
-    template_generator = """
-    python scripts/train.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    data=kinect \\
-    framework.residual_weight=0.5 \\
-    framework.max_iters=2 \\
-    framework.max_optims=1 \\
-    trainer.max_epochs=100 \\
-	optimizer.step_size={value} \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = [1.0, 0.5, 0.2, 0.1, 0.0]
-    prefixs = float_to_scientific(values)
-    group_name = "train_vertices"
-    template_generator = """
-    python scripts/train.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    data=kinect \\
-    framework.residual_weight=0.5 \\
-    framework.max_iters=2 \\
-    framework.max_optims=1 \\
-    trainer.max_epochs=100 \\
-    optimizer.step_size=0.7 \\
-    framework.vertices_weight={value}
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = [1, 2, 3]
+    values = [4, 8]
     prefixs = values
-    group_name = "train_iterations"
+    group_name = "train_kinect_wo_prior"
     template_generator = """
     python scripts/train.py \\
     logger.group={group_name} \\
     logger.name={task_name} \\
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
-    data=kinect \\
-    framework.residual_weight=0.5 \\
-    framework.max_iters={value} \\
-    framework.max_optims=1 \\
-    trainer.max_epochs=100 \\
-    optimizer.step_size=0.7 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = [0, 1, 2, 3, 4]
-    prefixs = values
-    group_name = "train_frame_jumps"
-    template_generator = """
-    python scripts/train.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    data=kinect \\
-    framework.residual_weight=0.5 \\
-    framework.max_iters=2 \\
-    framework.max_optims=1 \\
-    trainer.max_epochs=100 \\
-    optimizer.step_size=0.7 \\
+	data=kinect \\
     data.train_dataset.jump_size={value} \\
-    data.train_dataset.mode=fix \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = ["neural", "neural_face2face"]
-    prefixs = values
-    group_name = "train_residuals"
-    template_generator = """
-    python scripts/train.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    data=kinect \\
-    residuals={value} \\
-    framework.residual_weight=0.5 \\
-    framework.max_iters=2 \\
-    framework.max_optims=1 \\
-    trainer.max_epochs=100 \\
-    optimizer.step_size=0.7 \\
-    """
-    groups.append(build_group(template_generator, values, prefixs, group_name))
-
-    values = ["optimization"]
-    prefixs = values
-    group_name = "train"
-    template_generator = """
-    python scripts/train.py \\
-    logger.group={group_name} \\
-    logger.name={task_name} \\
-    logger.tags=[{group_name},{task_name}] \\
-    task_name={task_name} \\
-    data=kinect \\
-    residuals=neural_face2face \\
-    framework.residual_weight=0.5 \\
-    framework.max_iters=2 \\
-    framework.max_optims=1 \\
-    trainer.max_epochs=100 \\
-    optimizer.step_size=0.3 \\
-    data.scale=4 \\
-    weighting.size=512 \\
+	residuals=face2face_wo_landmarks \\
+	regularize=dummy \\
+	framework.lr=1e-04 \\
+	framework.max_iters=2 \\
+	framework.max_optims=1 \\
+	framework.residual_weight=0.05 \\
+	framework.vertices_weight=0.03 \\
+	trainer.max_epochs=500 \\
+	optimizer.step_size=0.7 \\
+    optimizer.lin_solver._target_=lib.optimizer.solver.PytorchEpsSolver \\
     """
     groups.append(build_group(template_generator, values, prefixs, group_name))
 
