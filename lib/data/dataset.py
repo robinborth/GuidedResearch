@@ -135,6 +135,8 @@ class DPHMTrainDataset(DPHMDataset):
         self.point = {}
         self.params = {}
         self.vertices = {}
+        self.landmark = {}
+        self.landmark_mask = {}
         self.frame_idx = {}
         self.start_frame = {}
         self.start_frame_idx = {}
@@ -150,6 +152,8 @@ class DPHMTrainDataset(DPHMDataset):
                 self.point[dataset] = self.load(dataset, "point")
                 self.params[dataset] = self.load_params(dataset)
                 self.vertices[dataset] = self.load_roots(dataset, "vertices")
+                self.landmark[dataset] = self.load_roots(dataset, "landmark")
+                self.landmark_mask[dataset] = self.load_roots(dataset, "landmark_mask")
 
             start_frame = self._start_frame
             if start_frame is None:
@@ -196,7 +200,7 @@ class DPHMTrainDataset(DPHMDataset):
         dataset, frame_idx, init_idx = self.fetch_helper(idx)
         if self.memory == "ram":
             mask = self.mask[dataset][frame_idx]
-            face_mask = self.face_mask[dataset][frame_idx]
+            # face_mask = self.face_mask[dataset][frame_idx]
             point = self.point[dataset][frame_idx]
             normal = self.normal[dataset][frame_idx]
             color = self.color[dataset][frame_idx]
@@ -205,9 +209,11 @@ class DPHMTrainDataset(DPHMDataset):
             init_params = self.params[dataset][init_idx]
             init_vertices = self.vertices[dataset][init_idx]
             init_color = self.color[dataset][init_idx]
+            landmark = self.landmark[dataset][frame_idx]
+            landmark_mask = self.landmark_mask[dataset][frame_idx]
         else:
             mask = self.load_cached(dataset, "mask", frame_idx)
-            face_mask = self.load_cached(dataset, "face_mask", frame_idx)
+            # face_mask = self.load_cached(dataset, "face_mask", frame_idx)
             point = self.load_cached(dataset, "point", frame_idx)
             normal = self.load_cached(dataset, "normal", frame_idx)
             color = self.load_cached(dataset, "color", frame_idx)
@@ -216,11 +222,13 @@ class DPHMTrainDataset(DPHMDataset):
             init_params = self.load_param(dataset, init_idx)
             init_vertices = self.load_root(dataset, "vertices", init_idx)
             init_color = self.load_cached(dataset, "color", init_idx)
+            landmark = self.load_root(dataset, "landmark", frame_idx)
+            landmark_mask = self.load_root(dataset, "landmark_mask", frame_idx)
         return {
             "dataset": dataset,
             "frame_idx": frame_idx,
             "mask": mask,
-            "face_mask": face_mask,
+            # "face_mask": face_mask,
             "point": point,
             "normal": normal,
             "color": color,
@@ -230,6 +238,8 @@ class DPHMTrainDataset(DPHMDataset):
             "init_vertices": init_vertices,
             "init_color": init_color,
             "init_frame_idx": frame_idx,
+            "landmark": landmark,
+            "landmark_mask": landmark_mask,
         }
 
 

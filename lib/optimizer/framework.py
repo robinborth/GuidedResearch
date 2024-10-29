@@ -162,6 +162,7 @@ class OptimizerFramework(L.LightningModule):
         point2point = point2point.mean() * 1e03  # from m to mm
 
         vertices_loss = torch.linalg.vector_norm(out["vertices"] - s_vertices, dim=-1)
+        # vertices_loss = ((out["vertices"] - s_vertices)**2).sum(-1)
         vertices_loss = vertices_loss.mean() * 1e03  # from m to mm
 
         return dict(
@@ -175,6 +176,7 @@ class OptimizerFramework(L.LightningModule):
         param_loss = {}
         for p_names, weight in self.hparams["params"].items():
             l1_loss = torch.abs(params[p_names] - gt_params[p_names])
+            # l1_loss = (params[p_names] - gt_params[p_names]) ** 2
             param_loss[f"param_{p_names}"] = l1_loss
             param_loss[f"weighted_param_{p_names}"] = l1_loss * weight
         p = [p.flatten() for k, p in param_loss.items() if k.startswith("param")]
@@ -407,6 +409,9 @@ class NeuralOptimizer(OptimizerFramework):
                     s_point=batch["point"][mask],
                     t_normal=out["normal"][mask],
                     t_point=t_point,
+                    s_landmark=batch["landmark"],
+                    s_landmark_mask=batch["landmark_mask"],
+                    t_landmark=m_out["landmark"],
                     weights=w_out["weights"][mask],
                     reg_priors=r_out["priors"],
                     reg_weights=r_out["weights"],
