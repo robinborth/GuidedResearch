@@ -91,7 +91,8 @@ def main():
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
 	data=kinect \\
-    data.train_dataset.jump_size=4 \\
+    data.train_dataset.jump_size=2 \\
+    data.val_dataset.jump_size=1 \\
     data.scale=4 \\
     weighting.size=512 \\
 	residuals=face2face \\
@@ -99,7 +100,34 @@ def main():
 	framework.lr=1e-04 \\
 	framework.max_iters=2 \\
 	framework.max_optims=1 \\
-	framework.residual_weight=0.05 \\
+	framework.residual_weight=0.0 \\
+	framework.vertices_weight=0.03 \\
+	trainer.max_epochs=500 \\
+	optimizer.step_size={value} \\
+    optimizer.lin_solver._target_=lib.optimizer.solver.PytorchEpsSolver \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    values = [0.3, 0.5, 0.7]
+    prefixs = float_to_scientific(values)
+    group_name = "train_kinect_f2f_lr"
+    template_generator = """
+    python scripts/train.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+	data=kinect \\
+    data.train_dataset.jump_size=2 \\
+    data.val_dataset.jump_size=1 \\
+    data.scale=4 \\
+    weighting.size=512 \\
+	residuals=face2face \\
+	regularize=dummy \\
+	framework.lr=1e-03 \\
+	framework.max_iters=2 \\
+	framework.max_optims=1 \\
+	framework.residual_weight=0.0 \\
 	framework.vertices_weight=0.03 \\
 	trainer.max_epochs=500 \\
 	optimizer.step_size={value} \\
@@ -117,15 +145,43 @@ def main():
     logger.tags=[{group_name},{task_name}] \\
     task_name={task_name} \\
 	data=kinect \\
-    data.train_dataset.jump_size=4 \\
+    data.train_dataset.jump_size=2 \\
+    data.val_dataset.jump_size=1 \\
     data.scale=4 \\
     weighting.size=512 \\
 	residuals=face2face_wo_landmarks \\
 	regularize=dummy \\
-	framework.lr=1e-04 \\
+	framework.lr=1e-03 \\
 	framework.max_iters=2 \\
 	framework.max_optims=1 \\
-	framework.residual_weight=0.05 \\
+	framework.residual_weight=0.0 \\
+	framework.vertices_weight=0.03 \\
+	trainer.max_epochs=500 \\
+	optimizer.step_size={value} \\
+    optimizer.lin_solver._target_=lib.optimizer.solver.PytorchEpsSolver \\
+    """
+    groups.append(build_group(template_generator, values, prefixs, group_name))
+
+    values = [0.3, 0.5, 0.7]
+    prefixs = float_to_scientific(values)
+    group_name = "train_kinect_neural"
+    template_generator = """
+    python scripts/train.py \\
+    logger.group={group_name} \\
+    logger.name={task_name} \\
+    logger.tags=[{group_name},{task_name}] \\
+    task_name={task_name} \\
+	data=kinect \\
+    data.train_dataset.jump_size=2 \\
+    data.val_dataset.jump_size=1 \\
+    data.scale=4 \\
+    weighting.size=512 \\
+	residuals=neural \\
+	regularize=mlp \\
+	framework.lr=1e-03 \\
+	framework.max_iters=2 \\
+	framework.max_optims=1 \\
+	framework.residual_weight=0.0 \\
 	framework.vertices_weight=0.03 \\
 	trainer.max_epochs=500 \\
 	optimizer.step_size={value} \\
