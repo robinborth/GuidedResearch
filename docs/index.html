@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="A novel approach for real-time tracking of parametric head models from monocular RGB-D sequences.">
+  <meta name="keywords" content="Tracking, FLAME, 3DMM">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OptiHead</title>
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+
+    gtag('config', 'G-PYVRSFMDRL');
+  </script>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/icon.png">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
+  </div>
+  <div class="navbar-menu">
+    <div class="navbar-start" style="flex-grow: 1; justify-content: center;">
+      <a class="navbar-item" href="https://robinborth.github.io/OptiHead/">
+      <span class="icon">
+          <i class="fas fa-home"></i>
+      </span>
+      </a>
+
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">
+          More Research
+        </a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="https://github.com/robinborth/VL3DNet">
+            VL3DNet
+          </a>
+          <a class="navbar-item" href="https://github.com/robinborth/Sketch2Shape">
+            Sketch2Shape
+          </a>
+          <a class="navbar-item" href="https://github.com/robinborth/OptiHead">
+            OptiHead
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</nav>
+
+
+<section class="hero">
+  <div class="hero-body" style="padding-bottom: 0; z-index: 2;">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">OptiHead: Learning to Optimize in the Energy Landscape of Parametric Head Models</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://github.com/robinborth">Robin Borth</a>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup>Technical University of Munich</span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <!-- PDF Link. -->
+              <span class="link-block">
+                <a href="./static/report/Guided_Research_Report.pdf"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-pdf"></i>
+                  </span>
+                  <span>Paper</span>
+                </a>
+              </span>
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/robinborth/OptiHead"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                  </a>
+              </span>
+              <!-- Video Link. -->
+              <span class="link-block">
+                <a href="./static/videos/teaser.mp4"
+                    class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-youtube"></i>
+                  </span>
+                  <span>Video</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top: 0; padding-bottom: 0; margin-top: 5%; margin-bottom: 0%; z-index: 1;">
+  <div class="columns is-centered has-text-centered">
+    <div class="column is-four-fifths">
+
+        <video poster="" id="toby" autoplay muted loop playsinline>
+          <source src="./static/videos/teaser.mp4"
+                  type="video/mp4">
+        </video>
+
+    </div>
+  </div>
+</div>
+</section>
+
+
+
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We present a novel approach for real-time tracking of parametric head models from monocular RGB-D sequences.
+            To this end, we propose OptiHead, a fully differentiable neural optimization pipeline capable of interpolating between 
+            regression and optimization by adjusting the energy formulation used for second-order solvers, enabling real-time tracking
+            in just a few iterations. Building on projective ICP to establish correspondences, we incorporate neural weighting of
+            residual terms using large receptive fields and regularize the optimization process with a learned prior that accounts
+            for the uncertainty of these weights. Moreover, our method can be trained end-to-end, which was previously not done for
+            neural optimization pipelines for 3DMM, which is achieved by utilizing mesh rasterization that is capable of forward-mode
+            automatic differentiation, allowing efficient and differentiable computation of the Jacobian matrix used during Gauss-Newton
+            optimization. Our method outperforms ICP for dynamic facial expressions at 21.29 FPS, allowing for real-time applications.
+          </p>
+        </div>
+      </div>
+    </div>
+</section>
+
+<section class="section" style="z-index: 5;">
+  <div class="columns is-centered has-text-centered">
+    <div class="column is-four-fifths">
+      <div class="column is-four-fifths" style="position: relative; margin-left: auto; margin-right: auto;">
+        <img src="./static/images/method_overview.jpg" height="80%"/>
+      </div>
+  </div>
+</div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Method Overview</h2>
+        <div class="content has-text-justified">
+          <p>
+            The OptiHead framework is structured around a few end-to-end differentiable neural optimization iterations. At each iteration, the following steps are executed: (a) the current parameters are input into the flame model and rendered as 2D normal and point maps; (b) these 2D maps are then compared against the source Kinect scan to establish correspondences and residual terms; (c) the scan and renderings are then concatenated and processed through a neural network to predict weightings and priors used during optimization; (d) a Gauss-Newton optimization step is applied, and (e) this process is repeated for N iterations to obtain the final parameters.
+          </p>
+        </div>
+      </div>
+    </div>
+</section>
+
+<section class="section" style="z-index: 5;">
+  <div class="columns is-centered has-text-centered">
+    <div class="column is-four-fifths">
+      <div class="column is-four-fifths" style="position: relative; margin-left: auto; margin-right: auto;">
+        <img src="./static/images/gradient_flow.jpg" height="80%"/>
+      </div>
+  </div>
+</div>
+</section>
+
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Forward-Mode Differentiable Optimization</h2>
+        <div class="content has-text-justified">
+          <p>
+            We develop an efficient mesh rasterizer integrated into a differentiable Gauss-Newton optimizer capable of forward-mode automatic differentiation,
+            allowing efficient computation of Jacobian matrices.
+            The differentiable mesh rasterizer precomputes barycentric coordinates outside the composable
+            function transform in OpenGL and interpolates the vertex attributes in PyTorch inside the function transform,
+            allowing to compute a differentiable Jacobian matrix using automatic differentiation that is used in the
+            neural analysis-through-synthetis optimization. Moreover, utilizing forward-mode 
+            automatic differentiation outperforms backward-mode automatic differentiation in computing the Jacobian matrix.
+            It enables efficient backpropagation through the entire pipeline, allowing for real-time tracking and efficient training.
+          </p>
+        </div>
+      </div>
+    </div>
+</section>
+
+
+<section class="section" style="z-index: 5;">
+  <div class="columns is-centered has-text-centered">
+    <div class="column is-four-fifths">
+      <div class="column is-four-fifths" style="position: relative; margin-left: auto; margin-right: auto;">
+        <img src="./static/images/fwAD_revAD.jpg" height="100%"/>
+        <img src="./static/images/optimization_iterations.jpg" height="100%"/>
+      </div>
+  </div>
+</div>
+</section>
+
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Real-Time RGB-D Tracking</h2>
+        <div class="content has-text-justified">
+          <p>
+            Our method achieves real-time reconstruction of highly dynamic expressions in real-world settings, showing minimal visual differences compared to the tracking results from a sophisticated optimization pipeline.
+          </p>
+        </div>
+      </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+          <video poster="" id="toby" autoplay muted loop playsinline>
+            <source src="./static/videos/results.mp4"
+                    type="video/mp4">
+          </video>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
+
+
+<section class="section" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <h2 class="title">BibTeX</h2>
+    <pre><code>@article{borth2024optihead,
+  author    = {Robin Borth},
+  title     = {OptiHead: Learning to Optimize in the Energy Landscape of Parametric Head Models},
+  year      = {2024},
+}</code></pre>
+  </div>
+</section>
+
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <p>
+        Website inspired by <a href="https://keunhong.com/">Keunhong Park</a>'s <a href="https://nerfies.github.io/">Nerfies website</a>.
+      </p> 
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
